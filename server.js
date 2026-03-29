@@ -83,7 +83,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 function loadData() {
   try { cfg   = { ...cfg,   ...JSON.parse(fs.readFileSync(CFG_FILE,   'utf8')) }; } catch(e) {}
   try { stock = JSON.parse(fs.readFileSync(STOCK_FILE, 'utf8')); }
-  catch(e) { stock = require('./data/stock.json'); }
+  catch(e) { stock = []; }
   try { stats = { ...stats, ...JSON.parse(fs.readFileSync(STATS_FILE, 'utf8')) }; } catch(e) {}
   // Override avec variables d'environnement si définies
   if (process.env.TELEGRAM_TOKEN) cfg.telegramToken = process.env.TELEGRAM_TOKEN;
