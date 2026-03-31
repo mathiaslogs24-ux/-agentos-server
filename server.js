@@ -1,15 +1,16 @@
+
 // ═══════════════════════════════════════════════════════════════
 //  AgentOS — Serveur Backend
-//  Node.js + Express + Telegram Bot + Claude API
+//  Node.js + Express + Telegram Bot + Claude AI + Stars Payments
 //  Déployer sur Railway : railway.app
 // ═══════════════════════════════════════════════════════════════
 
 'use strict';
 
-const express    = require('express');
+const express     = require('express');
 const TelegramBot = require('node-telegram-bot-api');
-const fs         = require('fs');
-const path       = require('path');
+const fs          = require('fs');
+const path        = require('path');
 
 // ── Charger les variables d'environnement depuis .env si présent
 try {
@@ -27,7 +28,7 @@ try {
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── CORS — Autorise le dashboard Netlify
+// ── CORS — Autorise le dashboard
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type, X-Secret');
@@ -41,12 +42,13 @@ app.use(express.json({ limit: '1mb' }));
 // ─────────────────────────────────────────
 //  CONSTANTES
 // ─────────────────────────────────────────
-const DATA_DIR    = path.join(__dirname, 'data');
-const CFG_FILE    = path.join(DATA_DIR, 'config.json');
-const STOCK_FILE  = path.join(DATA_DIR, 'stock.json');
-const STATS_FILE  = path.join(DATA_DIR, 'stats.json');
-const MAX_LOGS    = 500;
-const MAX_HISTORY = 100;
+const DATA_DIR     = path.join(__dirname, 'data');
+const CFG_FILE     = path.join(DATA_DIR, 'config.json');
+const STOCK_FILE   = path.join(DATA_DIR, 'stock.json');
+const STATS_FILE   = path.join(DATA_DIR, 'stats.json');
+const ORDERS_FILE  = path.join(DATA_DIR, 'orders.json');  // ⭐ NOUVEAU
+const MAX_LOGS     = 500;
+const MAX_HISTORY  = 100;
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -66,6 +68,26 @@ let cfg = {
   secret        : process.env.SECRET || 'changeme',
 };
 
+// ⭐ CATALOGUE DES COMMANDES PAYANTES
+// Modifie ici les titres, descriptions et prix (en Stars)
+let shopItems = [
+  {
+    key        : 'premium',
+    title      : '⭐ Accès Premium',
+    description: 'Débloque toutes les fonctionnalités avancées du bot.',
+    price      : 50,
+    payload    : 'shop_premium',
+  },
+  // Ajoute d'autres articles ici si besoin :
+  // {
+  //   key        : 'rapport',
+  //   title      : '📊 Rapport personnalisé',
+  //   description: 'Reçois un rapport détaillé sur mesure.',
+  //   price      : 100,
+  //   payload    : 'shop_rapport',
+  // },
+];
+
 let stock         = [];
 let bot           = null;
 let running       = false;
@@ -74,6 +96,7 @@ let conversations = {};   // userId → [{role, content}]
 let logs          = [];
 let history       = [];
 let stats         = { day: 0, month: 0, msgs: 0, input: 0, output: 0, lastReset: today() };
+let orders        = [];   // ⭐ NOUVEAU — tableau des commandes payées
 
 // ─────────────────────────────────────────
 //  PERSISTANCE
@@ -85,6 +108,8 @@ function loadData() {
   try { stock = JSON.parse(fs.readFileSync(STOCK_FILE, 'utf8')); }
   catch(e) { stock = []; }
   try { stats = { ...stats, ...JSON.parse(fs.readFileSync(STATS_FILE, 'utf8')) }; } catch(e) {}
+  try { orders = JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8')); }  // ⭐ NOUVEAU
+  catch(e) { orders = []; }
   // Override avec variables d'environnement si définies
   if (process.env.TELEGRAM_TOKEN) cfg.telegramToken = process.env.TELEGRAM_TOKEN;
   if (process.env.CLAUDE_KEY)     cfg.claudeKey     = process.env.CLAUDE_KEY;
@@ -94,10 +119,10 @@ function loadData() {
 function saveData() {
   try {
     const safeCfg = { ...cfg };
-    // Ne pas écraser les tokens env sur disque
-    fs.writeFileSync(CFG_FILE,   JSON.stringify(safeCfg, null, 2));
-    fs.writeFileSync(STOCK_FILE, JSON.stringify(stock,   null, 2));
-    fs.writeFileSync(STATS_FILE, JSON.stringify(stats,   null, 2));
+    fs.writeFileSync(CFG_FILE,    JSON.stringify(safeCfg, null, 2));
+    fs.writeFileSync(STOCK_FILE,  JSON.stringify(stock,   null, 2));
+    fs.writeFileSync(STATS_FILE,  JSON.stringify(stats,   null, 2));
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders,  null, 2));  // ⭐ NOUVEAU
   } catch(e) { addLog('err', 'Sauvegarde échouée: ' + e.message); }
 }
 
@@ -166,16 +191,11 @@ function buildSystemPrompt(userName, userId) {
 async function callClaude(userId, userName, userMessage) {
   checkDailyReset();
 
-  // Initialiser la mémoire si besoin
   if (!conversations[userId]) conversations[userId] = [];
-
-  // Ajouter le message utilisateur
   conversations[userId].push({ role: 'user', content: userMessage });
 
-  // Fenêtre de contexte
   const msgs = conversations[userId].slice(-(cfg.contextWindow * 2));
-
-  const t0 = Date.now();
+  const t0   = Date.now();
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method : 'POST',
@@ -207,17 +227,14 @@ async function callClaude(userId, userName, userMessage) {
   const tokOut = data.usage?.output_tokens || 0;
   const total  = tokIn + tokOut;
 
-  // Ajouter la réponse à la mémoire
   conversations[userId].push({ role: 'assistant', content: reply });
 
-  // Mettre à jour les stats
-  stats.day   += total;
-  stats.month += total;
-  stats.msgs  += 1;
-  stats.input += tokIn;
+  stats.day    += total;
+  stats.month  += total;
+  stats.msgs   += 1;
+  stats.input  += tokIn;
   stats.output += tokOut;
 
-  // Ajouter à l'historique
   history.unshift({
     time    : new Date().toLocaleTimeString('fr-FR'),
     userId  : String(userId),
@@ -239,16 +256,16 @@ async function callClaude(userId, userName, userMessage) {
 //  BOT TELEGRAM
 // ─────────────────────────────────────────
 function startBot() {
-  if (running)              return { ok: false, reason: 'Déjà démarré' };
-  if (!cfg.telegramToken)   return { ok: false, reason: 'Token Telegram manquant' };
-  if (!cfg.claudeKey)       return { ok: false, reason: 'Clé Claude manquante' };
+  if (running)            return { ok: false, reason: 'Déjà démarré' };
+  if (!cfg.telegramToken) return { ok: false, reason: 'Token Telegram manquant' };
+  if (!cfg.claudeKey)     return { ok: false, reason: 'Clé Claude manquante' };
 
   try {
-    bot = new TelegramBot(cfg.telegramToken, { polling: true });
+    bot       = new TelegramBot(cfg.telegramToken, { polling: true });
     running   = true;
     startedAt = new Date().toISOString();
 
-    addLog('ok', `Bot démarré · ${cfg.claudeModel}`);
+    addLog('ok',   `Bot démarré · ${cfg.claudeModel}`);
     addLog('info', `Stock: ${stock.length} articles · Prompt: ${cfg.systemPrompt.length} car.`);
 
     // ── Message reçu
@@ -257,27 +274,89 @@ function startBot() {
       const userName = msg.from.username || msg.from.first_name || String(userId);
       const text     = msg.text;
 
+      // ⭐ PAIEMENT CONFIRMÉ — reçu après que l'utilisateur a payé
+      if (msg.successful_payment) {
+        const payment = msg.successful_payment;
+
+        // Enregistrer la commande dans le tableau
+        const order = {
+          id        : Date.now(),
+          date      : new Date().toLocaleString('fr-FR'),
+          userId    : String(userId),
+          userName  : userName,
+          firstName : msg.from.first_name || '',
+          payload   : payment.invoice_payload,
+          stars     : payment.total_amount,
+          chargeId  : payment.telegram_payment_charge_id,
+        };
+        orders.unshift(order);
+        saveData();
+
+        addLog('ok', `⭐ Paiement reçu — @${userName} · ${payment.total_amount} Stars · ${payment.invoice_payload}`);
+
+        // Confirmer à l'utilisateur
+        bot.sendMessage(msg.chat.id,
+          `✅ Merci pour ton paiement de ${payment.total_amount} ⭐ !\n\nTa commande a bien été enregistrée.`
+        );
+        return;
+      }
+
       if (!text) return;
 
-      // Ignorer les commandes système pour l'instant
+      // ── Commande /start
       if (text.startsWith('/start')) {
         bot.sendMessage(msg.chat.id, `👋 Bonjour ${msg.from.first_name || 'là'} ! Comment puis-je vous aider ?`);
         addLog('info', `Nouveau contact: @${userName}`);
         return;
       }
 
-      addLog('info', `@${userName}: ${text.slice(0, 60)}`);
+      // ⭐ COMMANDE /shop — affiche le catalogue et envoie une invoice
+      if (text.startsWith('/shop')) {
+        if (!shopItems.length) {
+          bot.sendMessage(msg.chat.id, '🛍 Aucun article disponible pour le moment.');
+          return;
+        }
 
+        for (const item of shopItems) {
+          try {
+            await bot.sendInvoice(
+              msg.chat.id,
+              item.title,
+              item.description,
+              item.payload,
+              '',          // provider_token vide = Telegram Stars
+              'XTR',       // devise Stars
+              [{ label: item.title, amount: item.price }]
+            );
+          } catch(e) {
+            addLog('err', `Invoice échouée pour ${item.key}: ${e.message}`);
+          }
+        }
+        return;
+      }
+
+      // ── Réponse Claude
+      addLog('info', `@${userName}: ${text.slice(0, 60)}`);
       try {
         await bot.sendChatAction(msg.chat.id, 'typing');
         const reply = await callClaude(userId, userName, text);
         await bot.sendMessage(msg.chat.id, reply, {
-          parse_mode          : 'Markdown',
+          parse_mode              : 'Markdown',
           disable_web_page_preview: true,
         });
       } catch(e) {
         addLog('err', `@${userName}: ${e.message}`);
         bot.sendMessage(msg.chat.id, '⚠️ Une erreur est survenue, veuillez réessayer dans quelques instants.');
+      }
+    });
+
+    // ⭐ VALIDATION AVANT PAIEMENT — Telegram exige une réponse en < 10 secondes
+    bot.on('pre_checkout_query', async (query) => {
+      try {
+        await bot.answerPreCheckoutQuery(query.id, true);
+        addLog('info', `Pre-checkout validé — @${query.from.username || query.from.id} · ${query.invoice_payload}`);
+      } catch(e) {
+        addLog('err', `Pre-checkout échoué: ${e.message}`);
       }
     });
 
@@ -350,7 +429,6 @@ app.get('/status', auth, (req, res) => {
 
 // ── Démarrer le bot
 app.post('/start', auth, (req, res) => {
-  // Mettre à jour les clés si fournies dans la requête
   if (req.body.telegramToken) cfg.telegramToken = req.body.telegramToken;
   if (req.body.claudeKey)     cfg.claudeKey     = req.body.claudeKey;
   saveData();
@@ -366,7 +444,6 @@ app.post('/stop', auth, (req, res) => {
 
 // ── Configuration — lire
 app.get('/config', auth, (req, res) => {
-  // Ne pas renvoyer les clés sensibles
   const { telegramToken, claudeKey, secret, ...safe } = cfg;
   res.json(safe);
 });
@@ -375,7 +452,6 @@ app.get('/config', auth, (req, res) => {
 app.post('/config', auth, (req, res) => {
   const allowed = ['claudeModel','systemPrompt','maxTokens','temperature','contextWindow','stockInject','stockAlerts'];
   allowed.forEach(k => { if (req.body[k] !== undefined) cfg[k] = req.body[k]; });
-  // Accepter aussi les clés sensibles
   if (req.body.telegramToken) cfg.telegramToken = req.body.telegramToken;
   if (req.body.claudeKey)     cfg.claudeKey     = req.body.claudeKey;
   saveData();
@@ -434,6 +510,45 @@ app.post('/stats/reset', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ⭐ COMMANDES STARS — Routes pour le dashboard
+// ── Lire toutes les commandes
+app.get('/orders', auth, (req, res) => {
+  res.json(orders);
+});
+
+// ── Lire le catalogue shop
+app.get('/shop', auth, (req, res) => {
+  res.json(shopItems);
+});
+
+// ── Mettre à jour le catalogue shop
+app.post('/shop', auth, (req, res) => {
+  if (!Array.isArray(req.body)) return res.status(400).json({ error: 'Format invalide, attendu un tableau' });
+  shopItems = req.body;
+  addLog('ok', `Catalogue shop mis à jour · ${shopItems.length} articles`);
+  res.json({ ok: true, count: shopItems.length });
+});
+
+// ── Rembourser une commande
+app.post('/orders/:id/refund', auth, async (req, res) => {
+  const order = orders.find(o => String(o.id) === req.params.id);
+  if (!order) return res.status(404).json({ error: 'Commande introuvable' });
+
+  try {
+    await bot.telegram?.callApi('refundStarPayment', {
+      user_id                    : Number(order.userId),
+      telegram_payment_charge_id : order.chargeId,
+    });
+    orders = orders.filter(o => String(o.id) !== req.params.id);
+    saveData();
+    addLog('ok', `Remboursement effectué — order ${order.id} · @${order.userName}`);
+    res.json({ ok: true });
+  } catch(e) {
+    addLog('err', `Remboursement échoué: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─────────────────────────────────────────
 //  DÉMARRAGE
 // ─────────────────────────────────────────
@@ -445,9 +560,9 @@ app.listen(PORT, () => {
   addLog('info', `Secret: ${cfg.secret === 'changeme' ? '⚠ CHANGEZ LE SECRET !' : '✓ Défini'}`);
   addLog('info', `Telegram: ${cfg.telegramToken ? '✓ Token présent' : '✗ Non configuré'}`);
   addLog('info', `Claude:   ${cfg.claudeKey     ? '✓ Clé présente'  : '✗ Non configurée'}`);
+  addLog('info', `Shop:     ${shopItems.length} article(s) configuré(s)`);
   addLog('info', `═══════════════════════════════`);
 
-  // Démarrage automatique si les clés sont déjà présentes
   if (cfg.telegramToken && cfg.claudeKey) {
     setTimeout(() => startBot(), 1500);
   }
