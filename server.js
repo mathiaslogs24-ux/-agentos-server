@@ -1,11 +1,11 @@
-
 // ═══════════════════════════════════════════════════════════════
 //  AgentOS — Serveur Backend
-//  Node.js + Express + Telegram Bot + Claude AI + Stars Payments
+//  Node.js + Express + Telegram Bot + Claude AI + CryptoBot (@wallet)
 //  Déployer sur Railway : railway.app
 // ═══════════════════════════════════════════════════════════════
 
 'use strict';
+const crypto = require('crypto');
 
 const express     = require('express');
 const TelegramBot = require('node-telegram-bot-api');
@@ -66,16 +66,19 @@ let cfg = {
   stockInject   : true,
   stockAlerts   : true,
   secret        : process.env.SECRET || 'changeme',
+  cryptoBotToken: process.env.CRYPTOBOT_TOKEN || '',
+  botUsername   : process.env.BOT_USERNAME    || '',
 };
 
-// ⭐ CATALOGUE DES COMMANDES PAYANTES
-// Modifie ici les titres, descriptions et prix (en Stars)
+// 💰 CATALOGUE DES ARTICLES PAYANTS
+// Prix en USDT (ex: 5.00 = 5 dollars)
 let shopItems = [
   {
     key        : 'premium',
     title      : '⭐ Accès Premium',
     description: 'Débloque toutes les fonctionnalités avancées du bot.',
-    price      : 50,
+    price      : '5.00',   // en USDT
+    asset      : 'USDT',
     payload    : 'shop_premium',
   },
   // Ajoute d'autres articles ici si besoin :
@@ -114,6 +117,8 @@ function loadData() {
   if (process.env.TELEGRAM_TOKEN) cfg.telegramToken = process.env.TELEGRAM_TOKEN;
   if (process.env.CLAUDE_KEY)     cfg.claudeKey     = process.env.CLAUDE_KEY;
   if (process.env.SECRET)         cfg.secret        = process.env.SECRET;
+  if (process.env.CRYPTOBOT_TOKEN) cfg.cryptoBotToken = process.env.CRYPTOBOT_TOKEN;
+  if (process.env.BOT_USERNAME)    cfg.botUsername    = process.env.BOT_USERNAME;
 }
 
 function saveData() {
@@ -274,32 +279,7 @@ function startBot() {
       const userName = msg.from.username || msg.from.first_name || String(userId);
       const text     = msg.text;
 
-      // ⭐ PAIEMENT CONFIRMÉ — reçu après que l'utilisateur a payé
-      if (msg.successful_payment) {
-        const payment = msg.successful_payment;
-
-        // Enregistrer la commande dans le tableau
-        const order = {
-          id        : Date.now(),
-          date      : new Date().toLocaleString('fr-FR'),
-          userId    : String(userId),
-          userName  : userName,
-          firstName : msg.from.first_name || '',
-          payload   : payment.invoice_payload,
-          stars     : payment.total_amount,
-          chargeId  : payment.telegram_payment_charge_id,
-        };
-        orders.unshift(order);
-        saveData();
-
-        addLog('ok', `⭐ Paiement reçu — @${userName} · ${payment.total_amount} Stars · ${payment.invoice_payload}`);
-
-        // Confirmer à l'utilisateur
-        bot.sendMessage(msg.chat.id,
-          `✅ Merci pour ton paiement de ${payment.total_amount} ⭐ !\n\nTa commande a bien été enregistrée.`
-        );
-        return;
-      }
+      // (paiements gérés via webhook CryptoBot — voir /cryptobot-webhook)
 
       if (!text) return;
 
@@ -310,8 +290,12 @@ function startBot() {
         return;
       }
 
-      // ⭐ COMMANDE /shop — affiche le catalogue et envoie une invoice
+      // 💰 COMMANDE /shop — crée une invoice CryptoBot (@wallet)
       if (text.startsWith('/shop')) {
+        if (!cfg.cryptoBotToken) {
+          bot.sendMessage(msg.chat.id, "⚠️ Paiements non configurés. Contactez l'administrateur.");
+          return;
+        }
         if (!shopItems.length) {
           bot.sendMessage(msg.chat.id, '🛍 Aucun article disponible pour le moment.');
           return;
@@ -319,17 +303,41 @@ function startBot() {
 
         for (const item of shopItems) {
           try {
-            await bot.sendInvoice(
-              msg.chat.id,
-              item.title,
-              item.description,
-              item.payload,
-              '',          // provider_token vide = Telegram Stars
-              'XTR',       // devise Stars
-              [{ label: item.title, amount: item.price }]
+            const res = await fetch('https://pay.crypt.bot/api/createInvoice', {
+              method : 'POST',
+              headers: {
+                'Crypto-Pay-API-Token': cfg.cryptoBotToken,
+                'Content-Type'        : 'application/json',
+              },
+              body: JSON.stringify({
+                currency_type: 'crypto',
+                asset        : item.asset || 'USDT',
+                amount       : String(item.price),
+                description  : item.title,
+                payload      : JSON.stringify({ userId: String(userId), userName, payload: item.payload }),
+                paid_btn_name: 'callback',
+                paid_btn_url : `https://t.me/${cfg.botUsername || 'bot'}`,
+              }),
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error?.name || 'CryptoBot error');
+
+            const invoice = data.result;
+            await bot.sendMessage(msg.chat.id,
+              `💰 *${item.title}*\n${item.description}\n\nMontant : *${item.price} ${item.asset || 'USDT'}*\n\n👇 Clique pour payer depuis ton @wallet :`,
+              {
+                parse_mode  : 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: `💳 Payer ${item.price} ${item.asset || 'USDT'}`, url: invoice.bot_invoice_url }
+                  ]]
+                }
+              }
             );
+            addLog('info', `Invoice créée — @${userName} · ${item.price} ${item.asset||'USDT'} · ${item.payload}`);
           } catch(e) {
-            addLog('err', `Invoice échouée pour ${item.key}: ${e.message}`);
+            addLog('err', `CryptoBot invoice error: ${e.message}`);
+            bot.sendMessage(msg.chat.id, '⚠️ Erreur lors de la création du paiement.');
           }
         }
         return;
@@ -350,15 +358,7 @@ function startBot() {
       }
     });
 
-    // ⭐ VALIDATION AVANT PAIEMENT — Telegram exige une réponse en < 10 secondes
-    bot.on('pre_checkout_query', async (query) => {
-      try {
-        await bot.answerPreCheckoutQuery(query.id, true);
-        addLog('info', `Pre-checkout validé — @${query.from.username || query.from.id} · ${query.invoice_payload}`);
-      } catch(e) {
-        addLog('err', `Pre-checkout échoué: ${e.message}`);
-      }
-    });
+    // (pre_checkout_query non nécessaire avec CryptoBot)
 
     // ── Erreur polling
     bot.on('polling_error', (err) => {
@@ -510,10 +510,124 @@ app.post('/stats/reset', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ⭐ COMMANDES STARS — Routes pour le dashboard
+// 💰 COMMANDES CRYPTOBOT — Routes pour le dashboard
 // ── Lire toutes les commandes
 app.get('/orders', auth, (req, res) => {
   res.json(orders);
+});
+
+// ── Proxy CryptoBot — évite les erreurs CORS du navigateur
+// Le dashboard appelle ces routes, le serveur fait la vraie requête à pay.crypt.bot
+async function cryptoBotCall(method, params = {}) {
+  const token = cfg.cryptoBotToken;
+  if (!token) throw new Error('Token CryptoBot non configuré sur le serveur');
+  const res = await fetch(`https://pay.crypt.bot/api/${method}`, {
+    method : 'POST',
+    headers: { 'Crypto-Pay-API-Token': token, 'Content-Type': 'application/json' },
+    body   : JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error?.name || 'CryptoBot error');
+  return data.result;
+}
+
+// ── Tester la connexion + infos de l'app
+app.get('/wallet/me', auth, async (req, res) => {
+  try {
+    const info = await cryptoBotCall('getMe');
+    res.json({ ok: true, ...info });
+  } catch(e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Soldes
+app.get('/wallet/balance', auth, async (req, res) => {
+  try {
+    const balances = await cryptoBotCall('getBalance');
+    res.json({ ok: true, balances });
+  } catch(e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Transactions reçues
+app.get('/wallet/transactions', auth, async (req, res) => {
+  try {
+    const data = await cryptoBotCall('getInvoices', { status: 'paid', count: 100 });
+    res.json({ ok: true, items: data.items || [] });
+  } catch(e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Sauvegarder le token CryptoBot depuis le dashboard
+app.post('/wallet/token', auth, (req, res) => {
+  if (!req.body.token) return res.status(400).json({ error: 'Token manquant' });
+  cfg.cryptoBotToken = req.body.token;
+  saveData();
+  addLog('ok', 'Token CryptoBot mis à jour depuis le dashboard');
+  res.json({ ok: true });
+});
+
+
+// À enregistrer sur : https://pay.crypt.bot → ton app → Webhooks → ton URL/cryptobot-webhook
+app.post('/cryptobot-webhook', async (req, res) => {
+  try {
+    // Vérifier la signature HMAC
+    const token     = cfg.cryptoBotToken;
+    const secret    = crypto.createHash('sha256').update(token).digest();
+    const signature = crypto
+      .createHmac('sha256', secret)
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+
+    if (signature !== req.headers['crypto-pay-api-signature']) {
+      addLog('warn', 'Webhook CryptoBot — signature invalide');
+      return res.sendStatus(401);
+    }
+
+    if (req.body.update_type === 'invoice_paid') {
+      const invoice = req.body.payload;
+      let userId = '', userName = '', payload = '';
+
+      try {
+        const meta = JSON.parse(invoice.payload || '{}');
+        userId   = meta.userId   || '';
+        userName = meta.userName || '';
+        payload  = meta.payload  || '';
+      } catch(e) {}
+
+      const order = {
+        id       : Date.now(),
+        date     : new Date().toLocaleString('fr-FR'),
+        userId,
+        userName,
+        amount   : invoice.amount,
+        asset    : invoice.asset,
+        payload,
+        invoiceId: invoice.invoice_id,
+      };
+      orders.unshift(order);
+      saveData();
+
+      addLog('ok', `💰 Paiement reçu — @${userName} · ${invoice.amount} ${invoice.asset} · ${payload}`);
+
+      // Notifier l'utilisateur dans Telegram
+      if (userId && bot) {
+        try {
+          await bot.sendMessage(userId,
+            `✅ Paiement confirmé !\n${invoice.amount} ${invoice.asset} reçus.\n\nMerci pour ton achat ! 🙏`
+          );
+        } catch(e) { /* silencieux si l'utilisateur a bloqué le bot */ }
+      }
+    }
+
+    res.sendStatus(200);
+  } catch(e) {
+    addLog('err', 'Webhook CryptoBot: ' + e.message);
+    res.sendStatus(500);
+  }
 });
 
 // ── Lire le catalogue shop
@@ -535,10 +649,14 @@ app.post('/orders/:id/refund', auth, async (req, res) => {
   if (!order) return res.status(404).json({ error: 'Commande introuvable' });
 
   try {
-    await bot.telegram?.callApi('refundStarPayment', {
-      user_id                    : Number(order.userId),
-      telegram_payment_charge_id : order.chargeId,
+    // Remboursement via CryptoBot API
+    const res2 = await fetch('https://pay.crypt.bot/api/deleteInvoice', {
+      method : 'POST',
+      headers: { 'Crypto-Pay-API-Token': cfg.cryptoBotToken, 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ invoice_id: order.invoiceId }),
     });
+    const data = await res2.json();
+    if (!data.ok) throw new Error(data.error?.name || 'CryptoBot refund error');
     orders = orders.filter(o => String(o.id) !== req.params.id);
     saveData();
     addLog('ok', `Remboursement effectué — order ${order.id} · @${order.userName}`);
@@ -560,6 +678,7 @@ app.listen(PORT, () => {
   addLog('info', `Secret: ${cfg.secret === 'changeme' ? '⚠ CHANGEZ LE SECRET !' : '✓ Défini'}`);
   addLog('info', `Telegram: ${cfg.telegramToken ? '✓ Token présent' : '✗ Non configuré'}`);
   addLog('info', `Claude:   ${cfg.claudeKey     ? '✓ Clé présente'  : '✗ Non configurée'}`);
+  addLog('info', `CryptoBot:${cfg.cryptoBotToken ? '✓ Token présent' : '✗ Non configuré'}`);
   addLog('info', `Shop:     ${shopItems.length} article(s) configuré(s)`);
   addLog('info', `═══════════════════════════════`);
 
