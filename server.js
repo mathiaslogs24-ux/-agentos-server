@@ -66,8 +66,11 @@ let cfg = {
   stockInject   : true,
   stockAlerts   : true,
   secret        : process.env.SECRET || 'changeme',
-  cryptoBotToken: process.env.CRYPTOBOT_TOKEN || '',
-  botUsername   : process.env.BOT_USERNAME    || '',
+  cryptoBotToken: process.env.CRYPTOBOT_TOKEN  || '',
+  botUsername   : process.env.BOT_USERNAME     || '',
+  stripeKey     : process.env.STRIPE_SECRET_KEY     || '',
+  stripeWebhook : process.env.STRIPE_WEBHOOK_SECRET || '',
+  stripeSuccess : process.env.STRIPE_SUCCESS_URL    || '',
 };
 
 // 💰 CATALOGUE DES ARTICLES PAYANTS
@@ -114,11 +117,13 @@ function loadData() {
   try { orders = JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8')); }  // ⭐ NOUVEAU
   catch(e) { orders = []; }
   // Override avec variables d'environnement si définies
-  if (process.env.TELEGRAM_TOKEN) cfg.telegramToken = process.env.TELEGRAM_TOKEN;
-  if (process.env.CLAUDE_KEY)     cfg.claudeKey     = process.env.CLAUDE_KEY;
-  if (process.env.SECRET)         cfg.secret        = process.env.SECRET;
-  if (process.env.CRYPTOBOT_TOKEN) cfg.cryptoBotToken = process.env.CRYPTOBOT_TOKEN;
-  if (process.env.BOT_USERNAME)    cfg.botUsername    = process.env.BOT_USERNAME;
+  if (process.env.TELEGRAM_TOKEN)        cfg.telegramToken = process.env.TELEGRAM_TOKEN;
+  if (process.env.CLAUDE_KEY)            cfg.claudeKey     = process.env.CLAUDE_KEY;
+  if (process.env.SECRET)               cfg.secret        = process.env.SECRET;
+  if (process.env.CRYPTOBOT_TOKEN)      cfg.cryptoBotToken = process.env.CRYPTOBOT_TOKEN;
+  if (process.env.BOT_USERNAME)         cfg.botUsername    = process.env.BOT_USERNAME;
+  if (process.env.STRIPE_SECRET_KEY)    cfg.stripeKey      = process.env.STRIPE_SECRET_KEY;
+  if (process.env.STRIPE_WEBHOOK_SECRET) cfg.stripeWebhook = process.env.STRIPE_WEBHOOK_SECRET;
 }
 
 function saveData() {
@@ -290,9 +295,9 @@ function startBot() {
         return;
       }
 
-      // 💰 COMMANDE /shop — crée une invoice CryptoBot (@wallet)
+      // 💳 COMMANDE /shop — crée une session Stripe Checkout
       if (text.startsWith('/shop')) {
-        if (!cfg.cryptoBotToken) {
+        if (!cfg.stripeKey) {
           bot.sendMessage(msg.chat.id, "⚠️ Paiements non configurés. Contactez l'administrateur.");
           return;
         }
@@ -303,40 +308,51 @@ function startBot() {
 
         for (const item of shopItems) {
           try {
-            const res = await fetch('https://pay.crypt.bot/api/createInvoice', {
+            // Créer une session Stripe Checkout
+            const priceInCents = Math.round(parseFloat(item.price) * 100);
+            const serverUrl = `https://agentos-server-production-a5b4.up.railway.app`;
+
+            const params = new URLSearchParams();
+            params.append('payment_method_types[]', 'card');
+            params.append('line_items[0][price_data][currency]', 'eur');
+            params.append('line_items[0][price_data][product_data][name]', item.title);
+            params.append('line_items[0][price_data][product_data][description]', item.description);
+            params.append('line_items[0][price_data][unit_amount]', priceInCents);
+            params.append('line_items[0][quantity]', '1');
+            params.append('mode', 'payment');
+            params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
+            params.append('cancel_url',  `${serverUrl}/payment-cancel`);
+            params.append('metadata[userId]',   String(userId));
+            params.append('metadata[userName]', userName);
+            params.append('metadata[payload]',  item.payload);
+            params.append('metadata[itemTitle]', item.title);
+
+            const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
               method : 'POST',
               headers: {
-                'Crypto-Pay-API-Token': cfg.cryptoBotToken,
-                'Content-Type'        : 'application/json',
+                'Authorization': `Bearer ${cfg.stripeKey}`,
+                'Content-Type' : 'application/x-www-form-urlencoded',
               },
-              body: JSON.stringify({
-                currency_type: 'crypto',
-                asset        : item.asset || 'USDT',
-                amount       : String(item.price),
-                description  : item.title,
-                payload      : JSON.stringify({ userId: String(userId), userName, payload: item.payload }),
-                paid_btn_name: 'callback',
-                paid_btn_url : `https://t.me/${cfg.botUsername || 'bot'}`,
-              }),
+              body: params,
             });
-            const data = await res.json();
-            if (!data.ok) throw new Error(data.error?.name || 'CryptoBot error');
 
-            const invoice = data.result;
+            const session = await res.json();
+            if (session.error) throw new Error(session.error.message);
+
             await bot.sendMessage(msg.chat.id,
-              `💰 *${item.title}*\n${item.description}\n\nMontant : *${item.price} ${item.asset || 'USDT'}*\n\n👇 Clique pour payer depuis ton @wallet :`,
+              `🛍 *${item.title}*\n${item.description}\n\n💶 Prix : *${item.price} €*\n\n👇 Clique pour payer par carte :`,
               {
                 parse_mode  : 'Markdown',
                 reply_markup: {
                   inline_keyboard: [[
-                    { text: `💳 Payer ${item.price} ${item.asset || 'USDT'}`, url: invoice.bot_invoice_url }
+                    { text: `💳 Payer ${item.price} €`, url: session.url }
                   ]]
                 }
               }
             );
-            addLog('info', `Invoice créée — @${userName} · ${item.price} ${item.asset||'USDT'} · ${item.payload}`);
+            addLog('info', `Stripe session créée — @${userName} · ${item.price}€ · ${item.payload}`);
           } catch(e) {
-            addLog('err', `CryptoBot invoice error: ${e.message}`);
+            addLog('err', `Stripe error: ${e.message}`);
             bot.sendMessage(msg.chat.id, '⚠️ Erreur lors de la création du paiement.');
           }
         }
@@ -571,6 +587,118 @@ app.post('/wallet/token', auth, (req, res) => {
 });
 
 
+// ── Stripe webhook — reçoit la confirmation de paiement
+// Stripe envoie les données en raw body — on doit parser avant express.json()
+app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  if (!sig || !cfg.stripeWebhook) return res.sendStatus(400);
+
+  // Vérifier la signature Stripe
+  let event;
+  try {
+    // Vérification manuelle HMAC sans lib Stripe
+    const payload   = req.body.toString();
+    const parts     = sig.split(',').reduce((acc, p) => {
+      const [k, v] = p.split('='); acc[k] = v; return acc;
+    }, {});
+    const timestamp = parts.t;
+    const hmac      = require('crypto')
+      .createHmac('sha256', cfg.stripeWebhook)
+      .update(`${timestamp}.${payload}`)
+      .digest('hex');
+
+    if (hmac !== parts.v1) {
+      addLog('warn', 'Stripe webhook — signature invalide');
+      return res.sendStatus(400);
+    }
+    event = JSON.parse(payload);
+  } catch(e) {
+    addLog('err', 'Stripe webhook parse error: ' + e.message);
+    return res.sendStatus(400);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session  = event.data.object;
+    const meta     = session.metadata || {};
+    const userId   = meta.userId   || '';
+    const userName = meta.userName || '';
+    const payload  = meta.payload  || '';
+    const title    = meta.itemTitle || payload;
+    const amount   = (session.amount_total / 100).toFixed(2);
+
+    // Enregistrer la commande
+    const order = {
+      id       : Date.now(),
+      date     : new Date().toLocaleString('fr-FR'),
+      userId,
+      userName,
+      amount,
+      asset    : 'EUR',
+      payload,
+      invoiceId: session.id,
+      provider : 'stripe',
+    };
+    orders.unshift(order);
+
+    // Déduire du stock automatiquement
+    const soldItem = shopItems.find(i => i.payload === payload);
+    if (soldItem) {
+      const stockItem = stock.find(s =>
+        s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/g,'').trim().toLowerCase())
+      );
+      if (stockItem && stockItem.qty > 0) {
+        stockItem.qty -= 1;
+        addLog('info', `📦 Stock — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty}`);
+        if (stockItem.qty === 0) addLog('warn', `🚨 RUPTURE — ${stockItem.name} épuisé`);
+      }
+    }
+
+    saveData();
+    addLog('ok', `💳 Stripe — @${userName} (${userId}) · ${amount}€ · ${payload}`);
+
+    // Notifier le client dans Telegram
+    if (userId && bot) {
+      try {
+        await bot.sendMessage(userId,
+          `✅ Paiement confirmé !\n\n🛍 *${title}*\n💶 ${amount} € réglés par carte.\n\nMerci pour ton achat ! 🙏`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch(e) {}
+    }
+  }
+
+  res.sendStatus(200);
+});
+
+// ── Page succès après paiement Stripe
+app.get('/payment-success', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Paiement réussi</title>
+  <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}
+  .box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04);}
+  .icon{font-size:64px;margin-bottom:16px;} h1{color:#4ade80;margin-bottom:8px;} p{color:#8899b0;font-size:14px;}</style>
+  </head><body><div class="box">
+  <div class="icon">✅</div>
+  <h1>Paiement réussi !</h1>
+  <p>Ton achat a été confirmé.<br>Retourne dans Telegram pour voir la confirmation.</p>
+  </div></body></html>`);
+});
+
+// ── Page annulation
+app.get('/payment-cancel', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Paiement annulé</title>
+  <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}
+  .box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04);}
+  .icon{font-size:64px;margin-bottom:16px;} h1{color:#f87171;margin-bottom:8px;} p{color:#8899b0;font-size:14px;}</style>
+  </head><body><div class="box">
+  <div class="icon">❌</div>
+  <h1>Paiement annulé</h1>
+  <p>Tu peux retourner dans Telegram et réessayer.</p>
+  </div></body></html>`);
+});
+
+
 // À enregistrer sur : https://pay.crypt.bot → ton app → Webhooks → ton URL/cryptobot-webhook
 app.post('/cryptobot-webhook', async (req, res) => {
   try {
@@ -609,9 +737,35 @@ app.post('/cryptobot-webhook', async (req, res) => {
         invoiceId: invoice.invoice_id,
       };
       orders.unshift(order);
-      saveData();
 
-      addLog('ok', `💰 Paiement reçu — @${userName} · ${invoice.amount} ${invoice.asset} · ${payload}`);
+      // ── Déduire automatiquement du stock
+      // Cherche l'article dans shopItems par payload
+      const soldItem = shopItems.find(i => i.payload === payload);
+      if (soldItem) {
+        // Cherche l'article correspondant dans le stock par nom
+        const stockItem = stock.find(s =>
+          s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/g,'').trim().toLowerCase()) ||
+          soldItem.payload.includes(s.ref?.toLowerCase() || '')
+        );
+        if (stockItem && stockItem.qty > 0) {
+          stockItem.qty -= 1;
+          addLog('info', `📦 Stock mis à jour — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty}`);
+          // Alerte si stock bas
+          if (stockItem.qty <= (stockItem.alert || 5)) {
+            addLog('warn', `⚠ Stock bas — ${stockItem.name} : ${stockItem.qty} restant(s)`);
+          }
+          if (stockItem.qty === 0) {
+            addLog('warn', `🚨 RUPTURE — ${stockItem.name} est épuisé`);
+            // Notifier l'admin si bot actif
+            if (bot && cfg.tgChatId) {
+              try { bot.sendMessage(cfg.tgChatId, `🚨 RUPTURE DE STOCK\n${stockItem.name} est épuisé !`); } catch(e) {}
+            }
+          }
+        }
+      }
+
+      saveData();
+      addLog('ok', `💰 Paiement reçu — @${userName} (${userId}) · ${invoice.amount} ${invoice.asset} · ${payload}`);
 
       // Notifier l'utilisateur dans Telegram
       if (userId && bot) {
