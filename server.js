@@ -290,7 +290,17 @@ function startBot() {
 
       // ── Commande /start
       if (text.startsWith('/start')) {
-        bot.sendMessage(msg.chat.id, `👋 Bonjour ${msg.from.first_name || 'là'} ! Comment puis-je vous aider ?`);
+        const shopUrl = `https://agentos-server-production-a5b4.up.railway.app/shop-app`;
+        bot.sendMessage(msg.chat.id,
+          `👋 Bonjour ${msg.from.first_name || ''} !\n\nBienvenue dans notre shop 🛍\nClique sur le bouton pour voir nos articles.`,
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '🛍 Ouvrir le Shop', web_app: { url: shopUrl } }
+              ]]
+            }
+          }
+        );
         addLog('info', `Nouveau contact: @${userName}`);
         return;
       }
@@ -640,16 +650,33 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
     };
     orders.unshift(order);
 
-    // Déduire du stock automatiquement
-    const soldItem = shopItems.find(i => i.payload === payload);
-    if (soldItem) {
+    // Déduire du stock automatiquement — gère les paniers multiples (payload1,payload2,...)
+    const payloads = payload.split(',').map(p => p.trim()).filter(Boolean);
+    for (const p of payloads) {
+      // Cherche l'article dans shopItems par payload exact
+      const soldItem = shopItems.find(i => i.payload === p);
+      if (!soldItem) {
+        addLog('warn', `📦 Article introuvable dans shop: ${p}`);
+        continue;
+      }
+      // Cherche dans le stock par stockId (le plus fiable) ou par nom
       const stockItem = stock.find(s =>
-        s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/g,'').trim().toLowerCase())
+        s.id === soldItem.stockId ||
+        s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/gi,'').trim().toLowerCase().split(' ')[0])
       );
       if (stockItem && stockItem.qty > 0) {
         stockItem.qty -= 1;
         addLog('info', `📦 Stock — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty}`);
-        if (stockItem.qty === 0) addLog('warn', `🚨 RUPTURE — ${stockItem.name} épuisé`);
+        if (stockItem.qty === 0) {
+          addLog('warn', `🚨 RUPTURE — ${stockItem.name} épuisé`);
+          if (bot && cfg.tgChatId) {
+            try { bot.sendMessage(cfg.tgChatId, `🚨 RUPTURE\n${stockItem.name} est épuisé !`); } catch(e) {}
+          }
+        } else if (stockItem.qty <= (stockItem.alert || 5)) {
+          addLog('warn', `⚠ Stock bas — ${stockItem.name} : ${stockItem.qty} restant(s)`);
+        }
+      } else if (stockItem && stockItem.qty === 0) {
+        addLog('warn', `⚠ Stock déjà à 0 pour ${stockItem.name}`);
       }
     }
 
@@ -671,6 +698,60 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
 });
 
 // ── Page succès après paiement Stripe
+// ── Mini App — servir le fichier shop.html
+app.get('/shop-app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'shop.html'));
+});
+
+// ── Mini App — catalogue public (sans auth)
+app.get('/shop-public', (req, res) => {
+  res.json(shopItems);
+});
+
+// ── Mini App — créer une session Stripe depuis le panier
+app.post('/shop-checkout', async (req, res) => {
+  const { cart, userId, userName } = req.body;
+  if (!cart || !cart.length) return res.status(400).json({ error: 'Panier vide' });
+  if (!cfg.stripeKey) return res.status(400).json({ error: 'Stripe non configuré' });
+
+  try {
+    const serverUrl = `https://agentos-server-production-a5b4.up.railway.app`;
+    const params    = new URLSearchParams();
+
+    params.append('payment_method_types[]', 'card');
+    params.append('mode', 'payment');
+    params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
+    params.append('cancel_url',  `${serverUrl}/payment-cancel`);
+    params.append('metadata[userId]',   userId   || '');
+    params.append('metadata[userName]', userName || '');
+    params.append('metadata[payload]',  cart.map(i => i.payload).join(','));
+    params.append('metadata[itemTitle]', cart.map(i => i.title).join(', '));
+
+    cart.forEach((item, idx) => {
+      const cents = Math.round(parseFloat(item.price) * 100);
+      params.append(`line_items[${idx}][price_data][currency]`, 'eur');
+      params.append(`line_items[${idx}][price_data][product_data][name]`, item.title);
+      params.append(`line_items[${idx}][price_data][product_data][description]`, item.description || '');
+      params.append(`line_items[${idx}][price_data][unit_amount]`, cents);
+      params.append(`line_items[${idx}][quantity]`, '1');
+    });
+
+    const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method : 'POST',
+      headers: { 'Authorization': `Bearer ${cfg.stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body   : params,
+    });
+    const session = await stripeRes.json();
+    if (session.error) throw new Error(session.error.message);
+
+    addLog('info', `Mini App checkout — @${userName} · ${cart.length} article(s)`);
+    res.json({ url: session.url });
+  } catch(e) {
+    addLog('err', 'Mini App checkout: ' + e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/payment-success', (req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Paiement réussi</title>
