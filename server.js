@@ -332,6 +332,15 @@ function startBot() {
             params.append('mode', 'payment');
             params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
             params.append('cancel_url',  `${serverUrl}/payment-cancel`);
+
+            // ── Collecter les infos de livraison du client
+            params.append('shipping_address_collection[allowed_countries][]', 'FR');
+            params.append('shipping_address_collection[allowed_countries][]', 'BE');
+            params.append('shipping_address_collection[allowed_countries][]', 'CH');
+            params.append('shipping_address_collection[allowed_countries][]', 'LU');
+            params.append('shipping_address_collection[allowed_countries][]', 'CA');
+            params.append('phone_number_collection[enabled]', 'true');
+
             params.append('metadata[userId]',   String(userId));
             params.append('metadata[userName]', userName);
             params.append('metadata[payload]',  item.payload);
