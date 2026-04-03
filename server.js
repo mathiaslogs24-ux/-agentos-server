@@ -636,7 +636,22 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
     const title    = meta.itemTitle || payload;
     const amount   = (session.amount_total / 100).toFixed(2);
 
-    // Enregistrer la commande
+    // ── Infos client collectées par Stripe
+    const customer = session.customer_details || {};
+    const shipping = session.shipping_details || {};
+    const addr     = shipping.address || {};
+
+    const clientInfo = {
+      name    : shipping.name || customer.name || '',
+      email   : customer.email || '',
+      phone   : customer.phone || '',
+      address : [addr.line1, addr.line2].filter(Boolean).join(', '),
+      city    : addr.city || '',
+      postal  : addr.postal_code || '',
+      country : addr.country || '',
+    };
+
+    // Enregistrer la commande avec les infos client
     const order = {
       id       : Date.now(),
       date     : new Date().toLocaleString('fr-FR'),
@@ -647,6 +662,7 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
       payload,
       invoiceId: session.id,
       provider : 'stripe',
+      client   : clientInfo,
     };
     orders.unshift(order);
 
@@ -681,7 +697,7 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
     }
 
     saveData();
-    addLog('ok', `💳 Stripe — @${userName} (${userId}) · ${amount}€ · ${payload}`);
+    addLog('ok', `💳 Stripe — @${userName} · ${amount}€ · ${payload} · 📦 ${clientInfo.name || 'N/A'} · ${clientInfo.city || 'N/A'}`);
 
     // Notifier le client dans Telegram
     if (userId && bot) {
@@ -722,6 +738,15 @@ app.post('/shop-checkout', async (req, res) => {
     params.append('mode', 'payment');
     params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
     params.append('cancel_url',  `${serverUrl}/payment-cancel`);
+
+    // ── Collecter les infos de livraison du client
+    params.append('shipping_address_collection[allowed_countries][]', 'FR');
+    params.append('shipping_address_collection[allowed_countries][]', 'BE');
+    params.append('shipping_address_collection[allowed_countries][]', 'CH');
+    params.append('shipping_address_collection[allowed_countries][]', 'LU');
+    params.append('shipping_address_collection[allowed_countries][]', 'CA');
+    params.append('phone_number_collection[enabled]', 'true');
+
     params.append('metadata[userId]',   userId   || '');
     params.append('metadata[userName]', userName || '');
     params.append('metadata[payload]',  cart.map(i => i.payload).join(','));
