@@ -346,6 +346,10 @@ function startBot() {
             params.append('metadata[payload]',  item.payload);
             params.append('metadata[itemTitle]', item.title);
 
+            // ── Nom de l'article depuis le stock
+            const linkedStock = stock.find(s => s.id === item.stockId);
+            params.append('metadata[stockName]', linkedStock ? linkedStock.name : item.title);
+
             const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
               method : 'POST',
               headers: {
@@ -643,6 +647,7 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
     const userName = meta.userName || '';
     const payload  = meta.payload  || '';
     const title    = meta.itemTitle || payload;
+    const stockName = meta.stockName || title;
     const amount   = (session.amount_total / 100).toFixed(2);
 
     // ── Infos client collectées par Stripe
@@ -669,6 +674,7 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
       amount,
       asset    : 'EUR',
       payload,
+      stockName,
       invoiceId: session.id,
       provider : 'stripe',
       client   : clientInfo,
@@ -760,6 +766,13 @@ app.post('/shop-checkout', async (req, res) => {
     params.append('metadata[userName]', userName || '');
     params.append('metadata[payload]',  cart.map(i => i.payload).join(','));
     params.append('metadata[itemTitle]', cart.map(i => i.title).join(', '));
+
+    // ── Noms des articles depuis le stock
+    const stockNames = cart.map(i => {
+      const linkedStock = stock.find(s => s.id === i.stockId);
+      return linkedStock ? linkedStock.name : i.title;
+    });
+    params.append('metadata[stockName]', stockNames.join(', '));
 
     cart.forEach((item, idx) => {
       const cents = Math.round(parseFloat(item.price) * 100);
