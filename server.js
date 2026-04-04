@@ -37,15 +37,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── JSON parser — sauvegarde le body brut pour le webhook Stripe
-app.use(express.json({
-  limit: '1mb',
-  verify: (req, res, buf) => {
-    if (req.url === '/stripe-webhook') {
-      req.rawBody = buf;
-    }
-  }
-}));
+app.use(express.json({ limit: '1mb' }));
 
 // ─────────────────────────────────────────
 //  CONSTANTES
@@ -620,51 +612,20 @@ app.post('/wallet/token', auth, (req, res) => {
 
 // ── Stripe webhook — reçoit la confirmation de paiement
 app.post('/stripe-webhook', async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  if (!sig || !cfg.stripeWebhook) {
-    addLog('warn', `Stripe webhook — manquant: sig=${!!sig} secret=${!!cfg.stripeWebhook}`);
-    return res.sendStatus(400);
-  }
-
-  // Vérifier la signature Stripe
   let event;
   try {
-    // Utiliser rawBody si dispo, sinon essayer req.body
-    let payload;
-    if (req.rawBody) {
-      payload = req.rawBody.toString('utf8');
-    } else if (Buffer.isBuffer(req.body)) {
-      payload = req.body.toString('utf8');
-    } else if (typeof req.body === 'string') {
-      payload = req.body;
-    } else {
-      payload = JSON.stringify(req.body);
-    }
-
-    const parts = {};
-    sig.split(',').forEach(p => {
-      const idx = p.indexOf('=');
-      if (idx > -1) parts[p.slice(0, idx).trim()] = p.slice(idx + 1);
-    });
-    const timestamp = parts.t;
-
-    const hmac = require('crypto')
-      .createHmac('sha256', cfg.stripeWebhook)
-      .update(`${timestamp}.${payload}`)
-      .digest('hex');
-
-    addLog('info', `Stripe debug — rawBody=${!!req.rawBody} bodyType=${typeof req.body} isBuffer=${Buffer.isBuffer(req.body)} payloadLen=${payload.length}`);
-    addLog('info', `Stripe debug — hmac=${hmac.slice(0,12)}... v1=${(parts.v1||'').slice(0,12)}...`);
-
-    if (hmac !== parts.v1) {
-      addLog('warn', 'Stripe webhook — signature invalide');
+    // req.body est déjà parsé par express.json()
+    event = req.body;
+    if (!event || !event.type) {
+      addLog('warn', 'Stripe webhook — body invalide');
       return res.sendStatus(400);
     }
-    event = JSON.parse(payload);
   } catch(e) {
     addLog('err', 'Stripe webhook parse error: ' + e.message);
     return res.sendStatus(400);
   }
+
+  addLog('info', `Stripe webhook reçu — ${event.type}`);
 
   if (event.type === 'checkout.session.completed') {
     const session  = event.data.object;
