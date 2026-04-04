@@ -645,9 +645,6 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
     const meta     = session.metadata || {};
     const userId   = meta.userId   || '';
     const userName = meta.userName || '';
-    const payload  = meta.payload  || '';
-    const title    = meta.itemTitle || payload;
-    const stockName = meta.stockName || title;
     const amount   = (session.amount_total / 100).toFixed(2);
 
     // ── Infos client collectées par Stripe
@@ -665,6 +662,22 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
       country : addr.country || '',
     };
 
+    // ── Récupérer les noms des produits via l'API Stripe (fiable, pas de metadata)
+    let productNames = [];
+    try {
+      const liRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${session.id}/line_items`, {
+        headers: { 'Authorization': `Bearer ${cfg.stripeKey}` },
+      });
+      const liData = await liRes.json();
+      if (liData.data && liData.data.length) {
+        productNames = liData.data.map(li => li.description || '');
+      }
+    } catch(e) {
+      addLog('err', 'Stripe line_items fetch: ' + e.message);
+    }
+
+    const stockName = productNames.join(', ') || meta.stockName || meta.itemTitle || session.id;
+
     // Enregistrer la commande avec les infos client
     const order = {
       id       : Date.now(),
@@ -673,7 +686,6 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
       userName,
       amount,
       asset    : 'EUR',
-      payload,
       stockName,
       invoiceId: session.id,
       provider : 'stripe',
@@ -681,20 +693,18 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
     };
     orders.unshift(order);
 
-    // Déduire du stock automatiquement — gère les paniers multiples (payload1,payload2,...)
-    const payloads = payload.split(',').map(p => p.trim()).filter(Boolean);
-    for (const p of payloads) {
-      // Cherche l'article dans shopItems par payload exact
-      const soldItem = shopItems.find(i => i.payload === p);
-      if (!soldItem) {
-        addLog('warn', `📦 Article introuvable dans shop: ${p}`);
-        continue;
-      }
-      // Cherche dans le stock par stockId (le plus fiable) ou par nom
+    // ── Déduire du stock automatiquement par nom de produit
+    for (const productName of productNames) {
+      if (!productName) continue;
+      const pLower = productName.replace(/[^\w\s]/gi, '').trim().toLowerCase();
+
+      // Cherche dans le stock par nom (correspondance partielle)
       const stockItem = stock.find(s =>
-        s.id === soldItem.stockId ||
-        s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/gi,'').trim().toLowerCase().split(' ')[0])
+        s.name.toLowerCase().includes(pLower) ||
+        pLower.includes(s.name.toLowerCase()) ||
+        s.name.toLowerCase().includes(pLower.split(' ')[0])
       );
+
       if (stockItem && stockItem.qty > 0) {
         stockItem.qty -= 1;
         addLog('info', `📦 Stock — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty}`);
@@ -708,17 +718,19 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
         }
       } else if (stockItem && stockItem.qty === 0) {
         addLog('warn', `⚠ Stock déjà à 0 pour ${stockItem.name}`);
+      } else {
+        addLog('warn', `📦 Produit "${productName}" non trouvé dans le stock`);
       }
     }
 
     saveData();
-    addLog('ok', `💳 Stripe — @${userName} · ${amount}€ · ${payload} · 📦 ${clientInfo.name || 'N/A'} · ${clientInfo.city || 'N/A'}`);
+    addLog('ok', `💳 Stripe — @${userName} · ${amount}€ · ${stockName} · 📦 ${clientInfo.name || 'N/A'} · ${clientInfo.city || 'N/A'}`);
 
     // Notifier le client dans Telegram
     if (userId && bot) {
       try {
         await bot.sendMessage(userId,
-          `✅ Paiement confirmé !\n\n🛍 *${title}*\n💶 ${amount} € réglés par carte.\n\nMerci pour ton achat ! 🙏`,
+          `✅ Paiement confirmé !\n\n🛍 *${stockName}*\n💶 ${amount} € réglés par carte.\n\nMerci pour ton achat ! 🙏`,
           { parse_mode: 'Markdown' }
         );
       } catch(e) {}
