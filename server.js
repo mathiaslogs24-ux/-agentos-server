@@ -37,7 +37,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '1mb' }));
+// ── JSON parser — sauf pour le webhook Stripe qui a besoin du body brut
+app.use((req, res, next) => {
+  if (req.path === '/stripe-webhook') return next();
+  express.json({ limit: '1mb' })(req, res, next);
+});
 
 // ─────────────────────────────────────────
 //  CONSTANTES
