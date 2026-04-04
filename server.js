@@ -681,16 +681,30 @@ app.post('/stripe-webhook', async (req, res) => {
     orders.unshift(order);
 
     // ── Déduire du stock automatiquement par nom de produit
+    addLog('info', `Produits Stripe: [${productNames.join(', ')}]`);
+    addLog('info', `Stock serveur: [${stock.map(s => s.name + '(' + s.qty + ')').join(', ')}]`);
+    addLog('info', `Shop items: [${shopItems.map(si => si.title).join(', ')}]`);
+
     for (const productName of productNames) {
       if (!productName) continue;
       const pLower = productName.replace(/[^\w\s]/gi, '').trim().toLowerCase();
 
-      // Cherche dans le stock par nom (correspondance partielle)
-      const stockItem = stock.find(s =>
-        s.name.toLowerCase().includes(pLower) ||
-        pLower.includes(s.name.toLowerCase()) ||
-        s.name.toLowerCase().includes(pLower.split(' ')[0])
-      );
+      // 1. Cherche dans le stock par nom direct
+      let stockItem = stock.find(s => {
+        const sLower = s.name.replace(/[^\w\s]/gi, '').trim().toLowerCase();
+        return sLower === pLower || sLower.includes(pLower) || pLower.includes(sLower);
+      });
+
+      // 2. Si pas trouvé, passer par shopItems → stockId
+      if (!stockItem) {
+        const shopItem = shopItems.find(si => {
+          const siLower = si.title.replace(/[^\w\s]/gi, '').trim().toLowerCase();
+          return siLower === pLower || siLower.includes(pLower) || pLower.includes(siLower);
+        });
+        if (shopItem && shopItem.stockId) {
+          stockItem = stock.find(s => String(s.id) === String(shopItem.stockId));
+        }
+      }
 
       if (stockItem && stockItem.qty > 0) {
         stockItem.qty -= 1;
@@ -706,7 +720,7 @@ app.post('/stripe-webhook', async (req, res) => {
       } else if (stockItem && stockItem.qty === 0) {
         addLog('warn', `⚠ Stock déjà à 0 pour ${stockItem.name}`);
       } else {
-        addLog('warn', `📦 Produit "${productName}" non trouvé dans le stock`);
+        addLog('warn', `📦 Produit "${productName}" (nettoyé: "${pLower}") non trouvé dans le stock`);
       }
     }
 
