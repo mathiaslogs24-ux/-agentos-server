@@ -549,6 +549,42 @@ app.post('/stats/reset', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Déduire du stock depuis Apps Script
+app.post('/stock-deduct', (req, res) => {
+  const { secret, productName } = req.body;
+  if (secret !== cfg.secret) return res.status(401).json({ error: 'Secret invalide' });
+  if (!productName) return res.status(400).json({ error: 'productName manquant' });
+
+  const pLower = productName.replace(/[^\w\s]/gi, '').trim().toLowerCase();
+
+  const stockItem = stock.find(s => {
+    const sLower = s.name.replace(/[^\w\s]/gi, '').trim().toLowerCase();
+    return sLower === pLower || sLower.includes(pLower) || pLower.includes(sLower);
+  });
+
+  if (!stockItem) {
+    addLog('warn', `📦 stock-deduct: "${productName}" non trouvé`);
+    return res.json({ ok: false, error: 'Produit non trouvé', stock: stock.map(s => s.name) });
+  }
+
+  if (stockItem.qty <= 0) {
+    addLog('warn', `⚠ stock-deduct: ${stockItem.name} déjà à 0`);
+    return res.json({ ok: false, error: 'Stock à 0' });
+  }
+
+  stockItem.qty -= 1;
+  saveData();
+  addLog('info', `📦 Stock — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty} (via Apps Script)`);
+
+  if (stockItem.qty === 0) {
+    addLog('warn', `🚨 RUPTURE — ${stockItem.name} épuisé`);
+  } else if (stockItem.qty <= (stockItem.alert || 5)) {
+    addLog('warn', `⚠ Stock bas — ${stockItem.name} : ${stockItem.qty} restant(s)`);
+  }
+
+  res.json({ ok: true, name: stockItem.name, remaining: stockItem.qty });
+});
+
 // 💰 COMMANDES CRYPTOBOT — Routes pour le dashboard
 // ── Lire toutes les commandes
 app.get('/orders', auth, (req, res) => {
