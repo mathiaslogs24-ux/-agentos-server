@@ -316,7 +316,19 @@ function startBot() {
           return;
         }
 
-        for (const item of shopItems) {
+        // Filtrer les articles en rupture de stock
+        const availableItems = shopItems.filter(item => {
+          const linkedStock = stock.find(s => s.id === item.stockId);
+          if (linkedStock && linkedStock.qty <= 0) return false;
+          return true;
+        });
+
+        if (!availableItems.length) {
+          bot.sendMessage(msg.chat.id, '🛍 Tous les articles sont en rupture de stock pour le moment.');
+          return;
+        }
+
+        for (const item of availableItems) {
           try {
             // Créer une session Stripe Checkout
             const priceInCents = Math.round(parseFloat(item.price) * 100);
@@ -743,7 +755,12 @@ app.get('/shop-app', (req, res) => {
 
 // ── Mini App — catalogue public (sans auth)
 app.get('/shop-public', (req, res) => {
-  res.json(shopItems);
+  const available = shopItems.filter(item => {
+    const linkedStock = stock.find(s => s.id === item.stockId);
+    if (linkedStock && linkedStock.qty <= 0) return false;
+    return true;
+  });
+  res.json(available);
 });
 
 // ── Mini App — créer une session Stripe depuis le panier
