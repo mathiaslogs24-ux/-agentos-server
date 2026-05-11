@@ -37,7 +37,15 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({
+  limit: '1mb',
+  // Preserve raw body for Stripe webhook signature verification
+  verify: (req, _res, buf) => {
+    if (req.path && req.path.startsWith('/api/webhook')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 
 // ─────────────────────────────────────────
 //  CONSTANTES
@@ -972,6 +980,25 @@ app.post('/orders/:id/refund', auth, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ─────────────────────────────────────────
+//  MARKETPLACE API — Google Sheets backed
+// ─────────────────────────────────────────
+try {
+  const productsRouter = require('./src/routes/products');
+  const vendorsRouter  = require('./src/routes/vendors');
+  const ordersRouter   = require('./src/routes/orders');
+  const webhookRouter  = require('./src/routes/webhook');
+
+  app.use('/api/products', productsRouter);
+  app.use('/api/vendors',  vendorsRouter);
+  app.use('/api/orders',   ordersRouter);
+  app.use('/api/webhook',  webhookRouter);
+
+  addLog('info', 'Marketplace API routes montées sur /api/*');
+} catch(e) {
+  console.error('[marketplace] Routes non chargées:', e.message);
+}
 
 // ─────────────────────────────────────────
 //  DÉMARRAGE
