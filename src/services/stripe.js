@@ -14,14 +14,20 @@ function constructWebhookEvent(rawBody, signature) {
   return stripe.webhooks.constructEvent(rawBody, signature, secret);
 }
 
-async function createPaymentIntent(amount, currency = 'eur', metadata = {}) {
+// paymentMethodTypes: explicit list e.g. ['card'], or null to use automatic_payment_methods
+async function createPaymentIntent(amount, currency = 'eur', metadata = {}, paymentMethodTypes = null) {
   const stripe = getStripeClient();
-  return stripe.paymentIntents.create({
+  const params = {
     amount: Math.round(amount * 100),
     currency,
     metadata,
-    automatic_payment_methods: { enabled: true },
-  });
+  };
+  if (paymentMethodTypes) {
+    params.payment_method_types = paymentMethodTypes;
+  } else {
+    params.automatic_payment_methods = { enabled: true };
+  }
+  return stripe.paymentIntents.create(params);
 }
 
 module.exports = { getStripeClient, constructWebhookEvent, createPaymentIntent };

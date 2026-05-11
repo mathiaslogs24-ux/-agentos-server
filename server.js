@@ -31,7 +31,7 @@ const PORT = process.env.PORT || 3000;
 // ── CORS — Autorise le dashboard
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Secret');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Secret, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
@@ -989,11 +989,13 @@ try {
   const vendorsRouter  = require('./src/routes/vendors');
   const ordersRouter   = require('./src/routes/orders');
   const webhookRouter  = require('./src/routes/webhook');
+  const checkoutRouter = require('./src/routes/checkout');
 
   app.use('/api/products', productsRouter);
   app.use('/api/vendors',  vendorsRouter);
   app.use('/api/orders',   ordersRouter);
   app.use('/api/webhook',  webhookRouter);
+  app.use('/api/checkout', checkoutRouter);
 
   addLog('info', 'Marketplace API routes montées sur /api/*');
 } catch(e) {
