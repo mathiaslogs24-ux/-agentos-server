@@ -237,68 +237,13 @@ function startBot() {
       const text     = msg.text;
       if (!text) return;
 
-      if (text.startsWith('/start')) {
+      if (text.startsWith('/start') || text.startsWith('/shop')) {
         const shopUrl = `https://agentos-server-production-a5b4.up.railway.app/shop-app`;
         bot.sendMessage(msg.chat.id,
           `👋 Bonjour ${msg.from.first_name || ''} !\n\nBienvenue dans notre shop 🛍\nClique sur le bouton pour voir nos articles.`,
           { reply_markup: { inline_keyboard: [[{ text: '🛍 Ouvrir le Shop', web_app: { url: shopUrl } }]] } }
         );
         addLog('info', `Nouveau contact: @${userName}`);
-        return;
-      }
-
-      if (text.startsWith('/shop')) {
-        if (!cfg.stripeKey) { bot.sendMessage(msg.chat.id, "⚠️ Paiements non configurés."); return; }
-        const availableItems = shopItems.filter(item => {
-          const linkedStock = stock.find(s => s.id === item.stockId);
-          if (linkedStock && linkedStock.qty <= 0) return false;
-          return true;
-        });
-        if (!availableItems.length) { bot.sendMessage(msg.chat.id, '🛍 Tous les articles sont en rupture de stock.'); return; }
-
-        for (const item of availableItems) {
-          try {
-            const priceInCents = Math.round(parseFloat(item.price) * 100);
-            const serverUrl = `https://agentos-server-production-a5b4.up.railway.app`;
-            const params = new URLSearchParams();
-            params.append('payment_method_types[]', 'card');
-            params.append('line_items[0][price_data][currency]', 'eur');
-            params.append('line_items[0][price_data][product_data][name]', item.title);
-            params.append('line_items[0][price_data][product_data][description]', item.description);
-            params.append('line_items[0][price_data][unit_amount]', priceInCents);
-            params.append('line_items[0][quantity]', '1');
-            params.append('mode', 'payment');
-            params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
-            params.append('cancel_url',  `${serverUrl}/payment-cancel`);
-            params.append('shipping_address_collection[allowed_countries][]', 'FR');
-            params.append('shipping_address_collection[allowed_countries][]', 'BE');
-            params.append('shipping_address_collection[allowed_countries][]', 'CH');
-            params.append('shipping_address_collection[allowed_countries][]', 'LU');
-            params.append('phone_number_collection[enabled]', 'true');
-            params.append('metadata[userId]',   String(userId));
-            params.append('metadata[userName]', userName);
-            params.append('metadata[payload]',  item.payload);
-            params.append('metadata[itemTitle]', item.title);
-            const linkedStock = stock.find(s => s.id === item.stockId);
-            params.append('metadata[stockName]', linkedStock ? linkedStock.name : item.title);
-
-            const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${cfg.stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: params,
-            });
-            const session = await res.json();
-            if (session.error) throw new Error(session.error.message);
-
-            await bot.sendMessage(msg.chat.id,
-              `🛍 *${item.title}*\n${item.description}\n\n💶 Prix : *${item.price} €*`,
-              { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: `💳 Payer ${item.price} €`, url: session.url }]] } }
-            );
-          } catch(e) {
-            addLog('err', `Stripe error: ${e.message}`);
-            bot.sendMessage(msg.chat.id, '⚠️ Erreur lors de la création du paiement.');
-          }
-        }
         return;
       }
 
@@ -364,10 +309,35 @@ app.post('/stock', auth, (req, res) => {
   res.json({ ok: true, count: stock.length });
 });
 
+// ── Catalogue public enrichi — Mini App (SANS auth)
+// Fusionne shopItems (catalogue) avec les données stock (qty, puffs, cat)
+app.get('/shop-catalogue', (req, res) => {
+  const catalogue = shopItems
+    .map(item => {
+      const stockItem = stock.find(s => s.id === item.stockId);
+      if (!stockItem || stockItem.qty <= 0) return null;
+      return {
+        id         : item.stockId,
+        stockId    : item.stockId,
+        title      : item.title,
+        name       : item.title,
+        description: item.description,
+        price      : item.price,
+        payload    : item.payload,
+        qty        : stockItem.qty,
+        puffs      : stockItem.puffs || 0,
+        cat        : stockItem.cat  || '',
+        alert      : stockItem.alert || 5,
+      };
+    })
+    .filter(Boolean);
+  res.json(catalogue);
+});
+
 // ── Stock public — Mini App (SANS authentification)
 app.get('/stock-public', (req, res) => {
   const available = stock
-    .filter(s => s.enVente && s.qty > 0)   // seulement les articles activés dans le Catalogue
+    .filter(s => s.enVente && s.qty > 0)
     .map(s => ({
       id   : s.id,
       name : s.name,
