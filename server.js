@@ -46,7 +46,7 @@ const DATA_DIR     = path.join(__dirname, 'data');
 const CFG_FILE     = path.join(DATA_DIR, 'config.json');
 const STOCK_FILE   = path.join(DATA_DIR, 'stock.json');
 const STATS_FILE   = path.join(DATA_DIR, 'stats.json');
-const ORDERS_FILE  = path.join(DATA_DIR, 'orders.json');  // ⭐ NOUVEAU
+const ORDERS_FILE  = path.join(DATA_DIR, 'orders.json');
 const MAX_LOGS     = 500;
 const MAX_HISTORY  = 100;
 
@@ -73,36 +73,26 @@ let cfg = {
   stripeSuccess : process.env.STRIPE_SUCCESS_URL    || '',
 };
 
-// 💰 CATALOGUE DES ARTICLES PAYANTS
-// Prix en USDT (ex: 5.00 = 5 dollars)
 let shopItems = [
   {
     key        : 'premium',
     title      : '⭐ Accès Premium',
     description: 'Débloque toutes les fonctionnalités avancées du bot.',
-    price      : '5.00',   // en USDT
+    price      : '5.00',
     asset      : 'USDT',
     payload    : 'shop_premium',
   },
-  // Ajoute d'autres articles ici si besoin :
-  // {
-  //   key        : 'rapport',
-  //   title      : '📊 Rapport personnalisé',
-  //   description: 'Reçois un rapport détaillé sur mesure.',
-  //   price      : 100,
-  //   payload    : 'shop_rapport',
-  // },
 ];
 
 let stock         = [];
 let bot           = null;
 let running       = false;
 let startedAt     = null;
-let conversations = {};   // userId → [{role, content}]
+let conversations = {};
 let logs          = [];
 let history       = [];
 let stats         = { day: 0, month: 0, msgs: 0, input: 0, output: 0, lastReset: today() };
-let orders        = [];   // ⭐ NOUVEAU — tableau des commandes payées
+let orders        = [];
 
 // ─────────────────────────────────────────
 //  PERSISTANCE
@@ -114,9 +104,8 @@ function loadData() {
   try { stock = JSON.parse(fs.readFileSync(STOCK_FILE, 'utf8')); }
   catch(e) { stock = []; }
   try { stats = { ...stats, ...JSON.parse(fs.readFileSync(STATS_FILE, 'utf8')) }; } catch(e) {}
-  try { orders = JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8')); }  // ⭐ NOUVEAU
+  try { orders = JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8')); }
   catch(e) { orders = []; }
-  // Override avec variables d'environnement si définies
   if (process.env.TELEGRAM_TOKEN)        cfg.telegramToken = process.env.TELEGRAM_TOKEN;
   if (process.env.CLAUDE_KEY)            cfg.claudeKey     = process.env.CLAUDE_KEY;
   if (process.env.SECRET)               cfg.secret        = process.env.SECRET;
@@ -132,11 +121,10 @@ function saveData() {
     fs.writeFileSync(CFG_FILE,    JSON.stringify(safeCfg, null, 2));
     fs.writeFileSync(STOCK_FILE,  JSON.stringify(stock,   null, 2));
     fs.writeFileSync(STATS_FILE,  JSON.stringify(stats,   null, 2));
-    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders,  null, 2));  // ⭐ NOUVEAU
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders,  null, 2));
   } catch(e) { addLog('err', 'Sauvegarde échouée: ' + e.message); }
 }
 
-// Reset stats quotidiennes si nouveau jour
 function checkDailyReset() {
   if (stats.lastReset !== today()) {
     stats.day = 0;
@@ -150,12 +138,7 @@ function checkDailyReset() {
 //  LOGS
 // ─────────────────────────────────────────
 function addLog(type, msg) {
-  const entry = {
-    type,
-    msg,
-    time: new Date().toLocaleTimeString('fr-FR'),
-    ts  : Date.now(),
-  };
+  const entry = { type, msg, time: new Date().toLocaleTimeString('fr-FR'), ts: Date.now() };
   logs.unshift(entry);
   if (logs.length > MAX_LOGS) logs.splice(MAX_LOGS);
   const emoji = { ok: '✓', err: '✗', warn: '⚠', info: 'ℹ' }[type] || '·';
@@ -163,7 +146,7 @@ function addLog(type, msg) {
 }
 
 // ─────────────────────────────────────────
-//  STOCK — texte pour le prompt
+//  STOCK
 // ─────────────────────────────────────────
 function buildStockText() {
   if (!stock.length) return 'Aucun article en stock.';
@@ -181,9 +164,6 @@ function buildStockText() {
   return txt;
 }
 
-// ─────────────────────────────────────────
-//  PROMPT SYSTÈME
-// ─────────────────────────────────────────
 function buildSystemPrompt(userName, userId) {
   let sp = cfg.systemPrompt || 'Tu es un assistant commercial professionnel et utile. Réponds toujours en français de manière concise et claire.';
   const now = new Date();
@@ -196,40 +176,25 @@ function buildSystemPrompt(userName, userId) {
 }
 
 // ─────────────────────────────────────────
-//  APPEL CLAUDE API
+//  CLAUDE API
 // ─────────────────────────────────────────
 async function callClaude(userId, userName, userMessage) {
   checkDailyReset();
-
   if (!conversations[userId]) conversations[userId] = [];
   conversations[userId].push({ role: 'user', content: userMessage });
-
   const msgs = conversations[userId].slice(-(cfg.contextWindow * 2));
   const t0   = Date.now();
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method : 'POST',
-    headers: {
-      'Content-Type'      : 'application/json',
-      'x-api-key'         : cfg.claudeKey,
-      'anthropic-version' : '2023-06-01',
-    },
-    body: JSON.stringify({
-      model      : cfg.claudeModel,
-      max_tokens : cfg.maxTokens,
-      system     : buildSystemPrompt(userName, userId),
-      messages   : msgs,
-    }),
+    headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.claudeKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: cfg.claudeModel, max_tokens: cfg.maxTokens, system: buildSystemPrompt(userName, userId), messages: msgs }),
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${res.status}`);
-  }
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error?.message || `HTTP ${res.status}`); }
 
   const data    = await res.json();
   const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
-
   if (!data.content) throw new Error('Réponse invalide de Claude');
 
   const reply  = data.content.map(c => c.text || '').join('').trim();
@@ -238,27 +203,18 @@ async function callClaude(userId, userName, userMessage) {
   const total  = tokIn + tokOut;
 
   conversations[userId].push({ role: 'assistant', content: reply });
-
-  stats.day    += total;
-  stats.month  += total;
-  stats.msgs   += 1;
-  stats.input  += tokIn;
-  stats.output += tokOut;
+  stats.day += total; stats.month += total; stats.msgs += 1; stats.input += tokIn; stats.output += tokOut;
 
   history.unshift({
-    time    : new Date().toLocaleTimeString('fr-FR'),
-    userId  : String(userId),
-    userName: userName || 'Inconnu',
-    msg     : userMessage.slice(0, 60) + (userMessage.length > 60 ? '…' : ''),
-    reply   : reply.slice(0, 100) + (reply.length > 100 ? '…' : ''),
-    tokIn, tokOut, total,
-    duration: elapsed + 's',
+    time: new Date().toLocaleTimeString('fr-FR'), userId: String(userId), userName: userName || 'Inconnu',
+    msg: userMessage.slice(0, 60) + (userMessage.length > 60 ? '…' : ''),
+    reply: reply.slice(0, 100) + (reply.length > 100 ? '…' : ''),
+    tokIn, tokOut, total, duration: elapsed + 's',
   });
   if (history.length > MAX_HISTORY) history.pop();
 
   saveData();
   addLog('ok', `@${userName} | ${total} tok | ${elapsed}s`);
-
   return reply;
 }
 
@@ -271,69 +227,39 @@ function startBot() {
   if (!cfg.claudeKey)     return { ok: false, reason: 'Clé Claude manquante' };
 
   try {
-    bot       = new TelegramBot(cfg.telegramToken, { polling: true });
-    running   = true;
-    startedAt = new Date().toISOString();
+    bot = new TelegramBot(cfg.telegramToken, { polling: true });
+    running = true; startedAt = new Date().toISOString();
+    addLog('ok', `Bot démarré · ${cfg.claudeModel}`);
 
-    addLog('ok',   `Bot démarré · ${cfg.claudeModel}`);
-    addLog('info', `Stock: ${stock.length} articles · Prompt: ${cfg.systemPrompt.length} car.`);
-
-    // ── Message reçu
     bot.on('message', async (msg) => {
       const userId   = msg.from.id;
       const userName = msg.from.username || msg.from.first_name || String(userId);
       const text     = msg.text;
-
-      // (paiements gérés via webhook CryptoBot — voir /cryptobot-webhook)
-
       if (!text) return;
 
-      // ── Commande /start
       if (text.startsWith('/start')) {
         const shopUrl = `https://agentos-server-production-a5b4.up.railway.app/shop-app`;
         bot.sendMessage(msg.chat.id,
           `👋 Bonjour ${msg.from.first_name || ''} !\n\nBienvenue dans notre shop 🛍\nClique sur le bouton pour voir nos articles.`,
-          {
-            reply_markup: {
-              inline_keyboard: [[
-                { text: '🛍 Ouvrir le Shop', web_app: { url: shopUrl } }
-              ]]
-            }
-          }
+          { reply_markup: { inline_keyboard: [[{ text: '🛍 Ouvrir le Shop', web_app: { url: shopUrl } }]] } }
         );
         addLog('info', `Nouveau contact: @${userName}`);
         return;
       }
 
-      // 💳 COMMANDE /shop — crée une session Stripe Checkout
       if (text.startsWith('/shop')) {
-        if (!cfg.stripeKey) {
-          bot.sendMessage(msg.chat.id, "⚠️ Paiements non configurés. Contactez l'administrateur.");
-          return;
-        }
-        if (!shopItems.length) {
-          bot.sendMessage(msg.chat.id, '🛍 Aucun article disponible pour le moment.');
-          return;
-        }
-
-        // Filtrer les articles en rupture de stock
+        if (!cfg.stripeKey) { bot.sendMessage(msg.chat.id, "⚠️ Paiements non configurés."); return; }
         const availableItems = shopItems.filter(item => {
           const linkedStock = stock.find(s => s.id === item.stockId);
           if (linkedStock && linkedStock.qty <= 0) return false;
           return true;
         });
-
-        if (!availableItems.length) {
-          bot.sendMessage(msg.chat.id, '🛍 Tous les articles sont en rupture de stock pour le moment.');
-          return;
-        }
+        if (!availableItems.length) { bot.sendMessage(msg.chat.id, '🛍 Tous les articles sont en rupture de stock.'); return; }
 
         for (const item of availableItems) {
           try {
-            // Créer une session Stripe Checkout
             const priceInCents = Math.round(parseFloat(item.price) * 100);
             const serverUrl = `https://agentos-server-production-a5b4.up.railway.app`;
-
             const params = new URLSearchParams();
             params.append('payment_method_types[]', 'card');
             params.append('line_items[0][price_data][currency]', 'eur');
@@ -344,48 +270,30 @@ function startBot() {
             params.append('mode', 'payment');
             params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
             params.append('cancel_url',  `${serverUrl}/payment-cancel`);
-
-            // ── Collecter les infos de livraison du client
             params.append('shipping_address_collection[allowed_countries][]', 'FR');
             params.append('shipping_address_collection[allowed_countries][]', 'BE');
             params.append('shipping_address_collection[allowed_countries][]', 'CH');
             params.append('shipping_address_collection[allowed_countries][]', 'LU');
-            params.append('shipping_address_collection[allowed_countries][]', 'CA');
             params.append('phone_number_collection[enabled]', 'true');
-
             params.append('metadata[userId]',   String(userId));
             params.append('metadata[userName]', userName);
             params.append('metadata[payload]',  item.payload);
             params.append('metadata[itemTitle]', item.title);
-
-            // ── Nom de l'article depuis le stock
             const linkedStock = stock.find(s => s.id === item.stockId);
             params.append('metadata[stockName]', linkedStock ? linkedStock.name : item.title);
 
             const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-              method : 'POST',
-              headers: {
-                'Authorization': `Bearer ${cfg.stripeKey}`,
-                'Content-Type' : 'application/x-www-form-urlencoded',
-              },
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${cfg.stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
               body: params,
             });
-
             const session = await res.json();
             if (session.error) throw new Error(session.error.message);
 
             await bot.sendMessage(msg.chat.id,
-              `🛍 *${item.title}*\n${item.description}\n\n💶 Prix : *${item.price} €*\n\n👇 Clique pour payer par carte :`,
-              {
-                parse_mode  : 'Markdown',
-                reply_markup: {
-                  inline_keyboard: [[
-                    { text: `💳 Payer ${item.price} €`, url: session.url }
-                  ]]
-                }
-              }
+              `🛍 *${item.title}*\n${item.description}\n\n💶 Prix : *${item.price} €*`,
+              { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: `💳 Payer ${item.price} €`, url: session.url }]] } }
             );
-            addLog('info', `Stripe session créée — @${userName} · ${item.price}€ · ${item.payload}`);
           } catch(e) {
             addLog('err', `Stripe error: ${e.message}`);
             bot.sendMessage(msg.chat.id, '⚠️ Erreur lors de la création du paiement.');
@@ -394,35 +302,20 @@ function startBot() {
         return;
       }
 
-      // ── Réponse Claude
       addLog('info', `@${userName}: ${text.slice(0, 60)}`);
       try {
         await bot.sendChatAction(msg.chat.id, 'typing');
         const reply = await callClaude(userId, userName, text);
-        await bot.sendMessage(msg.chat.id, reply, {
-          parse_mode              : 'Markdown',
-          disable_web_page_preview: true,
-        });
+        await bot.sendMessage(msg.chat.id, reply, { parse_mode: 'Markdown', disable_web_page_preview: true });
       } catch(e) {
         addLog('err', `@${userName}: ${e.message}`);
-        bot.sendMessage(msg.chat.id, '⚠️ Une erreur est survenue, veuillez réessayer dans quelques instants.');
+        bot.sendMessage(msg.chat.id, '⚠️ Une erreur est survenue, veuillez réessayer.');
       }
     });
 
-    // (pre_checkout_query non nécessaire avec CryptoBot)
-
-    // ── Erreur polling
-    bot.on('polling_error', (err) => {
-      addLog('err', 'Polling: ' + (err.message || String(err)));
-    });
-
-    // ── Erreur générale
-    bot.on('error', (err) => {
-      addLog('err', 'Bot error: ' + (err.message || String(err)));
-    });
-
+    bot.on('polling_error', (err) => addLog('err', 'Polling: ' + (err.message || String(err))));
+    bot.on('error',         (err) => addLog('err', 'Bot error: ' + (err.message || String(err))));
     return { ok: true };
-
   } catch(e) {
     running = false;
     addLog('err', 'Démarrage échoué: ' + e.message);
@@ -431,12 +324,8 @@ function startBot() {
 }
 
 function stopBot() {
-  if (bot) {
-    try { bot.stopPolling(); } catch(e) {}
-    bot = null;
-  }
-  running   = false;
-  startedAt = null;
+  if (bot) { try { bot.stopPolling(); } catch(e) {} bot = null; }
+  running = false; startedAt = null;
   addLog('warn', 'Bot arrêté');
 }
 
@@ -445,315 +334,126 @@ function stopBot() {
 // ─────────────────────────────────────────
 function auth(req, res, next) {
   const secret = req.headers['x-secret'];
-  if (!secret || secret !== cfg.secret) {
-    return res.status(401).json({ error: 'Non autorisé — vérifiez votre clé secrète' });
-  }
+  if (!secret || secret !== cfg.secret) return res.status(401).json({ error: 'Non autorisé' });
   next();
 }
 
 // ─────────────────────────────────────────
 //  ROUTES API
 // ─────────────────────────────────────────
-
-// Santé (pas d'auth — pour Railway health check)
-app.get('/health', (req, res) => {
-  res.json({
-    ok     : true,
-    uptime : Math.floor(process.uptime()),
-    running,
-    version: '1.0.0',
-  });
-});
-
-// ── Statut complet
-app.get('/status', auth, (req, res) => {
-  res.json({
-    running,
-    startedAt,
-    model    : cfg.claudeModel,
-    msgs     : stats.msgs,
-    tokDay   : stats.day,
-    uptime   : Math.floor(process.uptime()),
-    users    : Object.keys(conversations).length,
-  });
-});
-
-// ── Démarrer le bot
-app.post('/start', auth, (req, res) => {
-  if (req.body.telegramToken) cfg.telegramToken = req.body.telegramToken;
-  if (req.body.claudeKey)     cfg.claudeKey     = req.body.claudeKey;
-  saveData();
-  const result = startBot();
-  res.json(result);
-});
-
-// ── Arrêter le bot
-app.post('/stop', auth, (req, res) => {
-  stopBot();
-  res.json({ ok: true, running: false });
-});
-
-// ── Configuration — lire
-app.get('/config', auth, (req, res) => {
-  const { telegramToken, claudeKey, secret, ...safe } = cfg;
-  res.json(safe);
-});
-
-// ── Configuration — mettre à jour
+app.get('/health', (req, res) => res.json({ ok: true, uptime: Math.floor(process.uptime()), running, version: '1.0.0' }));
+app.get('/status', auth, (req, res) => res.json({ running, startedAt, model: cfg.claudeModel, msgs: stats.msgs, tokDay: stats.day, uptime: Math.floor(process.uptime()), users: Object.keys(conversations).length }));
+app.post('/start', auth, (req, res) => { if (req.body.telegramToken) cfg.telegramToken = req.body.telegramToken; if (req.body.claudeKey) cfg.claudeKey = req.body.claudeKey; saveData(); res.json(startBot()); });
+app.post('/stop',  auth, (req, res) => { stopBot(); res.json({ ok: true, running: false }); });
+app.get('/config', auth, (req, res) => { const { telegramToken, claudeKey, secret, ...safe } = cfg; res.json(safe); });
 app.post('/config', auth, (req, res) => {
   const allowed = ['claudeModel','systemPrompt','maxTokens','temperature','contextWindow','stockInject','stockAlerts'];
   allowed.forEach(k => { if (req.body[k] !== undefined) cfg[k] = req.body[k]; });
   if (req.body.telegramToken) cfg.telegramToken = req.body.telegramToken;
   if (req.body.claudeKey)     cfg.claudeKey     = req.body.claudeKey;
   saveData();
-  addLog('info', 'Configuration mise à jour depuis le dashboard');
+  addLog('info', 'Configuration mise à jour');
   res.json({ ok: true });
 });
 
-// ── Stock — lire
 app.get('/stock', auth, (req, res) => res.json(stock));
-
-// ── Stock — remplacer entièrement
 app.post('/stock', auth, (req, res) => {
-  if (!Array.isArray(req.body)) return res.status(400).json({ error: 'Format invalide, attendu un tableau' });
-  stock = req.body;
-  saveData();
+  if (!Array.isArray(req.body)) return res.status(400).json({ error: 'Format invalide' });
+  stock = req.body; saveData();
   addLog('ok', `Stock synchronisé · ${stock.length} articles`);
   res.json({ ok: true, count: stock.length });
 });
 
-// ── Logs
-app.get('/logs', auth, (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 100, MAX_LOGS);
-  res.json(logs.slice(0, limit));
+// ── Stock public — Mini App (SANS authentification)
+app.get('/stock-public', (req, res) => {
+  const available = stock
+    .filter(s => s.qty > 0)
+    .map(s => ({
+      id   : s.id,
+      name : s.name,
+      cat  : s.cat,
+      price: s.price,
+      qty  : s.qty,
+      puffs: s.puffs || 0,
+      alert: s.alert || 5,
+    }));
+  res.json(available);
 });
 
-// ── Stats et historique
-app.get('/stats', auth, (req, res) => {
-  checkDailyReset();
-  res.json({ ...stats, history: history.slice(0, 30) });
-});
-
-// ── Conversations
+app.get('/logs', auth, (req, res) => { const limit = Math.min(parseInt(req.query.limit) || 100, MAX_LOGS); res.json(logs.slice(0, limit)); });
+app.get('/stats', auth, (req, res) => { checkDailyReset(); res.json({ ...stats, history: history.slice(0, 30) }); });
 app.get('/conversations', auth, (req, res) => res.json(history.slice(0, 50)));
+app.delete('/conversation/:userId', auth, (req, res) => { delete conversations[req.params.userId]; addLog('info', `Mémoire effacée pour ${req.params.userId}`); res.json({ ok: true }); });
+app.delete('/conversations', auth, (req, res) => { const count = Object.keys(conversations).length; conversations = {}; addLog('info', `Toutes les mémoires effacées (${count})`); res.json({ ok: true, cleared: count }); });
+app.post('/stats/reset', auth, (req, res) => { stats = { day: 0, month: 0, msgs: 0, input: 0, output: 0, lastReset: today() }; history = []; saveData(); addLog('info', 'Stats réinitialisées'); res.json({ ok: true }); });
 
-// ── Effacer la mémoire d'un utilisateur
-app.delete('/conversation/:userId', auth, (req, res) => {
-  delete conversations[req.params.userId];
-  addLog('info', `Mémoire effacée pour l'utilisateur ${req.params.userId}`);
-  res.json({ ok: true });
-});
-
-// ── Effacer toutes les mémoires
-app.delete('/conversations', auth, (req, res) => {
-  const count = Object.keys(conversations).length;
-  conversations = {};
-  addLog('info', `Toutes les mémoires effacées (${count} utilisateurs)`);
-  res.json({ ok: true, cleared: count });
-});
-
-// ── Réinitialiser les stats
-app.post('/stats/reset', auth, (req, res) => {
-  stats = { day: 0, month: 0, msgs: 0, input: 0, output: 0, lastReset: today() };
-  history = [];
-  saveData();
-  addLog('info', 'Stats réinitialisées');
-  res.json({ ok: true });
-});
-
-// ── Déduire du stock depuis Apps Script
 app.post('/stock-deduct', (req, res) => {
   const { secret, productName } = req.body;
   if (secret !== cfg.secret) return res.status(401).json({ error: 'Secret invalide' });
   if (!productName) return res.status(400).json({ error: 'productName manquant' });
-
   const pLower = productName.replace(/[^\w\s]/gi, '').trim().toLowerCase();
-
-  const stockItem = stock.find(s => {
-    const sLower = s.name.replace(/[^\w\s]/gi, '').trim().toLowerCase();
-    return sLower === pLower || sLower.includes(pLower) || pLower.includes(sLower);
-  });
-
-  if (!stockItem) {
-    addLog('warn', `📦 stock-deduct: "${productName}" non trouvé`);
-    return res.json({ ok: false, error: 'Produit non trouvé', stock: stock.map(s => s.name) });
-  }
-
-  if (stockItem.qty <= 0) {
-    addLog('warn', `⚠ stock-deduct: ${stockItem.name} déjà à 0`);
-    return res.json({ ok: false, error: 'Stock à 0' });
-  }
-
-  stockItem.qty -= 1;
-  saveData();
-  addLog('info', `📦 Stock — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty} (via Apps Script)`);
-
-  if (stockItem.qty === 0) {
-    addLog('warn', `🚨 RUPTURE — ${stockItem.name} épuisé`);
-  } else if (stockItem.qty <= (stockItem.alert || 5)) {
-    addLog('warn', `⚠ Stock bas — ${stockItem.name} : ${stockItem.qty} restant(s)`);
-  }
-
+  const stockItem = stock.find(s => { const sL = s.name.replace(/[^\w\s]/gi,'').trim().toLowerCase(); return sL===pLower||sL.includes(pLower)||pLower.includes(sL); });
+  if (!stockItem) return res.json({ ok: false, error: 'Produit non trouvé', stock: stock.map(s => s.name) });
+  if (stockItem.qty <= 0) return res.json({ ok: false, error: 'Stock à 0' });
+  stockItem.qty -= 1; saveData();
+  addLog('info', `📦 ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty}`);
   res.json({ ok: true, name: stockItem.name, remaining: stockItem.qty });
 });
 
-// 💰 COMMANDES CRYPTOBOT — Routes pour le dashboard
-// ── Lire toutes les commandes
-app.get('/orders', auth, (req, res) => {
-  res.json(orders);
-});
+app.get('/orders', auth, (req, res) => res.json(orders));
 
-// ── Proxy CryptoBot — évite les erreurs CORS du navigateur
-// Le dashboard appelle ces routes, le serveur fait la vraie requête à pay.crypt.bot
 async function cryptoBotCall(method, params = {}) {
   const token = cfg.cryptoBotToken;
-  if (!token) throw new Error('Token CryptoBot non configuré sur le serveur');
+  if (!token) throw new Error('Token CryptoBot non configuré');
   const res = await fetch(`https://pay.crypt.bot/api/${method}`, {
-    method : 'POST',
-    headers: { 'Crypto-Pay-API-Token': token, 'Content-Type': 'application/json' },
-    body   : JSON.stringify(params),
+    method: 'POST', headers: { 'Crypto-Pay-API-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify(params),
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error?.name || 'CryptoBot error');
   return data.result;
 }
 
-// ── Tester la connexion + infos de l'app
-app.get('/wallet/me', auth, async (req, res) => {
-  try {
-    const info = await cryptoBotCall('getMe');
-    res.json({ ok: true, ...info });
-  } catch(e) {
-    res.status(400).json({ ok: false, error: e.message });
-  }
-});
+app.get('/wallet/me',           auth, async (req, res) => { try { res.json({ ok: true, ...await cryptoBotCall('getMe') }); } catch(e) { res.status(400).json({ ok: false, error: e.message }); } });
+app.get('/wallet/balance',      auth, async (req, res) => { try { res.json({ ok: true, balances: await cryptoBotCall('getBalance') }); } catch(e) { res.status(400).json({ ok: false, error: e.message }); } });
+app.get('/wallet/transactions', auth, async (req, res) => { try { const d = await cryptoBotCall('getInvoices', { status: 'paid', count: 100 }); res.json({ ok: true, items: d.items || [] }); } catch(e) { res.status(400).json({ ok: false, error: e.message }); } });
+app.post('/wallet/token', auth, (req, res) => { if (!req.body.token) return res.status(400).json({ error: 'Token manquant' }); cfg.cryptoBotToken = req.body.token; saveData(); addLog('ok', 'Token CryptoBot mis à jour'); res.json({ ok: true }); });
 
-// ── Soldes
-app.get('/wallet/balance', auth, async (req, res) => {
-  try {
-    const balances = await cryptoBotCall('getBalance');
-    res.json({ ok: true, balances });
-  } catch(e) {
-    res.status(400).json({ ok: false, error: e.message });
-  }
-});
-
-// ── Transactions reçues
-app.get('/wallet/transactions', auth, async (req, res) => {
-  try {
-    const data = await cryptoBotCall('getInvoices', { status: 'paid', count: 100 });
-    res.json({ ok: true, items: data.items || [] });
-  } catch(e) {
-    res.status(400).json({ ok: false, error: e.message });
-  }
-});
-
-// ── Sauvegarder le token CryptoBot depuis le dashboard
-app.post('/wallet/token', auth, (req, res) => {
-  if (!req.body.token) return res.status(400).json({ error: 'Token manquant' });
-  cfg.cryptoBotToken = req.body.token;
-  saveData();
-  addLog('ok', 'Token CryptoBot mis à jour depuis le dashboard');
-  res.json({ ok: true });
-});
-
-
-// ── Stripe webhook — reçoit la confirmation de paiement
 app.post('/stripe-webhook', async (req, res) => {
   let event;
-  try {
-    // req.body est déjà parsé par express.json()
-    event = req.body;
-    if (!event || !event.type) {
-      addLog('warn', 'Stripe webhook — body invalide');
-      return res.sendStatus(400);
-    }
-  } catch(e) {
-    addLog('err', 'Stripe webhook parse error: ' + e.message);
-    return res.sendStatus(400);
-  }
-
-  addLog('info', `Stripe webhook reçu — ${event.type}`);
+  try { event = req.body; if (!event || !event.type) return res.sendStatus(400); } catch(e) { return res.sendStatus(400); }
+  addLog('info', `Stripe webhook — ${event.type}`);
 
   if (event.type === 'checkout.session.completed') {
-    const session  = event.data.object;
-    const meta     = session.metadata || {};
-    const userId   = meta.userId   || '';
-    const userName = meta.userName || '';
-    const amount   = (session.amount_total / 100).toFixed(2);
+    const session = event.data.object;
+    const meta    = session.metadata || {};
+    const userId  = meta.userId || ''; const userName = meta.userName || '';
+    const amount  = (session.amount_total / 100).toFixed(2);
+    const customer = session.customer_details || {}; const shipping = session.shipping_details || {}; const addr = shipping.address || {};
+    const clientInfo = { name: shipping.name||customer.name||'', email: customer.email||'', phone: customer.phone||'', address: [addr.line1,addr.line2].filter(Boolean).join(', '), city: addr.city||'', postal: addr.postal_code||'', country: addr.country||'' };
 
-    // ── Infos client collectées par Stripe
-    const customer = session.customer_details || {};
-    const shipping = session.shipping_details || {};
-    const addr     = shipping.address || {};
-
-    const clientInfo = {
-      name    : shipping.name || customer.name || '',
-      email   : customer.email || '',
-      phone   : customer.phone || '',
-      address : [addr.line1, addr.line2].filter(Boolean).join(', '),
-      city    : addr.city || '',
-      postal  : addr.postal_code || '',
-      country : addr.country || '',
-    };
-
-    // ── Récupérer les noms des produits via l'API Stripe (fiable, pas de metadata)
     let productNames = [];
     try {
-      const liRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${session.id}/line_items`, {
-        headers: { 'Authorization': `Bearer ${cfg.stripeKey}` },
-      });
+      const liRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${session.id}/line_items`, { headers: { 'Authorization': `Bearer ${cfg.stripeKey}` } });
       const liData = await liRes.json();
-      if (liData.data && liData.data.length) {
-        productNames = liData.data.map(li => li.description || '');
-      }
-    } catch(e) {
-      addLog('err', 'Stripe line_items fetch: ' + e.message);
-    }
+      if (liData.data?.length) productNames = liData.data.map(li => li.description || '');
+    } catch(e) {}
 
     const stockName = productNames.join(', ') || meta.stockName || meta.itemTitle || session.id;
+    const order = { id: Date.now(), date: new Date().toLocaleString('fr-FR'), userId, userName, amount, asset: 'EUR', stockName, invoiceId: session.id, provider: 'stripe', client: clientInfo };
+    orders.unshift(order); saveData();
+    addLog('ok', `💳 Stripe — @${userName} · ${amount}€ · ${stockName}`);
 
-    // Enregistrer la commande avec les infos client
-    const order = {
-      id       : Date.now(),
-      date     : new Date().toLocaleString('fr-FR'),
-      userId,
-      userName,
-      amount,
-      asset    : 'EUR',
-      stockName,
-      invoiceId: session.id,
-      provider : 'stripe',
-      client   : clientInfo,
-    };
-    orders.unshift(order);
-
-    // Stock déduit via Apps Script → /stock-deduct (pas ici pour éviter le double décompte)
-
-    saveData();
-    addLog('ok', `💳 Stripe — @${userName} · ${amount}€ · ${stockName} · 📦 ${clientInfo.name || 'N/A'} · ${clientInfo.city || 'N/A'}`);
-
-    // Notifier le client dans Telegram
     if (userId && bot) {
-      try {
-        await bot.sendMessage(userId,
-          `✅ Paiement confirmé !\n\n🛍 *${stockName}*\n💶 ${amount} € réglés par carte.\n\nMerci pour ton achat ! 🙏`,
-          { parse_mode: 'Markdown' }
-        );
-      } catch(e) {}
+      try { await bot.sendMessage(userId, `✅ Paiement confirmé !\n\n🛍 *${stockName}*\n💶 ${amount} € réglés.\n\nMerci ! 🙏`, { parse_mode: 'Markdown' }); } catch(e) {}
     }
   }
-
   res.sendStatus(200);
 });
 
-// ── Page succès après paiement Stripe
-// ── Mini App — servir le fichier shop.html
-app.get('/shop-app', (req, res) => {
-  res.sendFile(path.join(__dirname, 'shop.html'));
-});
+// ── Mini App
+app.get('/shop-app', (req, res) => res.sendFile(path.join(__dirname, 'shop.html')));
 
-// ── Mini App — catalogue public (sans auth)
+// ── Stock public catalogue (shopItems — ancien endpoint)
 app.get('/shop-public', (req, res) => {
   const available = shopItems.filter(item => {
     const linkedStock = stock.find(s => s.id === item.stockId);
@@ -763,7 +463,7 @@ app.get('/shop-public', (req, res) => {
   res.json(available);
 });
 
-// ── Mini App — créer une session Stripe depuis le panier
+// ── Checkout Mini App via Stripe
 app.post('/shop-checkout', async (req, res) => {
   const { cart, userId, userName } = req.body;
   if (!cart || !cart.length) return res.status(400).json({ error: 'Panier vide' });
@@ -772,30 +472,20 @@ app.post('/shop-checkout', async (req, res) => {
   try {
     const serverUrl = `https://agentos-server-production-a5b4.up.railway.app`;
     const params    = new URLSearchParams();
-
     params.append('payment_method_types[]', 'card');
     params.append('mode', 'payment');
     params.append('success_url', `${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
     params.append('cancel_url',  `${serverUrl}/payment-cancel`);
-
-    // ── Collecter les infos de livraison du client
     params.append('shipping_address_collection[allowed_countries][]', 'FR');
     params.append('shipping_address_collection[allowed_countries][]', 'BE');
     params.append('shipping_address_collection[allowed_countries][]', 'CH');
     params.append('shipping_address_collection[allowed_countries][]', 'LU');
-    params.append('shipping_address_collection[allowed_countries][]', 'CA');
     params.append('phone_number_collection[enabled]', 'true');
-
     params.append('metadata[userId]',   userId   || '');
     params.append('metadata[userName]', userName || '');
     params.append('metadata[payload]',  cart.map(i => i.payload).join(','));
     params.append('metadata[itemTitle]', cart.map(i => i.title).join(', '));
-
-    // ── Noms des articles depuis le stock
-    const stockNames = cart.map(i => {
-      const linkedStock = stock.find(s => s.id === i.stockId);
-      return linkedStock ? linkedStock.name : i.title;
-    });
+    const stockNames = cart.map(i => { const ls = stock.find(s => s.id === i.stockId); return ls ? ls.name : i.title; });
     params.append('metadata[stockName]', stockNames.join(', '));
 
     cart.forEach((item, idx) => {
@@ -808,13 +498,10 @@ app.post('/shop-checkout', async (req, res) => {
     });
 
     const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method : 'POST',
-      headers: { 'Authorization': `Bearer ${cfg.stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body   : params,
+      method: 'POST', headers: { 'Authorization': `Bearer ${cfg.stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: params,
     });
     const session = await stripeRes.json();
     if (session.error) throw new Error(session.error.message);
-
     addLog('info', `Mini App checkout — @${userName} · ${cart.length} article(s)`);
     res.json({ url: session.url });
   } catch(e) {
@@ -824,153 +511,65 @@ app.post('/shop-checkout', async (req, res) => {
 });
 
 app.get('/payment-success', (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Paiement réussi</title>
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Paiement réussi</title>
   <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}
-  .box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04);}
-  .icon{font-size:64px;margin-bottom:16px;} h1{color:#4ade80;margin-bottom:8px;} p{color:#8899b0;font-size:14px;}</style>
-  </head><body><div class="box">
-  <div class="icon">✅</div>
-  <h1>Paiement réussi !</h1>
-  <p>Ton achat a été confirmé.<br>Retourne dans Telegram pour voir la confirmation.</p>
-  </div></body></html>`);
+  .box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}
+  .icon{font-size:64px;margin-bottom:16px;} h1{color:#4ade80;} p{color:#8899b0;font-size:14px;}</style>
+  </head><body><div class="box"><div class="icon">✅</div><h1>Paiement réussi !</h1>
+  <p>Retourne dans Telegram pour voir la confirmation.</p></div></body></html>`);
 });
 
-// ── Page annulation
 app.get('/payment-cancel', (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Paiement annulé</title>
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Paiement annulé</title>
   <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}
-  .box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04);}
-  .icon{font-size:64px;margin-bottom:16px;} h1{color:#f87171;margin-bottom:8px;} p{color:#8899b0;font-size:14px;}</style>
-  </head><body><div class="box">
-  <div class="icon">❌</div>
-  <h1>Paiement annulé</h1>
-  <p>Tu peux retourner dans Telegram et réessayer.</p>
-  </div></body></html>`);
+  .box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}
+  .icon{font-size:64px;margin-bottom:16px;} h1{color:#f87171;} p{color:#8899b0;font-size:14px;}</style>
+  </head><body><div class="box"><div class="icon">❌</div><h1>Paiement annulé</h1>
+  <p>Tu peux retourner dans Telegram et réessayer.</p></div></body></html>`);
 });
 
-
-// À enregistrer sur : https://pay.crypt.bot → ton app → Webhooks → ton URL/cryptobot-webhook
 app.post('/cryptobot-webhook', async (req, res) => {
   try {
-    // Vérifier la signature HMAC
-    const token     = cfg.cryptoBotToken;
-    const secret    = crypto.createHash('sha256').update(token).digest();
-    const signature = crypto
-      .createHmac('sha256', secret)
-      .update(JSON.stringify(req.body))
-      .digest('hex');
-
-    if (signature !== req.headers['crypto-pay-api-signature']) {
-      addLog('warn', 'Webhook CryptoBot — signature invalide');
-      return res.sendStatus(401);
-    }
+    const token = cfg.cryptoBotToken;
+    const secret = crypto.createHash('sha256').update(token).digest();
+    const signature = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
+    if (signature !== req.headers['crypto-pay-api-signature']) { addLog('warn', 'Webhook CryptoBot — signature invalide'); return res.sendStatus(401); }
 
     if (req.body.update_type === 'invoice_paid') {
       const invoice = req.body.payload;
       let userId = '', userName = '', payload = '';
+      try { const meta = JSON.parse(invoice.payload || '{}'); userId = meta.userId||''; userName = meta.userName||''; payload = meta.payload||''; } catch(e) {}
 
-      try {
-        const meta = JSON.parse(invoice.payload || '{}');
-        userId   = meta.userId   || '';
-        userName = meta.userName || '';
-        payload  = meta.payload  || '';
-      } catch(e) {}
-
-      const order = {
-        id       : Date.now(),
-        date     : new Date().toLocaleString('fr-FR'),
-        userId,
-        userName,
-        amount   : invoice.amount,
-        asset    : invoice.asset,
-        payload,
-        invoiceId: invoice.invoice_id,
-      };
+      const order = { id: Date.now(), date: new Date().toLocaleString('fr-FR'), userId, userName, amount: invoice.amount, asset: invoice.asset, payload, invoiceId: invoice.invoice_id };
       orders.unshift(order);
 
-      // ── Déduire automatiquement du stock
-      // Cherche l'article dans shopItems par payload
       const soldItem = shopItems.find(i => i.payload === payload);
       if (soldItem) {
-        // Cherche l'article correspondant dans le stock par nom
-        const stockItem = stock.find(s =>
-          s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/g,'').trim().toLowerCase()) ||
-          soldItem.payload.includes(s.ref?.toLowerCase() || '')
-        );
-        if (stockItem && stockItem.qty > 0) {
-          stockItem.qty -= 1;
-          addLog('info', `📦 Stock mis à jour — ${stockItem.name} : ${stockItem.qty + 1} → ${stockItem.qty}`);
-          // Alerte si stock bas
-          if (stockItem.qty <= (stockItem.alert || 5)) {
-            addLog('warn', `⚠ Stock bas — ${stockItem.name} : ${stockItem.qty} restant(s)`);
-          }
-          if (stockItem.qty === 0) {
-            addLog('warn', `🚨 RUPTURE — ${stockItem.name} est épuisé`);
-            // Notifier l'admin si bot actif
-            if (bot && cfg.tgChatId) {
-              try { bot.sendMessage(cfg.tgChatId, `🚨 RUPTURE DE STOCK\n${stockItem.name} est épuisé !`); } catch(e) {}
-            }
-          }
-        }
+        const stockItem = stock.find(s => s.name.toLowerCase().includes(soldItem.title.replace(/[^\w\s]/g,'').trim().toLowerCase()));
+        if (stockItem && stockItem.qty > 0) { stockItem.qty -= 1; addLog('info', `📦 ${stockItem.name} : ${stockItem.qty+1} → ${stockItem.qty}`); }
       }
-
       saveData();
-      addLog('ok', `💰 Paiement reçu — @${userName} (${userId}) · ${invoice.amount} ${invoice.asset} · ${payload}`);
-
-      // Notifier l'utilisateur dans Telegram
-      if (userId && bot) {
-        try {
-          await bot.sendMessage(userId,
-            `✅ Paiement confirmé !\n${invoice.amount} ${invoice.asset} reçus.\n\nMerci pour ton achat ! 🙏`
-          );
-        } catch(e) { /* silencieux si l'utilisateur a bloqué le bot */ }
-      }
+      addLog('ok', `💰 CryptoBot — @${userName} · ${invoice.amount} ${invoice.asset}`);
+      if (userId && bot) { try { await bot.sendMessage(userId, `✅ Paiement confirmé !\n${invoice.amount} ${invoice.asset} reçus.\n\nMerci ! 🙏`); } catch(e) {} }
     }
-
     res.sendStatus(200);
-  } catch(e) {
-    addLog('err', 'Webhook CryptoBot: ' + e.message);
-    res.sendStatus(500);
-  }
+  } catch(e) { addLog('err', 'Webhook CryptoBot: ' + e.message); res.sendStatus(500); }
 });
 
-// ── Lire le catalogue shop
-app.get('/shop', auth, (req, res) => {
-  res.json(shopItems);
-});
+app.get('/shop',  auth, (req, res) => res.json(shopItems));
+app.post('/shop', auth, (req, res) => { if (!Array.isArray(req.body)) return res.status(400).json({ error: 'Format invalide' }); shopItems = req.body; addLog('ok', `Catalogue shop mis à jour · ${shopItems.length} articles`); res.json({ ok: true, count: shopItems.length }); });
 
-// ── Mettre à jour le catalogue shop
-app.post('/shop', auth, (req, res) => {
-  if (!Array.isArray(req.body)) return res.status(400).json({ error: 'Format invalide, attendu un tableau' });
-  shopItems = req.body;
-  addLog('ok', `Catalogue shop mis à jour · ${shopItems.length} articles`);
-  res.json({ ok: true, count: shopItems.length });
-});
-
-// ── Rembourser une commande
 app.post('/orders/:id/refund', auth, async (req, res) => {
   const order = orders.find(o => String(o.id) === req.params.id);
   if (!order) return res.status(404).json({ error: 'Commande introuvable' });
-
   try {
-    // Remboursement via CryptoBot API
-    const res2 = await fetch('https://pay.crypt.bot/api/deleteInvoice', {
-      method : 'POST',
-      headers: { 'Crypto-Pay-API-Token': cfg.cryptoBotToken, 'Content-Type': 'application/json' },
-      body   : JSON.stringify({ invoice_id: order.invoiceId }),
-    });
+    const res2 = await fetch('https://pay.crypt.bot/api/deleteInvoice', { method: 'POST', headers: { 'Crypto-Pay-API-Token': cfg.cryptoBotToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_id: order.invoiceId }) });
     const data = await res2.json();
     if (!data.ok) throw new Error(data.error?.name || 'CryptoBot refund error');
-    orders = orders.filter(o => String(o.id) !== req.params.id);
-    saveData();
-    addLog('ok', `Remboursement effectué — order ${order.id} · @${order.userName}`);
+    orders = orders.filter(o => String(o.id) !== req.params.id); saveData();
+    addLog('ok', `Remboursement — order ${order.id}`);
     res.json({ ok: true });
-  } catch(e) {
-    addLog('err', `Remboursement échoué: ${e.message}`);
-    res.status(500).json({ error: e.message });
-  }
+  } catch(e) { addLog('err', `Remboursement échoué: ${e.message}`); res.status(500).json({ error: e.message }); }
 });
 
 // ─────────────────────────────────────────
@@ -982,17 +581,11 @@ app.listen(PORT, () => {
   addLog('info', `═══════════════════════════════`);
   addLog('info', `AgentOS Server — Port ${PORT}`);
   addLog('info', `Secret: ${cfg.secret === 'changeme' ? '⚠ CHANGEZ LE SECRET !' : '✓ Défini'}`);
-  addLog('info', `Telegram: ${cfg.telegramToken ? '✓ Token présent' : '✗ Non configuré'}`);
-  addLog('info', `Claude:   ${cfg.claudeKey     ? '✓ Clé présente'  : '✗ Non configurée'}`);
-  addLog('info', `CryptoBot:${cfg.cryptoBotToken ? '✓ Token présent' : '✗ Non configuré'}`);
-  addLog('info', `Shop:     ${shopItems.length} article(s) configuré(s)`);
+  addLog('info', `Telegram: ${cfg.telegramToken ? '✓' : '✗ Non configuré'}`);
+  addLog('info', `Claude:   ${cfg.claudeKey     ? '✓' : '✗ Non configurée'}`);
   addLog('info', `═══════════════════════════════`);
-
-  if (cfg.telegramToken && cfg.claudeKey) {
-    setTimeout(() => startBot(), 1500);
-  }
+  if (cfg.telegramToken && cfg.claudeKey) setTimeout(() => startBot(), 1500);
 });
 
-// ── Arrêt propre
 process.on('SIGTERM', () => { stopBot(); saveData(); process.exit(0); });
 process.on('SIGINT',  () => { stopBot(); saveData(); process.exit(0); });
