@@ -367,7 +367,7 @@ app.post('/stock', auth, (req, res) => {
 // ── Stock public — Mini App (SANS authentification)
 app.get('/stock-public', (req, res) => {
   const available = stock
-    .filter(s => s.qty > 0)
+    .filter(s => s.enVente && s.qty > 0)   // seulement les articles activés dans le Catalogue
     .map(s => ({
       id   : s.id,
       name : s.name,
