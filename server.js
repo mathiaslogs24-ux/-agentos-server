@@ -527,7 +527,20 @@ app.post('/stripe-webhook',async(req,res)=>{
   addLog('info',`Stripe webhook · ${event.type}`);
 
   if(event.type==='checkout.session.completed'){
-    const session=event.data.object,meta=session.metadata||{};
+    const sessionId = event.data.object.id;
+
+    // Récupérer la session complète avec expand pour avoir shipping_details
+    let session;
+    try {
+      const fullRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}?expand[]=shipping_details&expand[]=customer_details`,{
+        headers:{'Authorization':`Bearer ${cfg.stripeKey}`}
+      });
+      session = await fullRes.json();
+    } catch(e) {
+      session = event.data.object;
+    }
+
+    const meta=session.metadata||{};
     const userId=meta.userId||'',userName=meta.userName||'';
     const amount=(session.amount_total/100).toFixed(2);
     let cartItems=[];
