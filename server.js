@@ -528,21 +528,23 @@ app.post('/stripe-webhook',async(req,res)=>{
 
   if(event.type==='checkout.session.completed'){
     const sessionId = event.data.object.id;
+    const meta      = event.data.object.metadata||{};
+    const userId    = meta.userId||'';
+    const userName  = meta.userName||'';
+    const amount    = (event.data.object.amount_total/100).toFixed(2);
 
-    // Récupérer la session complète avec expand pour avoir shipping_details
-    let session;
+    // Récupérer la session complète pour avoir shipping_details
+    let shipping = event.data.object.shipping_details || {};
+    let customer = event.data.object.customer_details || {};
     try {
-      const fullRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}?expand[]=shipping_details&expand[]=customer_details`,{
+      const fullRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`,{
         headers:{'Authorization':`Bearer ${cfg.stripeKey}`}
       });
-      session = await fullRes.json();
-    } catch(e) {
-      session = event.data.object;
-    }
+      const full = await fullRes.json();
+      if(full.shipping_details) shipping = full.shipping_details;
+      if(full.customer_details) customer = full.customer_details;
+    } catch(e) { addLog('warn','Session fetch: '+e.message); }
 
-    const meta=session.metadata||{};
-    const userId=meta.userId||'',userName=meta.userName||'';
-    const amount=(session.amount_total/100).toFixed(2);
     let cartItems=[];
     try{cartItems=JSON.parse(meta.cartJson||'[]');}catch(e){}
     const nbItems=cartItems.reduce((s,i)=>s+parseInt(i.qty||1),0);
@@ -553,17 +555,24 @@ app.post('/stripe-webhook',async(req,res)=>{
 
     let productNames=[];
     try{
-      const li=await fetch(`https://api.stripe.com/v1/checkout/sessions/${session.id}/line_items`,{headers:{'Authorization':`Bearer ${cfg.stripeKey}`}});
+      const li=await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items`,{headers:{'Authorization':`Bearer ${cfg.stripeKey}`}});
       const ld=await li.json();
       if(ld.data?.length) productNames=ld.data.map(x=>x.description||'');
     }catch(e){}
 
-    const customer=session.customer_details||{},shipping=session.shipping_details||{},addr=shipping.address||{};
+    const addr=shipping.address||{};
     const order={
       id:Date.now(),date:new Date().toLocaleString('fr-FR'),userId,userName,amount,commission,sellerAmount,
-      stockName:productNames.join(', ')||'Commande',invoiceId:session.id,provider:'stripe',cartItems,
-      client:{name:shipping.name||customer.name||'',email:customer.email||'',phone:customer.phone||'',
-        address:[addr.line1,addr.line2].filter(Boolean).join(', '),city:addr.city||'',postal:addr.postal_code||'',country:addr.country||''},
+      stockName:productNames.join(', ')||'Commande',invoiceId:sessionId,provider:'stripe',cartItems,
+      client:{
+        name   : shipping.name||customer.name||'',
+        email  : customer.email||'',
+        phone  : customer.phone||'',
+        address: [addr.line1,addr.line2].filter(Boolean).join(', '),
+        city   : addr.city||'',
+        postal : addr.postal_code||'',
+        country: addr.country||'',
+      },
     };
     await saveOrder(order);
 
