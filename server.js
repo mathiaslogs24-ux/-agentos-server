@@ -241,7 +241,7 @@ async function callClaude(userId, userName, userMessage) {
 }
 
 // ─────────────────────────────────────────
-//  BOT
+//  BOT CLIENT (marketplace)
 // ─────────────────────────────────────────
 function startBot() {
   if(running)            return {ok:false,reason:'Déjà démarré'};
@@ -250,7 +250,7 @@ function startBot() {
   try {
     bot=new TelegramBot(cfg.telegramToken,{polling:true});
     running=true;startedAt=new Date().toISOString();
-    addLog('ok',`Bot démarré · ${cfg.claudeModel}`);
+    addLog('ok',`Bot client démarré · ${cfg.claudeModel}`);
 
     bot.on('message',async(msg)=>{
       const userId=msg.from.id,userName=msg.from.username||msg.from.first_name||String(userId),text=msg.text;
@@ -278,6 +278,150 @@ function startBot() {
     bot.on('error',        err=>addLog('err','Bot: '+(err.message||String(err))));
     return {ok:true};
   }catch(e){running=false;addLog('err','Démarrage: '+e.message);return {ok:false,reason:e.message};}
+}
+
+// ─────────────────────────────────────────
+//  BOT VENDEUR
+// ─────────────────────────────────────────
+let vendorBot = null;
+
+function startVendorBot() {
+  const token = process.env.VENDOR_BOT_TOKEN;
+  if(!token){ addLog('warn','VENDOR_BOT_TOKEN non configuré'); return; }
+  try {
+    vendorBot = new TelegramBot(token, {polling:true});
+    addLog('ok','Bot vendeur démarré ✓');
+
+    vendorBot.on('message', async(msg)=>{
+      const userId = msg.from.id;
+      const text   = msg.text||'';
+      if(!text) return;
+
+      // Identifier le vendeur par son telegramId
+      const sellers = await getSellers();
+      const seller  = sellers.find(v=>String(v.telegramId)===String(userId));
+
+      // ── /start — accueil
+      if(text.startsWith('/start')) {
+        if(!seller) {
+          vendorBot.sendMessage(userId,
+            `👋 Bonjour !\n\nCe bot est réservé aux vendeurs du marketplace.\nContactez l'administrateur pour obtenir votre accès.`
+          );
+          return;
+        }
+        vendorBot.sendMessage(userId,
+          `👋 Bonjour *${seller.shopName||seller.name}* !\n\n`
+          + `Voici vos commandes disponibles :\n\n`
+          + `📦 /commandes — Vos dernières ventes\n`
+          + `💰 /solde — Votre solde disponible\n`
+          + `📊 /stock — État de votre stock\n`
+          + `💸 /retrait — Demander un virement`,
+          {parse_mode:'Markdown'}
+        );
+        return;
+      }
+
+      // Vérification vendeur pour les autres commandes
+      if(!seller){
+        vendorBot.sendMessage(userId,'⚠️ Accès non autorisé. Contactez l\'administrateur.');
+        return;
+      }
+
+      // ── /commandes — dernières ventes
+      if(text.startsWith('/commandes')) {
+        const orders = await getOrders();
+        const myOrders = orders.filter(o=>
+          o.cartItems?.some(ci=>String(ci.sellerId)===String(seller.id))
+        ).slice(0,10);
+
+        if(!myOrders.length){
+          vendorBot.sendMessage(userId,'📦 Aucune commande pour le moment.');
+          return;
+        }
+        let msg2 = `📦 *Vos 10 dernières ventes :*\n\n`;
+        myOrders.forEach((o,i)=>{
+          const myItems = o.cartItems.filter(ci=>String(ci.sellerId)===String(seller.id));
+          const total   = myItems.reduce((s,ci)=>s+parseFloat(ci.price||0)*parseInt(ci.qty||1),0);
+          const com     = myItems.reduce((s,ci)=>s+cfg.commissionFlat*parseInt(ci.qty||1),0);
+          const net     = total-com;
+          const c       = o.client||{};
+          msg2 += `*${i+1}. ${o.date}*\n`
+            + myItems.map(ci=>`  📦 ${ci.qty}x article #${ci.id}`).join('\n')+'\n'
+            + `  💰 Net: *${net.toFixed(2)}€*\n`
+            + `  👤 ${c.name||'—'} · ${c.city||'—'}\n\n`;
+        });
+        vendorBot.sendMessage(userId, msg2, {parse_mode:'Markdown'});
+        return;
+      }
+
+      // ── /solde
+      if(text.startsWith('/solde')) {
+        vendorBot.sendMessage(userId,
+          `💰 *Votre solde*\n\n`
+          + `Disponible : *${parseFloat(seller.balance||0).toFixed(2)}€*\n`
+          + `Ventes totales : ${parseFloat(seller.totalSales||0).toFixed(2)}€\n`
+          + `Commission versée : ${parseFloat(seller.totalCommission||0).toFixed(2)}€\n\n`
+          + `Pour demander un virement : /retrait`,
+          {parse_mode:'Markdown'}
+        );
+        return;
+      }
+
+      // ── /stock — état du stock
+      if(text.startsWith('/stock')) {
+        const sellerStock = seller.stock||[];
+        if(!sellerStock.length){
+          vendorBot.sendMessage(userId,'📦 Votre stock est vide.');
+          return;
+        }
+        let msg3 = `📊 *État de votre stock :*\n\n`;
+        sellerStock.forEach(s=>{
+          const status = s.qty===0?'❌ RUPTURE':s.qty<=(s.alert||5)?'⚠️ BAS':'✅ OK';
+          msg3 += `${status} *${s.name}* — ${s.qty} unité(s)\n`;
+        });
+        vendorBot.sendMessage(userId, msg3, {parse_mode:'Markdown'});
+        return;
+      }
+
+      // ── /retrait — demande de virement
+      if(text.startsWith('/retrait')) {
+        const solde = parseFloat(seller.balance||0);
+        if(solde<=0){
+          vendorBot.sendMessage(userId,'💰 Votre solde est de 0€ — aucun retrait possible.');
+          return;
+        }
+        // Notifier l'admin via le bot client
+        if(bot && cfg.adminTelegramId) {
+          bot.sendMessage(cfg.adminTelegramId,
+            `💸 *Demande de retrait*\n\n`
+            + `Vendeur : *${seller.shopName||seller.name}*\n`
+            + `Montant : *${solde.toFixed(2)}€*\n\n`
+            + `Validez le virement puis réinitialisez le solde dans le dashboard.`,
+            {parse_mode:'Markdown'}
+          ).catch(()=>{});
+        }
+        addLog('ok', `Retrait demandé: ${seller.name} · ${solde.toFixed(2)}€`);
+        vendorBot.sendMessage(userId,
+          `💸 *Demande de retrait envoyée !*\n\n`
+          + `Montant : *${solde.toFixed(2)}€*\n\n`
+          + `L'administrateur a été notifié et traitera votre demande sous 24-48h.`,
+          {parse_mode:'Markdown'}
+        );
+        return;
+      }
+
+      // ── Aide par défaut
+      vendorBot.sendMessage(userId,
+        `Commandes disponibles :\n\n`
+        + `📦 /commandes\n💰 /solde\n📊 /stock\n💸 /retrait`
+      );
+    });
+
+    vendorBot.on('polling_error', err=>addLog('err','VendorBot: '+(err.message||String(err))));
+    vendorBot.on('error',         err=>addLog('err','VendorBot: '+(err.message||String(err))));
+  } catch(e) {
+    addLog('err','VendorBot démarrage: '+e.message);
+  }
 }
 
 function stopBot(){
@@ -601,7 +745,7 @@ app.post('/stripe-webhook',async(req,res)=>{
           if(s&&s.qty>0){s.qty=Math.max(0,s.qty-qty);addLog('info',`📦 ${v.name} ${s.name} → ${s.qty}`);}
           await saveSeller(v);
 
-          if(v.telegramId&&bot){
+          if(v.telegramId&&vendorBot){
             const itemName  = s?s.name:`Article #${ci.id}`;
             const stockLeft = s?s.qty:'?';
             const c = order.client;
@@ -618,7 +762,7 @@ app.post('/stripe-webhook',async(req,res)=>{
               + `🌍 *Pays :* ${c.country||'—'}\n`
               + `📞 *Téléphone :* ${c.phone||'—'}\n`
               + `📧 *Email :* ${c.email||'—'}`;
-            bot.sendMessage(v.telegramId, msg, {parse_mode:'Markdown'})
+            vendorBot.sendMessage(v.telegramId, msg, {parse_mode:'Markdown'})
               .catch(e=>addLog('warn',`Notif vendeur: ${e.message}`));
           }
         }
@@ -695,6 +839,7 @@ async function main() {
   app.listen(PORT, ()=>addLog('info',`Serveur démarré sur le port ${PORT}`));
 
   if(cfg.telegramToken&&cfg.claudeKey) setTimeout(()=>startBot(),2000);
+  setTimeout(()=>startVendorBot(), 2500);
 }
 
 main().catch(e=>{ console.error('Startup error:', e); process.exit(1); });
