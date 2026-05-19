@@ -598,7 +598,233 @@ app.post('/stripe-webhook', async (req,res) => {
 //  PAGES STATIQUES
 // ─────────────────────────────────────────
 app.get('/shop-app',        (req,res) => res.sendFile(path.join(__dirname,'shop.html')));
-app.get('/seller-dashboard',(req,res) => res.sendFile(path.join(__dirname,'seller.html')));
+app.get('/seller-dashboard',(req,res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VendorOS</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#F0B429;--gdim:rgba(240,180,41,.08);--bg0:#08080A;--bg1:#0F0F12;--bg2:#161619;--bg3:#1E1E23;--bg4:#26262D;--gb:rgba(255,255,255,.07);--text:#F0EEE8;--t2:#8A8680;--t3:#4A4744;--green:#4ADE80;--grdim:rgba(74,222,128,.08);--red:#F87171;--rdim:rgba(248,113,113,.08);--blue:#4FC3F7;--bdim:rgba(79,195,247,.08);--r:14px;--rs:8px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg0);color:var(--text);font-family:'Bricolage Grotesque',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.login-wrap{flex:1;display:flex;align-items:center;justify-content:center;}
+.login-box{width:380px;background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:32px;}
+.login-logo{font-size:22px;font-weight:800;margin-bottom:4px;}.login-logo span{color:var(--gold);}
+.login-sub{font-size:13px;color:var(--t2);margin-bottom:24px;}
+.fl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:6px;}
+.fi{width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:10px 13px;border-radius:var(--rs);outline:none;margin-bottom:14px;}
+.fi:focus{border-color:var(--gold);}
+.topbar{flex-shrink:0;background:var(--bg1);border-bottom:1px solid var(--gb);padding:0 20px;display:flex;align-items:center;height:52px;gap:12px;}
+.topbar-logo{font-size:16px;font-weight:800;}.topbar-logo span{color:var(--gold);}
+.tnav{padding:7px 14px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;color:var(--t2);transition:all .15s;}
+.tnav.active{background:var(--gdim);color:var(--gold);}
+.app-body{flex:1;display:flex;overflow:hidden;}
+.content{flex:1;overflow-y:auto;padding:20px;}
+.panel{display:none;}.panel.active{display:block;}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.sc{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:16px 18px;}
+.sl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-bottom:8px;}
+.sv{font-size:22px;font-weight:800;}.sv.gold{color:var(--gold);}.sv.green{color:var(--green);}.sv.blue{color:var(--blue);}
+.card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:14px;overflow:hidden;}
+.ch{padding:12px 16px;border-bottom:1px solid var(--gb);display:flex;align-items:center;justify-content:space-between;}
+.ct{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.btn{padding:8px 14px;border-radius:var(--rs);font-family:'Bricolage Grotesque';font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;border:1px solid var(--gb);background:var(--bg3);color:var(--text);}
+.btn:active{transform:scale(.97);}
+.btn.p{background:var(--gold);color:#000;border-color:var(--gold);}
+.btn.d{background:var(--rdim);color:var(--red);border-color:rgba(248,113,113,.25);}
+.btn.f{width:100%;padding:11px;}
+.btn.sm{padding:5px 10px;font-size:11px;}
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);padding:9px 12px;border-bottom:1px solid var(--gb);}
+td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px;vertical-align:middle;}
+tr:last-child td{border:none;}
+.ci{background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:6px 10px;border-radius:var(--rs);outline:none;width:100%;}
+.ci:focus{border-color:var(--gold);}
+.ci.n{font-family:'DM Mono';font-size:14px;font-weight:700;color:var(--gold);text-align:center;width:70px;}
+.ci.pr{font-family:'DM Mono';font-size:12px;width:75px;}
+.ci.pf{font-family:'DM Mono';font-size:12px;width:65px;}
+.ci.ct{max-width:110px;}
+.sw{display:inline-block;position:relative;width:40px;height:22px;cursor:pointer;}
+.sw input{display:none;}
+.sw-t{position:absolute;inset:0;background:var(--bg4);border-radius:11px;transition:.2s;border:1px solid var(--gb);}
+.sw input:checked+.sw-t{background:var(--gold);border-color:var(--gold);}
+.sw-k{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;}
+.sw input:checked~.sw-k{transform:translateX(18px);}
+.bx{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:'DM Mono';}
+.bx.bl{background:var(--bdim);color:var(--blue);}.bx.gr{background:var(--grdim);color:var(--green);}.bx.gd{background:var(--gdim);color:var(--gold);}
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:14px;}
+.cc{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:14px;transition:border-color .15s;}
+.cc.on{border-color:rgba(240,180,41,.3);background:var(--gdim);}
+.cc-name{font-size:13px;font-weight:700;margin-bottom:4px;}
+.cc-meta{font-size:11px;color:var(--t3);margin-bottom:10px;}
+.cc-price{font-size:18px;font-weight:800;color:var(--gold);margin-bottom:10px;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--gb);border-radius:10px;padding:10px 18px;font-size:12px;font-weight:600;z-index:999;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.chip{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--gb);border-radius:20px;padding:4px 12px 4px 4px;}
+.chip-av{width:26px;height:26px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#000;}
+.content::-webkit-scrollbar{width:4px;}
+.content::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
+</style>
+</head>
+<body>
+<div id="loginView" class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">🛍 <span>Vendor</span>OS</div>
+    <div class="login-sub">Votre espace vendeur — entrez votre clé secrète</div>
+    <div class="fl">Clé secrète</div>
+    <input class="fi" type="password" id="secretInput" placeholder="••••••••••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn p f" onclick="doLogin()">Accéder à mon dashboard</button>
+    <div id="loginErr" style="color:var(--red);font-size:12px;margin-top:8px;display:none;">Clé incorrecte — contactez l'administrateur.</div>
+  </div>
+</div>
+<div id="dashView" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+  <div class="topbar">
+    <div class="topbar-logo">🛍 <span>Vendor</span>OS</div>
+    <div style="display:flex;gap:2px;flex:1;">
+      <div class="tnav active" id="nav-stock" onclick="switchTab('stock')">📦 Stock</div>
+      <div class="tnav" id="nav-catalogue" onclick="switchTab('catalogue')">🛍 Catalogue</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
+      <div class="chip"><div class="chip-av" id="sellerAv">?</div><span style="font-size:12px;font-weight:700;" id="sellerNm">—</span></div>
+      <button class="btn sm d" onclick="doLogout()">Déconnexion</button>
+    </div>
+  </div>
+  <div class="app-body">
+    <div class="content">
+      <div class="stats-row">
+        <div class="sc"><div class="sl">Solde disponible</div><div class="sv gold" id="stBal">0.00€</div></div>
+        <div class="sc"><div class="sl">Ventes totales</div><div class="sv green" id="stSales">0.00€</div></div>
+        <div class="sc"><div class="sl">Valeur du stock</div><div class="sv blue" id="stVal">0.00€</div></div>
+        <div class="sc"><div class="sl">Articles en vente</div><div class="sv" id="stActive">0</div></div>
+      </div>
+      <div class="panel active" id="panel-stock">
+        <div class="card">
+          <div class="ch">
+            <div class="ct">📦 Mon Stock <span class="bx bl" id="stockCount">0</span></div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn sm" onclick="addRow()">+ Ajouter</button>
+              <button class="btn sm p" onclick="pushAll()">🖥 Pousser</button>
+            </div>
+          </div>
+          <div class="tw"><table>
+            <thead><tr><th>Produit</th><th>Catégorie</th><th>Quantité</th><th>Prix €</th><th>Puffs K</th><th>Seuil</th><th></th></tr></thead>
+            <tbody id="stockBody"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div class="panel" id="panel-catalogue">
+        <div class="card">
+          <div class="ch">
+            <div class="ct">🛍 Catalogue <span class="bx gd" id="catCount">0 en vente</span></div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn sm" onclick="catAll(true)">Tout activer</button>
+              <button class="btn sm" onclick="catAll(false)">Tout désactiver</button>
+              <button class="btn sm p" onclick="pushAll()">🖥 Pousser</button>
+            </div>
+          </div>
+          <div class="cg" id="catGrid"></div>
+        </div>
+        <div style="background:var(--gdim);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px 16px;font-size:12px;color:var(--t2);">
+          💡 Activez les articles à mettre en vente puis cliquez "Pousser".
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const SRV='${`https://agentos-server-production-a5b4.up.railway.app`}';
+let sec='',seller=null,stock=[],nid=1;
+async function doLogin(){
+  const s=document.getElementById('secretInput').value.trim();if(!s)return;
+  try{
+    const r=await fetch(SRV+'/seller/me',{headers:{'x-secret':s}});
+    if(!r.ok)throw new Error();
+    seller=await r.json();sec=s;stock=seller.stock||[];
+    nid=stock.length?Math.max(...stock.map(x=>x.id||0))+1:1;
+    document.getElementById('loginView').style.display='none';
+    const dv=document.getElementById('dashView');dv.style.display='flex';
+    document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
+    document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
+    document.getElementById('stBal').textContent=parseFloat(seller.balance||0).toFixed(2)+'€';
+    document.getElementById('stSales').textContent=parseFloat(seller.totalSales||0).toFixed(2)+'€';
+    renderStock();renderCat();updateStats();
+  }catch(e){document.getElementById('loginErr').style.display='block';}
+}
+function doLogout(){sec='';seller=null;stock=[];document.getElementById('loginView').style.display='flex';document.getElementById('dashView').style.display='none';document.getElementById('secretInput').value='';document.getElementById('loginErr').style.display='none';}
+function switchTab(t){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tnav').forEach(n=>n.classList.remove('active'));document.getElementById('panel-'+t).classList.add('active');document.getElementById('nav-'+t).classList.add('active');if(t==='catalogue')renderCat();}
+function updateStats(){
+  const val=stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0);
+  const active=stock.filter(x=>x.enVente&&x.qty>0).length;
+  document.getElementById('stVal').textContent=val.toFixed(2)+'€';
+  document.getElementById('stActive').textContent=active;
+  document.getElementById('stockCount').textContent=stock.length;
+  document.getElementById('catCount').textContent=active+' en vente';
+}
+function renderStock(){
+  updateStats();
+  const b=document.getElementById('stockBody');
+  if(!stock.length){b.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:28px;">Aucun article — cliquez sur + Ajouter</td></tr>';return;}
+  b.innerHTML=stock.map((s,i)=>
+    '<tr>'
+    +'<td><input class="ci" value="'+(s.name||'')+'" oninput="stock['+i+'].name=this.value;updateStats()"></td>'
+    +'<td><input class="ci ct" value="'+(s.cat||'')+'" oninput="stock['+i+'].cat=this.value"></td>'
+    +'<td><input class="ci n" type="number" value="'+(s.qty||0)+'" oninput="stock['+i+'].qty=parseInt(this.value)||0;updateStats()"></td>'
+    +'<td><input class="ci pr" type="number" step="0.01" value="'+(s.price||0)+'" oninput="stock['+i+'].price=parseFloat(this.value)||0;updateStats()"></td>'
+    +'<td style="display:flex;align-items:center;gap:4px;"><input class="ci pf" type="number" value="'+(s.puffs?s.puffs/1000:'')+'" placeholder="18" oninput="stock['+i+'].puffs=(parseFloat(this.value)||0)*1000"><span style="font-size:10px;color:var(--t3);">K</span></td>'
+    +'<td><input class="ci" type="number" value="'+(s.alert||5)+'" style="width:55px;" oninput="stock['+i+'].alert=parseInt(this.value)||5"></td>'
+    +'<td><button class="btn sm d" onclick="delRow('+i+')">✕</button></td>'
+    +'</tr>'
+  ).join('');
+}
+function addRow(){stock.push({id:nid++,name:'',cat:'',qty:0,price:0,puffs:0,alert:5,enVente:false});renderStock();}
+function delRow(i){stock.splice(i,1);renderStock();renderCat();}
+function renderCat(){
+  updateStats();
+  const g=document.getElementById('catGrid');
+  const av=stock.filter(s=>s.qty>0);
+  if(!av.length){g.innerHTML='<div style="text-align:center;color:var(--t3);padding:32px;grid-column:1/-1;">Aucun article disponible en stock</div>';return;}
+  g.innerHTML=av.map(s=>{
+    const i=stock.indexOf(s);
+    const pf=s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs':'';
+    return '<div class="cc'+(s.enVente?' on':'')+'">'
+      +'<div class="cc-name">'+(s.name||'Sans nom')+'</div>'
+      +'<div class="cc-meta">'+(s.cat||'')+(pf?' · '+pf:'')+'</div>'
+      +'<div class="cc-price">'+parseFloat(s.price||0).toFixed(2)+'€</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;">'
+      +'<label class="sw"><input type="checkbox" '+(s.enVente?'checked':'')+' onchange="stock['+i+'].enVente=this.checked;renderCat()"><span class="sw-t"></span><span class="sw-k"></span></label>'
+      +'<span style="font-size:11px;color:'+(s.enVente?'var(--green)':'var(--t2)')+';">'+(s.enVente?'En vente ✓':'Désactivé')+'</span>'
+      +'</div></div>';
+  }).join('');
+}
+function catAll(st){stock.forEach(s=>{if(s.qty>0)s.enVente=st;});renderCat();}
+async function pushAll(){
+  const btn=event.target;btn.disabled=true;btn.textContent='⏳…';
+  try{
+    const r1=await fetch(SRV+'/seller/stock',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(stock)});
+    if(!r1.ok)throw new Error('Erreur stock');
+    const items=stock.filter(s=>s.enVente&&s.qty>0).map(s=>({
+      title:s.name,
+      description:s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs'+(s.cat?' · '+s.cat:''):(s.cat||''),
+      price:String(s.price||0),asset:'EUR',payload:'stock_'+s.id,stockId:s.id
+    }));
+    const r2=await fetch(SRV+'/seller/shop',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(items)});
+    if(!r2.ok)throw new Error('Erreur catalogue');
+    updateStats();
+    showToast('✓ Synchronisé · '+stock.length+' articles · '+items.length+' en vente');
+  }catch(e){showToast('⚠ '+e.message);}
+  finally{btn.disabled=false;btn.textContent=btn.textContent.includes('marketplace')?'🖥 Pousser vers marketplace':'🖥 Pousser';}
+}
+let tt;
+function showToast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),3000);}
+</script>
+</body>
+</html>`);
+});
 
 app.get('/payment-success', (req,res) => res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>✅ Paiement réussi</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#4ade80;}p{color:#8899b0;font-size:14px;}</style>
