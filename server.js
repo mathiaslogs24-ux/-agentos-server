@@ -405,6 +405,24 @@ app.delete('/sellers/:id',auth,async(req,res)=>{
   res.json({ok:true});
 });
 
+app.post('/sellers/:id/add-stock',auth,async(req,res)=>{
+  const v=await getSeller(req.params.id);
+  if(!v) return res.status(404).json({error:'Vendeur introuvable'});
+  const {item}=req.body;
+  if(!item||!item.qty) return res.status(400).json({error:'Item invalide'});
+  if(!v.stock) v.stock=[];
+  const existing=v.stock.find(s=>s.id===item.id);
+  if(existing){
+    existing.qty+=item.qty;
+    existing.name=item.name;existing.cat=item.cat;existing.price=item.price;existing.puffs=item.puffs;
+  } else {
+    v.stock.push({...item,enVente:false});
+  }
+  await saveSeller(v);
+  addLog('ok',`Transfert → ${v.name} · ${item.qty}x ${item.name}`);
+  res.json({ok:true});
+});
+
 // ─────────────────────────────────────────
 //  ROUTES VENDEUR (auth secret vendeur)
 // ─────────────────────────────────────────
