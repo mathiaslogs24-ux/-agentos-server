@@ -3,122 +3,215 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Vendeur</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>VendorOS</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--gold:#F0B429;--dark:#0A0A0B;--bg1:#111113;--bg2:#18181C;--bg3:#222228;--border:rgba(255,255,255,.08);--text:#F0EEE8;--t2:#A09C94;--t3:#5A5752;--green:#4ADE80;--red:#F87171;--blue:#4FC3F7;--r:14px;--rs:8px;}
+:root{
+  --gold:#F0B429;--gdim:rgba(240,180,41,.08);--gold2:#FFD166;
+  --bg0:#08080A;--bg1:#0F0F12;--bg2:#161619;--bg3:#1E1E23;--bg4:#26262D;
+  --gb:rgba(255,255,255,.07);--gb2:rgba(255,255,255,.04);
+  --text:#F0EEE8;--t2:#8A8680;--t3:#4A4744;
+  --green:#4ADE80;--grdim:rgba(74,222,128,.08);
+  --red:#F87171;--rdim:rgba(248,113,113,.08);
+  --blue:#4FC3F7;--bdim:rgba(79,195,247,.08);
+  --purple:#C084FC;
+  --r:14px;--rs:8px;
+}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--dark);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;}
-.topbar{background:var(--bg1);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
-.topbar-logo{font-size:18px;font-weight:800;}
-.topbar-logo span{color:var(--gold);}
-.seller-info{display:flex;align-items:center;gap:10px;}
-.seller-avatar{width:36px;height:36px;border-radius:10px;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#000;}
-.seller-name{font-size:14px;font-weight:700;}
-.main{max-width:900px;margin:0 auto;padding:24px;}
-.login-box{max-width:400px;margin:80px auto;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:32px;}
-.login-title{font-size:22px;font-weight:800;margin-bottom:8px;}
+body{background:var(--bg0);color:var(--text);font-family:'Bricolage Grotesque',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* LOGIN */
+.login-wrap{flex:1;display:flex;align-items:center;justify-content:center;}
+.login-box{width:380px;background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:32px;}
+.login-logo{font-size:22px;font-weight:800;margin-bottom:4px;}
+.login-logo span{color:var(--gold);}
 .login-sub{font-size:13px;color:var(--t2);margin-bottom:24px;}
-label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:6px;}
-input{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'Syne',sans-serif;font-size:13px;padding:11px 14px;border-radius:var(--rs);outline:none;margin-bottom:16px;}
-input:focus{border-color:var(--gold);}
-.btn{padding:11px 18px;border-radius:var(--rs);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:var(--bg2);color:var(--text);}
-.btn:active{transform:scale(.97);}
-.btn.primary{background:var(--gold);color:#000;border-color:var(--gold);}
-.btn.full{width:100%;}
-.btn.danger{background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3);}
-.section{margin-bottom:28px;}
-.section-title{font-size:16px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
-.stat-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:18px;}
-.stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;}
-.stat-val{font-size:24px;font-weight:800;}
+.field-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:6px;}
+.field-input{width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:10px 13px;border-radius:var(--rs);outline:none;margin-bottom:14px;}
+.field-input:focus{border-color:var(--gold);}
+.login-err{color:var(--red);font-size:12px;margin-top:8px;display:none;}
+
+/* TOPBAR */
+.topbar{flex-shrink:0;background:var(--bg1);border-bottom:1px solid var(--gb);padding:0 20px;display:flex;align-items:center;height:52px;gap:12px;}
+.topbar-logo{font-size:16px;font-weight:800;margin-right:8px;}
+.topbar-logo span{color:var(--gold);}
+.topbar-nav{display:flex;gap:2px;flex:1;}
+.tnav{padding:7px 14px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;color:var(--t2);transition:all .15s;}
+.tnav.active{background:var(--gdim);color:var(--gold);}
+.tnav:hover{color:var(--text);}
+.topbar-right{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.seller-chip{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--gb);border-radius:20px;padding:5px 12px 5px 5px;}
+.seller-av{width:26px;height:26px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#000;}
+.seller-nm{font-size:12px;font-weight:700;}
+
+/* LAYOUT */
+.app-body{flex:1;display:flex;overflow:hidden;}
+.content{flex:1;overflow-y:auto;padding:20px;}
+
+/* PANELS */
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.stat-card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:16px 18px;}
+.stat-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-bottom:8px;}
+.stat-val{font-size:22px;font-weight:800;}
 .stat-val.gold{color:var(--gold);}
 .stat-val.green{color:var(--green);}
-.card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px;}
-.card-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-.card-title{font-size:14px;font-weight:700;}
-.card-body{padding:16px;}
+.stat-val.blue{color:var(--blue);}
+
+/* CARD */
+.card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:14px;overflow:hidden;}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--gb);display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.card-actions{display:flex;gap:8px;}
+
+/* BUTTONS */
+.btn{padding:8px 14px;border-radius:var(--rs);font-family:'Bricolage Grotesque';font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;border:1px solid var(--gb);background:var(--bg3);color:var(--text);}
+.btn:hover{border-color:rgba(255,255,255,.15);}
+.btn:active{transform:scale(.97);}
+.btn.primary{background:var(--gold);color:#000;border-color:var(--gold);}
+.btn.primary:hover{background:var(--gold2);}
+.btn.danger{background:var(--rdim);color:var(--red);border-color:rgba(248,113,113,.25);}
+.btn.full{width:100%;padding:11px;}
+.btn.sm{padding:5px 10px;font-size:11px;}
+
+/* TABLE */
+.tw{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
-th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);padding:8px 12px;border-bottom:1px solid var(--border);}
-td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;}
+th{text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);padding:9px 12px;border-bottom:1px solid var(--gb);}
+td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px;vertical-align:middle;}
 tr:last-child td{border:none;}
+
+/* INPUTS IN TABLE */
+.cell-input{background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:6px 10px;border-radius:var(--rs);outline:none;width:100%;}
+.cell-input:focus{border-color:var(--gold);}
+.cell-input.num{font-family:'DM Mono';font-size:14px;font-weight:700;color:var(--gold);text-align:center;width:70px;}
+.cell-input.price{font-family:'DM Mono';font-size:12px;width:75px;}
+.cell-input.puffs{font-family:'DM Mono';font-size:12px;width:65px;}
+.cell-input.cat{max-width:110px;}
+
+/* TOGGLE */
+.sw{display:inline-block;position:relative;width:40px;height:22px;cursor:pointer;}
+.sw input{display:none;}
+.sw-t{position:absolute;inset:0;background:var(--bg4);border-radius:11px;transition:.2s;border:1px solid var(--gb);}
+.sw input:checked + .sw-t{background:var(--gold);border-color:var(--gold);}
+.sw-k{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;}
+.sw input:checked ~ .sw-k{transform:translateX(18px);}
+
+/* BADGE */
+.bx{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:'DM Mono';}
+.bx.bl{background:var(--bdim);color:var(--blue);}
+.bx.gr{background:var(--grdim);color:var(--green);}
+.bx.gd{background:var(--gdim);color:var(--gold);}
+
+/* TAG */
 .tag{display:inline-block;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:700;}
 .tg{background:rgba(74,222,128,.12);color:var(--green);}
-.tr{background:rgba(248,113,113,.12);color:var(--red);}
-.tw{background:rgba(240,180,41,.12);color:var(--gold);}
-.row-actions{display:flex;gap:6px;}
-.mini-btn{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--bg2);color:var(--t2);}
-.mini-btn:hover{color:var(--text);border-color:var(--gold);}
-.toggle-sw{display:flex;align-items:center;gap:8px;cursor:pointer;}
-.toggle-sw input{display:none;}
-.toggle-track{width:36px;height:20px;background:var(--bg3);border-radius:10px;position:relative;transition:background .2s;}
-.toggle-track.on{background:var(--gold);}
-.toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:8px;transition:transform .2s;}
-.toggle-track.on .toggle-thumb{transform:translateX(16px);}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.form-grid.c3{grid-template-columns:2fr 1fr 1fr;}
-.actions-bar{display:flex;gap:8px;margin-bottom:20px;}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;z-index:200;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+.tr2{background:rgba(248,113,113,.12);color:var(--red);}
+
+/* CATALOGUE CARDS */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:14px;}
+.cat-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:14px;position:relative;transition:border-color .15s;}
+.cat-card.active{border-color:rgba(240,180,41,.3);background:var(--gdim);}
+.cat-card-name{font-size:13px;font-weight:700;margin-bottom:4px;}
+.cat-card-meta{font-size:11px;color:var(--t3);margin-bottom:10px;}
+.cat-card-price{font-size:18px;font-weight:800;color:var(--gold);margin-bottom:10px;}
+.cat-card-toggle{display:flex;align-items:center;gap:8px;}
+.cat-card-toggle span{font-size:11px;color:var(--t2);}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--gb);border-radius:10px;padding:10px 18px;font-size:12px;font-weight:600;z-index:999;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.5);}
 .toast.show{transform:translateX(-50%) translateY(0);}
+
+.content::-webkit-scrollbar{width:4px;}
+.content::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="loginView">
+<!-- ══ LOGIN ══ -->
+<div id="loginView" class="login-wrap">
   <div class="login-box">
-    <div class="login-title">🛍 Dashboard Vendeur</div>
-    <div class="login-sub">Entrez votre clé secrète pour accéder à votre espace vendeur.</div>
-    <label>Clé secrète</label>
-    <input type="password" id="secretInput" placeholder="Votre clé secrète…" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn primary full" onclick="doLogin()">Connexion</button>
-    <div id="loginError" style="color:var(--red);font-size:12px;margin-top:10px;display:none;">Clé incorrecte. Vérifiez avec l'administrateur.</div>
+    <div class="login-logo">🛍 <span>Vendor</span>OS</div>
+    <div class="login-sub">Votre espace vendeur — entrez votre clé secrète</div>
+    <div class="field-label">Clé secrète</div>
+    <input class="field-input" type="password" id="secretInput" placeholder="••••••••••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn primary full" onclick="doLogin()">Accéder à mon dashboard</button>
+    <div class="login-err" id="loginErr">Clé incorrecte — contactez l'administrateur.</div>
   </div>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dashView" style="display:none;">
+<!-- ══ DASHBOARD ══ -->
+<div id="dashView" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+
   <div class="topbar">
     <div class="topbar-logo">🛍 <span>Vendor</span>OS</div>
-    <div class="seller-info">
-      <div class="seller-avatar" id="sellerAvatar">?</div>
-      <div class="seller-name" id="sellerNameEl">—</div>
-      <button class="btn" onclick="doLogout()" style="margin-left:8px;font-size:12px;padding:6px 12px;">Déconnexion</button>
+    <div class="topbar-nav">
+      <div class="tnav active" id="nav-stock" onclick="switchTab('stock')">📦 Stock</div>
+      <div class="tnav" id="nav-catalogue" onclick="switchTab('catalogue')">🛍 Catalogue</div>
+    </div>
+    <div class="topbar-right">
+      <div class="seller-chip">
+        <div class="seller-av" id="sellerAv">?</div>
+        <div class="seller-nm" id="sellerNm">—</div>
+      </div>
+      <button class="btn sm danger" onclick="doLogout()">Déconnexion</button>
     </div>
   </div>
 
-  <div class="main">
-    <!-- STATS -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Solde disponible</div>
-        <div class="stat-val gold" id="stBalance">0.00€</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Ventes totales</div>
-        <div class="stat-val green" id="stSales">0.00€</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Articles actifs</div>
-        <div class="stat-val" id="stActive">0</div>
-      </div>
-    </div>
+  <div class="app-body">
+    <div class="content">
 
-    <!-- STOCK -->
-    <div class="section">
-      <div class="section-title">📦 Mon Stock
-        <button class="btn" onclick="addStockRow()" style="margin-left:auto;font-size:12px;padding:6px 12px;">+ Ajouter</button>
-        <button class="btn primary" onclick="pushStock()" style="font-size:12px;padding:6px 14px;">🖥 Pousser</button>
+      <!-- STATS -->
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Solde disponible</div><div class="stat-val gold" id="stBalance">0.00€</div></div>
+        <div class="stat-card"><div class="stat-label">Ventes totales</div><div class="stat-val green" id="stSales">0.00€</div></div>
+        <div class="stat-card"><div class="stat-label">Valeur du stock</div><div class="stat-val blue" id="stValue">0.00€</div></div>
+        <div class="stat-card"><div class="stat-label">Articles en vente</div><div class="stat-val" id="stActive">0</div></div>
       </div>
-      <div class="card">
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Produit</th><th>Catégorie</th><th>Qté</th><th>Prix €</th><th>Puffs K</th><th>En vente</th><th></th></tr></thead>
-            <tbody id="stockBody"></tbody>
-          </table>
+
+      <!-- ══ STOCK PANEL ══ -->
+      <div class="panel active" id="panel-stock">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">📦 Mon Stock <span class="bx bl" id="stockCount">0 article(s)</span></div>
+            <div class="card-actions">
+              <button class="btn sm" onclick="addRow()">+ Ajouter</button>
+              <button class="btn sm primary" onclick="pushAll()">🖥 Pousser</button>
+            </div>
+          </div>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>Produit</th><th>Catégorie</th><th>Quantité</th>
+                <th>Prix €</th><th>Puffs K</th><th>Seuil alerte</th><th></th>
+              </tr></thead>
+              <tbody id="stockBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
+
+      <!-- ══ CATALOGUE PANEL ══ -->
+      <div class="panel" id="panel-catalogue">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">🛍 Catalogue <span class="bx gd" id="catCount">0 en vente</span></div>
+            <div class="card-actions">
+              <button class="btn sm" onclick="catSelectAll(true)">Tout activer</button>
+              <button class="btn sm" onclick="catSelectAll(false)">Tout désactiver</button>
+              <button class="btn sm primary" onclick="pushAll()">🖥 Pousser vers marketplace</button>
+            </div>
+          </div>
+          <div id="catGrid" class="cat-grid"></div>
+        </div>
+        <div style="background:var(--gdim);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px 16px;font-size:12px;color:var(--t2);margin-top:4px;">
+          💡 Activez les articles que vous souhaitez mettre en vente sur le marketplace. Les modifications sont appliquées après avoir cliqué sur "Pousser".
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -127,112 +220,173 @@ tr:last-child td{border:none;}
 
 <script>
 const SERVER = 'https://agentos-server-production-a5b4.up.railway.app';
-let sellerSecret = '';
-let sellerData   = null;
-let localStock   = [];
-let nid = 1;
+let secret = '';
+let seller = null;
+let stock  = [];
+let nid    = 1;
 
-// ─── LOGIN
-async function doLogin() {
-  const secret = document.getElementById('secretInput').value.trim();
-  if(!secret) return;
-  try {
-    const res = await fetch(SERVER+'/seller/me', { headers:{'x-secret':secret} });
+// ── LOGIN
+async function doLogin(){
+  const s = document.getElementById('secretInput').value.trim();
+  if(!s) return;
+  try{
+    const res = await fetch(SERVER+'/seller/me',{headers:{'x-secret':s}});
     if(!res.ok) throw new Error();
-    const data = await res.json();
-    sellerSecret = secret;
-    sellerData   = data;
-    localStock   = data.stock || [];
-    nid = localStock.length ? Math.max(...localStock.map(s=>s.id||0))+1 : 1;
+    seller = await res.json();
+    secret = s;
+    stock  = seller.stock||[];
+    nid    = stock.length?Math.max(...stock.map(x=>x.id||0))+1:1;
     document.getElementById('loginView').style.display='none';
-    document.getElementById('dashView').style.display='block';
-    document.getElementById('sellerAvatar').textContent = data.shopName?.[0]||data.name?.[0]||'?';
-    document.getElementById('sellerNameEl').textContent = data.shopName||data.name;
-    document.getElementById('stBalance').textContent = parseFloat(data.balance||0).toFixed(2)+'€';
-    document.getElementById('stSales').textContent   = parseFloat(data.totalSales||0).toFixed(2)+'€';
+    const dv = document.getElementById('dashView');
+    dv.style.display='flex';
+    document.getElementById('sellerAv').textContent = (seller.shopName||seller.name||'?')[0].toUpperCase();
+    document.getElementById('sellerNm').textContent = seller.shopName||seller.name;
+    document.getElementById('stBalance').textContent = parseFloat(seller.balance||0).toFixed(2)+'€';
+    document.getElementById('stSales').textContent   = parseFloat(seller.totalSales||0).toFixed(2)+'€';
     renderStock();
-  } catch(e) {
-    document.getElementById('loginError').style.display='block';
+    renderCatalogue();
+    updateStats();
+  }catch(e){
+    document.getElementById('loginErr').style.display='block';
   }
 }
 
-function doLogout() {
-  sellerSecret=''; sellerData=null; localStock=[];
-  document.getElementById('loginView').style.display='block';
+function doLogout(){
+  secret=''; seller=null; stock=[];
+  document.getElementById('loginView').style.display='flex';
   document.getElementById('dashView').style.display='none';
   document.getElementById('secretInput').value='';
-  document.getElementById('loginError').style.display='none';
+  document.getElementById('loginErr').style.display='none';
 }
 
-// ─── STOCK
-function renderStock() {
-  const active = localStock.filter(s=>s.enVente).length;
+// ── TABS
+function switchTab(tab){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tnav').forEach(n=>n.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+  document.getElementById('nav-'+tab).classList.add('active');
+  if(tab==='catalogue') renderCatalogue();
+}
+
+// ── STATS
+function updateStats(){
+  const value = stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0);
+  const active = stock.filter(x=>x.enVente&&x.qty>0).length;
+  document.getElementById('stValue').textContent  = value.toFixed(2)+'€';
   document.getElementById('stActive').textContent = active;
-
-  document.getElementById('stockBody').innerHTML = localStock.map((s,i) => `
-    <tr>
-      <td><input value="${s.name||''}" oninput="localStock[${i}].name=this.value"
-        style="background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'Syne';font-size:12px;padding:6px 10px;border-radius:6px;outline:none;width:100%;min-width:140px;"></td>
-      <td><input value="${s.cat||''}" oninput="localStock[${i}].cat=this.value"
-        style="background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'Syne';font-size:12px;padding:6px 10px;border-radius:6px;outline:none;width:100%;max-width:100px;"></td>
-      <td><input type="number" value="${s.qty||0}" oninput="localStock[${i}].qty=parseInt(this.value)||0"
-        style="background:var(--bg2);border:1px solid var(--border);color:var(--gold);font-family:'DM Mono';font-size:14px;font-weight:700;padding:6px 8px;border-radius:6px;outline:none;width:70px;text-align:center;"></td>
-      <td><input type="number" step="0.01" value="${s.price||0}" oninput="localStock[${i}].price=parseFloat(this.value)||0"
-        style="background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'DM Mono';font-size:12px;padding:6px 8px;border-radius:6px;outline:none;width:75px;"></td>
-      <td><input type="number" value="${s.puffs?s.puffs/1000:''}" placeholder="18" oninput="localStock[${i}].puffs=(parseFloat(this.value)||0)*1000"
-        style="background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'DM Mono';font-size:12px;padding:6px 8px;border-radius:6px;outline:none;width:65px;"></td>
-      <td>
-        <div class="toggle-sw" onclick="toggleEnVente(${i})">
-          <div class="toggle-track ${s.enVente?'on':''}">
-            <div class="toggle-thumb"></div>
-          </div>
-          <span style="font-size:11px;color:${s.enVente?'var(--green)':'var(--t3)'};">${s.enVente?'Oui':'Non'}</span>
-        </div>
-      </td>
-      <td><button class="mini-btn" style="color:var(--red);" onclick="delRow(${i})">✕</button></td>
-    </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:24px;">Aucun article — cliquez sur "+ Ajouter"</td></tr>';
+  document.getElementById('stockCount').textContent = stock.length+' article(s)';
+  document.getElementById('catCount').textContent   = active+' en vente';
 }
 
-function addStockRow() {
-  localStock.push({ id:nid++, name:'', cat:'', qty:0, price:0, puffs:0, enVente:false, alert:5 });
+// ── STOCK
+function renderStock(){
+  updateStats();
+  const body = document.getElementById('stockBody');
+  if(!stock.length){
+    body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:28px;font-size:13px;">Aucun article — cliquez sur "+ Ajouter"</td></tr>';
+    return;
+  }
+  body.innerHTML = stock.map((s,i)=>`
+    <tr>
+      <td><input class="cell-input" value="${s.name||''}" oninput="stock[${i}].name=this.value;updateStats()"></td>
+      <td><input class="cell-input cat" value="${s.cat||''}" oninput="stock[${i}].cat=this.value"></td>
+      <td><input class="cell-input num" type="number" value="${s.qty||0}" min="0" oninput="stock[${i}].qty=parseInt(this.value)||0;updateStats()"></td>
+      <td><input class="cell-input price" type="number" step="0.01" value="${s.price||0}" oninput="stock[${i}].price=parseFloat(this.value)||0;updateStats()"></td>
+      <td style="display:flex;align-items:center;gap:4px;">
+        <input class="cell-input puffs" type="number" value="${s.puffs?s.puffs/1000:''}" placeholder="18" oninput="stock[${i}].puffs=(parseFloat(this.value)||0)*1000">
+        <span style="font-size:10px;color:var(--t3);">K</span>
+      </td>
+      <td><input class="cell-input" type="number" value="${s.alert||5}" style="width:55px;" oninput="stock[${i}].alert=parseInt(this.value)||5"></td>
+      <td><button class="btn sm danger" onclick="delRow(${i})">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function addRow(){
+  stock.push({id:nid++,name:'',cat:'',qty:0,price:0,puffs:0,alert:5,enVente:false});
   renderStock();
 }
 
-function delRow(i) { localStock.splice(i,1); renderStock(); }
-function toggleEnVente(i) { localStock[i].enVente=!localStock[i].enVente; renderStock(); }
+function delRow(i){
+  stock.splice(i,1);
+  renderStock();
+  renderCatalogue();
+}
 
-async function pushStock() {
-  try {
-    // 1. Pousser le stock
-    const r1 = await fetch(SERVER+'/seller/stock', {
-      method:'POST', headers:{'Content-Type':'application/json','x-secret':sellerSecret},
-      body:JSON.stringify(localStock),
+// ── CATALOGUE
+function renderCatalogue(){
+  updateStats();
+  const grid = document.getElementById('catGrid');
+  const available = stock.filter(s=>s.qty>0);
+  if(!available.length){
+    grid.innerHTML='<div style="text-align:center;color:var(--t3);padding:32px;font-size:13px;grid-column:1/-1;">Aucun article disponible — ajoutez du stock d\'abord</div>';
+    return;
+  }
+  grid.innerHTML = available.map((s,i)=>{
+    const idx = stock.indexOf(s);
+    const puffsLabel = s.puffs?` · ${s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs} puffs`:'';
+    return `<div class="cat-card ${s.enVente?'active':''}">
+      <div class="cat-card-name">${s.name||'Sans nom'}</div>
+      <div class="cat-card-meta">${s.cat||''}${puffsLabel} · ${s.qty} en stock</div>
+      <div class="cat-card-price">${parseFloat(s.price||0).toFixed(2)}€</div>
+      <div class="cat-card-toggle">
+        <label class="sw">
+          <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
+          <span class="sw-t"></span><span class="sw-k"></span>
+        </label>
+        <span>${s.enVente?'<span style="color:var(--green);font-weight:700;">En vente ✓</span>':'Désactivé'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function catSelectAll(state){
+  stock.forEach(s=>{ if(s.qty>0) s.enVente=state; });
+  renderCatalogue();
+}
+
+// ── PUSH (stock + catalogue d'un coup)
+async function pushAll(){
+  if(!secret){ showToast('⚠ Non connecté'); return; }
+  const btn = event.target;
+  btn.disabled=true; btn.textContent='⏳…';
+  try{
+    // 1. Stock
+    const r1 = await fetch(SERVER+'/seller/stock',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-secret':secret},
+      body:JSON.stringify(stock),
     });
-    if(!r1.ok) throw new Error('Stock push failed');
+    if(!r1.ok) throw new Error('Erreur stock');
 
-    // 2. Pousser le catalogue (articles en vente)
-    const shopItems = localStock.filter(s=>s.enVente&&s.qty>0).map(s=>({
+    // 2. Catalogue (articles enVente)
+    const shopItems = stock.filter(s=>s.enVente&&s.qty>0).map(s=>({
       title      : s.name,
-      description: s.puffs?`${s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs} puffs${s.cat?' · '+s.cat:''}`:(s.cat||''),
+      description: s.puffs
+        ? (s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs'+(s.cat?' · '+s.cat:'')
+        : (s.cat||''),
       price      : String(s.price||0),
       asset      : 'EUR',
       payload    : 'stock_'+s.id,
       stockId    : s.id,
     }));
-    const r2 = await fetch(SERVER+'/seller/shop', {
-      method:'POST', headers:{'Content-Type':'application/json','x-secret':sellerSecret},
+    const r2 = await fetch(SERVER+'/seller/shop',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-secret':secret},
       body:JSON.stringify(shopItems),
     });
-    if(!r2.ok) throw new Error('Shop push failed');
+    if(!r2.ok) throw new Error('Erreur catalogue');
 
-    const active = shopItems.length;
-    document.getElementById('stActive').textContent = active;
-    showToast(`✓ Synchronisé · ${localStock.length} articles · ${active} en vente`);
-  } catch(e) { showToast('⚠ '+e.message); }
+    updateStats();
+    showToast('✓ Synchronisé · '+stock.length+' articles · '+shopItems.length+' en vente');
+  }catch(e){
+    showToast('⚠ '+e.message);
+  }finally{
+    btn.disabled=false; btn.textContent=btn.id==='catPush'?'🖥 Pousser vers marketplace':'🖥 Pousser';
+  }
 }
 
-// ─── TOAST
+// ── TOAST
 let tt;
 function showToast(msg){
   const el=document.getElementById('toast');
