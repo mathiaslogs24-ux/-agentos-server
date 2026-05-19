@@ -286,14 +286,15 @@ app.get('/orders', auth, (req,res) => res.json(orders));
 // ─────────────────────────────────────────
 
 // Créer un vendeur
-app.post('/sellers', auth, (req,res) => {
-  const { name, shopName, description } = req.body;
+app.post('/sellers', auth, async (req,res) => {
+  const { name, shopName, description, telegramId } = req.body;
   if(!name) return res.status(400).json({ error:'Nom manquant' });
   const seller = {
     id          : Date.now(),
     name,
     shopName    : shopName || name,
     description : description || '',
+    telegramId  : telegramId || '',
     secret      : crypto.randomBytes(16).toString('hex'),
     active      : true,
     stock       : [],
@@ -306,7 +307,29 @@ app.post('/sellers', auth, (req,res) => {
   sellers.push(seller);
   saveData();
   addLog('ok',`Vendeur créé: ${name}`);
-  res.json({ ok:true, seller: { ...seller } }); // retourne le secret au créateur
+
+  // Envoyer le lien au vendeur via Telegram si bot actif et telegramId fourni
+  if(telegramId && bot) {
+    try {
+      await bot.sendMessage(telegramId,
+        `🎉 *Bienvenue sur le Marketplace !*\n\nBonjour ${name}, votre espace vendeur est prêt.\n\n🔑 Votre clé secrète :\n\`${seller.secret}\`\n\n👇 Accédez à votre dashboard :`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{
+              text: '🛍 Ouvrir mon dashboard vendeur',
+              url: `https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`
+            }]]
+          }
+        }
+      );
+      addLog('ok', `Dashboard vendeur envoyé à Telegram ID ${telegramId}`);
+    } catch(e) {
+      addLog('warn', `Impossible d'envoyer à Telegram ${telegramId}: ${e.message}`);
+    }
+  }
+
+  res.json({ ok:true, seller: { ...seller } });
 });
 
 // Lister tous les vendeurs
@@ -570,11 +593,30 @@ app.post('/stripe-webhook', async (req,res) => {
         // Vendeur tiers
         const v = sellers.find(x=>String(x.id)===String(ci.sellerId));
         if(v) {
-          v.balance        = parseFloat((v.balance||0)+itemNet).toFixed(2);
-          v.totalSales     = parseFloat((v.totalSales||0)+itemAmount).toFixed(2);
-          v.totalCommission= parseFloat((v.totalCommission||0)+itemCommission).toFixed(2);
+          v.balance        = parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
+          v.totalSales     = parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
+          v.totalCommission= parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
           const s = (v.stock||[]).find(x=>x.id===ci.id);
-          if(s&&s.qty>0) { s.qty=Math.max(0,s.qty-parseInt(ci.qty||1)); addLog('info',`📦 ${v.name} ${s.name} → ${s.qty}`); }
+          if(s&&s.qty>0) { s.qty=Math.max(0,s.qty-qty); addLog('info',`📦 ${v.name} ${s.name} → ${s.qty}`); }
+
+          // 🔔 Notification Telegram au vendeur
+          if(v.telegramId && bot) {
+            const itemName  = s ? s.name : `Article #${ci.id}`;
+            const stockLeft = s ? s.qty  : '?';
+            const client    = order.client||{};
+            const addrLine  = [client.name, client.address, client.postal, client.city, client.country].filter(Boolean).join(', ');
+            bot.sendMessage(v.telegramId,
+              `🛍 *Nouvelle vente !*\n\n`
+              + `📦 ${qty}x *${itemName}*\n`
+              + `💰 Montant : ${itemAmount.toFixed(2)}€\n`
+              + `💵 Votre gain net : *${itemNet.toFixed(2)}€*\n`
+              + `📊 Stock restant : ${stockLeft} unité(s)\n\n`
+              + `👤 *Livraison :*\n${addrLine||'Non renseigné'}\n`
+              + (client.phone?`📞 ${client.phone}\n`:'')
+              + (client.email?`📧 ${client.email}`:''),
+              { parse_mode:'Markdown' }
+            ).catch(e=>addLog('warn',`Notif vendeur ${v.name}: ${e.message}`));
+          }
         }
       }
     });
