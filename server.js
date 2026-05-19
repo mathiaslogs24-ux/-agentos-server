@@ -344,6 +344,21 @@ app.get('/sellers/:id', auth, (req,res) => {
   res.json(s);
 });
 
+// Mettre à jour un vendeur
+app.post('/sellers/:id/update', auth, (req,res) => {
+  const v = sellers.find(x=>String(x.id)===req.params.id);
+  if(!v) return res.status(404).json({ error:'Vendeur introuvable' });
+  if(req.body.name)       v.name       = req.body.name;
+  if(req.body.shopName)   v.shopName   = req.body.shopName;
+  if(req.body.telegramId !== undefined) v.telegramId   = req.body.telegramId;
+  if(req.body.balance    !== undefined) v.balance      = parseFloat(req.body.balance)||0;
+  if(req.body.remuneration !== undefined) v.remuneration = parseFloat(req.body.remuneration)||0;
+  if(req.body.notes      !== undefined) v.notes        = req.body.notes;
+  saveData();
+  addLog('ok', `Vendeur mis à jour: ${v.name}`);
+  res.json({ ok:true });
+});
+
 // Activer/désactiver un vendeur
 app.post('/sellers/:id/toggle', auth, (req,res) => {
   const s = sellers.find(v => String(v.id)===req.params.id);
