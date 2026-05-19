@@ -543,7 +543,12 @@ app.post('/stripe-webhook',async(req,res)=>{
       const full = await fullRes.json();
       if(full.shipping_details) shipping = full.shipping_details;
       if(full.customer_details) customer = full.customer_details;
+      addLog('info', `Shipping: ${JSON.stringify(full.shipping_details?.address||{})} | Customer addr: ${JSON.stringify(full.customer_details?.address||{})}`);
     } catch(e) { addLog('warn','Session fetch: '+e.message); }
+
+    // Adresse : shipping_details en priorité, sinon customer_details
+    const addr = shipping.address || customer.address || {};
+    const clientName = shipping.name || customer.name || '';
 
     let cartItems=[];
     try{cartItems=JSON.parse(meta.cartJson||'[]');}catch(e){}
@@ -560,12 +565,11 @@ app.post('/stripe-webhook',async(req,res)=>{
       if(ld.data?.length) productNames=ld.data.map(x=>x.description||'');
     }catch(e){}
 
-    const addr=shipping.address||{};
     const order={
       id:Date.now(),date:new Date().toLocaleString('fr-FR'),userId,userName,amount,commission,sellerAmount,
       stockName:productNames.join(', ')||'Commande',invoiceId:sessionId,provider:'stripe',cartItems,
       client:{
-        name   : shipping.name||customer.name||'',
+        name   : clientName,
         email  : customer.email||'',
         phone  : customer.phone||'',
         address: [addr.line1,addr.line2].filter(Boolean).join(', '),
