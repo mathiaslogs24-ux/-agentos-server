@@ -602,15 +602,24 @@ app.post('/stripe-webhook',async(req,res)=>{
           await saveSeller(v);
 
           if(v.telegramId&&bot){
-            const itemName=s?s.name:`Article #${ci.id}`;
-            const stockLeft=s?s.qty:'?';
-            const addrLine=[order.client.name,order.client.address,order.client.postal,order.client.city,order.client.country].filter(Boolean).join(', ');
-            bot.sendMessage(v.telegramId,
-              `🛍 *Nouvelle vente !*\n\n📦 ${qty}x *${itemName}*\n💰 Montant : ${itemAmount.toFixed(2)}€\n💵 Votre gain net : *${itemNet.toFixed(2)}€*\n📊 Stock restant : ${stockLeft}\n\n👤 *Livraison :*\n${addrLine||'Non renseigné'}\n`
-              +(order.client.phone?`📞 ${order.client.phone}\n`:'')
-              +(order.client.email?`📧 ${order.client.email}`:''),
-              {parse_mode:'Markdown'}
-            ).catch(e=>addLog('warn',`Notif vendeur: ${e.message}`));
+            const itemName  = s?s.name:`Article #${ci.id}`;
+            const stockLeft = s?s.qty:'?';
+            const c = order.client;
+            const msg = `🛍 *Nouvelle vente !*\n\n`
+              + `📦 ${qty}x *${itemName}*\n`
+              + `💰 Montant : ${itemAmount.toFixed(2)}€\n`
+              + `💵 Gain net : *${itemNet.toFixed(2)}€*\n`
+              + `📊 Stock restant : ${stockLeft}\n\n`
+              + `━━━━━━━━━━━━━━━\n`
+              + `👤 *Nom complet :* ${c.name||'—'}\n`
+              + `📍 *Adresse :* ${c.address||'—'}\n`
+              + `📮 *Code postal :* ${c.postal||'—'}\n`
+              + `🏙 *Ville :* ${c.city||'—'}\n`
+              + `🌍 *Pays :* ${c.country||'—'}\n`
+              + `📞 *Téléphone :* ${c.phone||'—'}\n`
+              + `📧 *Email :* ${c.email||'—'}`;
+            bot.sendMessage(v.telegramId, msg, {parse_mode:'Markdown'})
+              .catch(e=>addLog('warn',`Notif vendeur: ${e.message}`));
           }
         }
       }
