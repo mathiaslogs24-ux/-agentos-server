@@ -510,12 +510,13 @@ app.post('/sellers',auth,async(req,res)=>{
   await saveSeller(seller);
   addLog('ok',`Vendeur créé: ${name}`);
 
-  if(telegramId&&bot){
+  if(telegramId&&vendorBot){
     try{
-      await bot.sendMessage(telegramId,
+      await vendorBot.sendMessage(telegramId,
         `🎉 *Bienvenue sur le Marketplace !*\n\nBonjour ${name}, votre espace vendeur est prêt.\n\n🔑 Votre clé secrète :\n\`${seller.secret}\`\n\n👇 Accédez à votre dashboard :`,
         {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🛍 Ouvrir mon dashboard vendeur',url:`https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`}]]}}
       );
+      addLog('ok',`Message de bienvenue envoyé via bot vendeur à ${telegramId}`);
     }catch(e){addLog('warn',`Notif vendeur: ${e.message}`);}
   }
   res.json({ok:true,seller});
@@ -853,7 +854,7 @@ app.post('/stripe-webhook',async(req,res)=>{
     const userName  = meta.userName||'';
     const amount    = (event.data.object.amount_total/100).toFixed(2);
 
-    // Récupérer la session complète pour avoir shipping_details
+    // Récupérer la session complète pour avoir shipping_details + customer_details
     let shipping = event.data.object.shipping_details || {};
     let customer = event.data.object.customer_details || {};
     try {
@@ -863,11 +864,13 @@ app.post('/stripe-webhook',async(req,res)=>{
       const full = await fullRes.json();
       if(full.shipping_details) shipping = full.shipping_details;
       if(full.customer_details) customer = full.customer_details;
-      addLog('info', `Shipping: ${JSON.stringify(full.shipping_details?.address||{})} | Customer addr: ${JSON.stringify(full.customer_details?.address||{})}`);
     } catch(e) { addLog('warn','Session fetch: '+e.message); }
 
-    // Adresse : shipping_details en priorité, sinon customer_details
-    const addr = shipping.address || customer.address || {};
+    // Adresse : shipping_details en priorité, sinon customer_details.address
+    const shippingAddr = shipping.address || {};
+    const customerAddr = customer.address || {};
+    // Prendre le champ le plus complet (celui qui a line1)
+    const addr = shippingAddr.line1 ? shippingAddr : customerAddr;
     const clientName = shipping.name || customer.name || '';
 
     let cartItems=[];
