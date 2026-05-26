@@ -284,13 +284,18 @@ function startBot() {
 //  BOT VENDEUR
 // ─────────────────────────────────────────
 let vendorBot = null;
+let vendorBotUsername = '';
 
 function startVendorBot() {
   const token = process.env.VENDOR_BOT_TOKEN;
   if(!token){ addLog('warn','VENDOR_BOT_TOKEN non configuré'); return; }
   try {
     vendorBot = new TelegramBot(token, {polling:true});
-    addLog('ok','Bot vendeur démarré ✓');
+    // Récupérer le username du bot vendeur
+    vendorBot.getMe().then(me => {
+      vendorBotUsername = me.username || '';
+      addLog('ok','Bot vendeur démarré ✓ @'+vendorBotUsername);
+    }).catch(()=>{ addLog('ok','Bot vendeur démarré ✓'); });
 
     vendorBot.on('message', async(msg)=>{
       const userId = msg.from.id;
@@ -510,15 +515,16 @@ app.post('/sellers',auth,async(req,res)=>{
   await saveSeller(seller);
   addLog('ok',`Vendeur créé: ${name}`);
 
-  if(telegramId&&bot){
+  if(telegramId&&vendorBot){
     try{
-      await bot.sendMessage(telegramId,
+      await vendorBot.sendMessage(telegramId,
         `🎉 *Bienvenue sur le Marketplace !*\n\nBonjour ${name}, votre espace vendeur est prêt.\n\n🔑 Votre clé secrète :\n\`${seller.secret}\`\n\n👇 Accédez à votre dashboard :`,
         {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🛍 Ouvrir mon dashboard vendeur',url:`https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`}]]}}
       );
+      addLog('ok',`Message de bienvenue envoyé via bot vendeur à ${telegramId}`);
     }catch(e){addLog('warn',`Notif vendeur: ${e.message}`);}
   }
-  res.json({ok:true,seller});
+  res.json({ok:true, seller, vendorBotUsername});
 });
 
 app.post('/sellers/:id/update',auth,async(req,res)=>{
@@ -529,7 +535,10 @@ app.post('/sellers/:id/update',auth,async(req,res)=>{
   if(req.body.telegramId!==undefined) v.telegramId =req.body.telegramId;
   if(req.body.balance!==undefined)    v.balance    =parseFloat(req.body.balance)||0;
   if(req.body.remuneration!==undefined) v.remuneration=parseFloat(req.body.remuneration)||0;
-  if(req.body.notes!==undefined)    v.notes        =req.body.notes;
+  if(req.body.notes!==undefined)      v.notes        =req.body.notes;
+  if(req.body.commissionMode!==undefined) v.commissionMode=req.body.commissionMode;
+  if(req.body.commissionFlat!==null&&req.body.commissionFlat!==undefined) v.commissionFlat=parseFloat(req.body.commissionFlat)||0;
+  if(req.body.commissionRate!==null&&req.body.commissionRate!==undefined) v.commissionRate=parseFloat(req.body.commissionRate)||0;
   await saveSeller(v);
   addLog('ok',`Vendeur mis à jour: ${v.name}`);
   res.json({ok:true});
@@ -576,6 +585,8 @@ app.post('/seller/stock',sellerAuth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
   req.seller.stock=req.body;await saveSeller(req.seller);
   addLog('ok',`Stock vendeur ${req.seller.name} · ${req.body.length} articles`);
+  // Vérifier alertes stock bas
+  checkSellerStockAlerts(req.seller);
   res.json({ok:true,count:req.body.length});
 });
 
@@ -586,9 +597,183 @@ app.post('/seller/shop',sellerAuth,async(req,res)=>{
   res.json({ok:true,count:req.body.length});
 });
 
-// ─────────────────────────────────────────
-//  MARKETPLACE PUBLIC
-// ─────────────────────────────────────────
+// ── Commandes du vendeur
+app.get('/seller/orders', sellerAuth, async(req,res)=>{
+  const orders = await getOrders();
+  const sellerId = String(req.seller.id);
+  const myOrders = orders
+    .filter(o => o.cartItems?.some(ci=>String(ci.sellerId)===sellerId))
+    .map(o => {
+      const myItems = o.cartItems.filter(ci=>String(ci.sellerId)===sellerId);
+      const myAmount = myItems.reduce((s,ci)=>s+parseFloat(ci.price||0)*parseInt(ci.qty||1),0);
+      const myCom = myItems.reduce((s,ci)=>s+(cfg.commissionMode==='flat'?cfg.commissionFlat*parseInt(ci.qty||1):parseFloat(ci.price||0)*parseInt(ci.qty||1)*cfg.commissionRate),0);
+      const myNet = myAmount - myCom;
+      // Trouver les noms depuis le stock vendeur
+      const itemsWithNames = myItems.map(ci=>{
+        const s = (req.seller.stock||[]).find(x=>x.id===ci.id);
+        return { id:ci.id, name:s?s.name:`Article #${ci.id}`, qty:ci.qty||1 };
+      });
+      return {
+        id      : o.id,
+        date    : o.date,
+        amount  : myAmount.toFixed(2),
+        net     : myNet.toFixed(2),
+        commission: myCom.toFixed(2),
+        items   : itemsWithNames,
+        client  : o.client || {},
+        status  : o.shipped?.[sellerId] || 'pending',
+      };
+    });
+  res.json(myOrders);
+});
+
+// ── Marquer une commande expédiée + notif client
+app.post('/seller/orders/:id/ship', sellerAuth, async(req,res)=>{
+  const sellerId = String(req.seller.id);
+  const orders   = await getOrders();
+  const order    = orders.find(o=>String(o.id)===req.params.id);
+  if(!order) return res.status(404).json({error:'Commande introuvable'});
+
+  // Marquer comme expédiée
+  if(!order.shipped) order.shipped = {};
+  order.shipped[sellerId] = 'shipped';
+  await saveOrder(order);
+
+  addLog('ok',`📦 Expédition · commande ${order.id} · vendeur ${req.seller.name}`);
+
+  // Notifier le client sur Telegram
+  if(order.userId && bot) {
+    const itemNames = (order.cartItems||[])
+      .filter(ci=>String(ci.sellerId)===sellerId)
+      .map(ci=>{ const s=(req.seller.stock||[]).find(x=>x.id===ci.id); return (ci.qty||1)+'x '+(s?s.name:'Article'); })
+      .join(', ');
+    try {
+      await bot.sendMessage(order.userId,
+        `📦 *Votre commande a été expédiée !*\n\n`
+        + `🛍 ${itemNames}\n`
+        + `🏪 Par : ${req.seller.shopName||req.seller.name}\n\n`
+        + `Vous recevrez votre colis prochainement. Merci pour votre achat ! 🙏`,
+        {parse_mode:'Markdown'}
+      );
+    } catch(e){ addLog('warn','Notif expédition: '+e.message); }
+  }
+
+  res.json({ok:true});
+});
+
+// ── Codes promo vendeur
+app.post('/seller/promos', sellerAuth, async(req,res)=>{
+  if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
+  req.seller.promos = req.body;
+  await saveSeller(req.seller);
+  res.json({ok:true, count:req.body.length});
+});
+
+// ── Vérifier un code promo (appelé par le shop)
+app.post('/promo/check', async(req,res)=>{
+  const { code, sellerId, cat, amount } = req.body;
+  if(!code) return res.status(400).json({error:'Code manquant'});
+  const userId = req.body.userId || 'guest';
+
+  // Chercher dans les promos admin et vendeurs
+  let found = null;
+  let foundSellerId = null;
+
+  // Admin promos (depuis config)
+  const adminPromos = cfg.promos || [];
+  const ap = adminPromos.find(p=>p.code===code.toUpperCase()&&p.active);
+  if(ap) { found = ap; foundSellerId = 'admin'; }
+
+  // Vendeur promos
+  if(!found) {
+    const sellers = await getSellers();
+    for(const v of sellers) {
+      const vp = (v.promos||[]).find(p=>p.code===code.toUpperCase()&&p.active);
+      if(vp) { found = vp; foundSellerId = String(v.id); break; }
+    }
+  }
+
+  if(!found) return res.status(404).json({error:'Code invalide ou expiré'});
+
+  // Vérifier expiration
+  if(found.expiry && new Date(found.expiry) < new Date())
+    return res.status(400).json({error:'Code expiré'});
+
+  // Vérifier limite d'utilisations
+  if(found.limitType==='total' && found.usedCount >= found.limitVal)
+    return res.status(400).json({error:'Code épuisé'});
+
+  if(found.limitType==='per_user' && (found.usedBy||[]).includes(userId))
+    return res.status(400).json({error:'Déjà utilisé'});
+
+  // Vérifier scope
+  if(found.scope==='seller' && sellerId && foundSellerId!=='admin' && String(foundSellerId)!==String(sellerId))
+    return res.status(400).json({error:'Code non valide pour ce vendeur'});
+
+  if(found.scope==='category' && cat && found.cat && found.cat.toLowerCase()!==cat.toLowerCase())
+    return res.status(400).json({error:'Code non valide pour cette catégorie'});
+
+  // Calculer la réduction
+  const discount = found.type==='percent'
+    ? parseFloat(amount) * found.value / 100
+    : found.value;
+
+  res.json({ ok:true, code:found.code, type:found.type, value:found.value, discount:discount.toFixed(2) });
+});
+
+// ── Demande de retrait vendeur
+app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
+  const { amount, coords } = req.body;
+  const v = req.seller;
+  if(!amount || amount <= 0)        return res.status(400).json({error:'Montant invalide'});
+  if(amount > (v.balance||0))       return res.status(400).json({error:'Solde insuffisant'});
+  if(!coords)                       return res.status(400).json({error:'Coordonnées requises'});
+
+  const wd = {
+    id     : Date.now(),
+    amount : parseFloat(amount).toFixed(2),
+    coords,
+    date   : new Date().toLocaleString('fr-FR'),
+    status : 'pending',
+  };
+
+  if(!v.withdrawals) v.withdrawals = [];
+  v.withdrawals.unshift(wd);
+  await saveSeller(v);
+
+  addLog('ok', `💸 Retrait demandé · ${v.name} · ${amount}€`);
+
+  // Notifier admin via bot
+  if(bot && cfg.adminTelegramId) {
+    bot.sendMessage(cfg.adminTelegramId,
+      `💸 *Demande de retrait*\n\nVendeur : *${v.shopName||v.name}*\nMontant : *${parseFloat(amount).toFixed(2)}€*\nCoord : ${coords.slice(0,60)}\n\nValidez dans le dashboard.`,
+      {parse_mode:'Markdown'}
+    ).catch(()=>{});
+  }
+  if(v.telegramId && vendorBot) {
+    vendorBot.sendMessage(v.telegramId,
+      `💸 *Demande de retrait envoyée !*\n\nMontant : *${parseFloat(amount).toFixed(2)}€*\n\nL'administrateur traitera votre demande sous 24-48h.`,
+      {parse_mode:'Markdown'}
+    ).catch(()=>{});
+  }
+
+  res.json({ok:true, seller:{...v, secret:undefined}});
+});
+
+// ── Alertes stock bas — vérifiées à chaque push stock vendeur
+async function checkSellerStockAlerts(seller) {
+  if(!seller.telegramId || !vendorBot) return;
+  // Lire les settings du vendeur (stockés côté client, fallback seuil 5)
+  const threshold = seller.alertThreshold || 5;
+  const lowItems  = (seller.stock||[]).filter(s=>s.qty>0 && s.qty<=(s.alert||threshold));
+  if(!lowItems.length) return;
+  const msg = `⚠️ *Alerte stock bas !*\n\n`
+    + lowItems.map(s=>`📦 *${s.name}* : ${s.qty} unité(s) restante(s)`).join('\n')
+    + `\n\nPensez à réapprovisionner.`;
+  vendorBot.sendMessage(seller.telegramId, msg, {parse_mode:'Markdown'}).catch(()=>{});
+}
+
+
 app.get('/marketplace',async(req,res)=>{
   const sellers=await getSellers();
   const result=[];
@@ -596,7 +781,7 @@ app.get('/marketplace',async(req,res)=>{
     const s=stock.find(x=>x.id===item.stockId);
     if(!s||s.qty<=0) return null;
     return{id:item.stockId,sellerId:'admin',sellerName:'Boutique Officielle',sellerShop:'Boutique Officielle',
-      title:item.title,description:item.description||'',price:parseFloat(item.price||0),
+      title:item.title,image:item.image||s.image||'',description:item.description||'',price:parseFloat(item.price||0),
       qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload};
   }).filter(Boolean);
   if(adminItems.length) result.push({sellerId:'admin',sellerName:'Boutique Officielle',items:adminItems});
@@ -606,7 +791,7 @@ app.get('/marketplace',async(req,res)=>{
       const s=(v.stock||[]).find(x=>x.id===item.stockId);
       if(!s||s.qty<=0) return null;
       return{id:item.stockId,sellerId:v.id,sellerName:v.name,sellerShop:v.shopName||v.name,
-        title:item.title,description:item.description||'',price:parseFloat(item.price||0),
+        title:item.title,image:item.image||s.image||'',description:item.description||'',price:parseFloat(item.price||0),
         qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload};
     }).filter(Boolean);
     if(items.length) result.push({sellerId:v.id,sellerName:v.name,sellerShop:v.shopName||v.name,items});
@@ -677,7 +862,7 @@ app.post('/stripe-webhook',async(req,res)=>{
     const userName  = meta.userName||'';
     const amount    = (event.data.object.amount_total/100).toFixed(2);
 
-    // Récupérer la session complète pour avoir shipping_details
+    // Récupérer la session complète pour avoir shipping_details + customer_details
     let shipping = event.data.object.shipping_details || {};
     let customer = event.data.object.customer_details || {};
     try {
@@ -687,11 +872,13 @@ app.post('/stripe-webhook',async(req,res)=>{
       const full = await fullRes.json();
       if(full.shipping_details) shipping = full.shipping_details;
       if(full.customer_details) customer = full.customer_details;
-      addLog('info', `Shipping: ${JSON.stringify(full.shipping_details?.address||{})} | Customer addr: ${JSON.stringify(full.customer_details?.address||{})}`);
     } catch(e) { addLog('warn','Session fetch: '+e.message); }
 
-    // Adresse : shipping_details en priorité, sinon customer_details
-    const addr = shipping.address || customer.address || {};
+    // Adresse : shipping_details en priorité, sinon customer_details.address
+    const shippingAddr = shipping.address || {};
+    const customerAddr = customer.address || {};
+    // Prendre le champ le plus complet (celui qui a line1)
+    const addr = shippingAddr.line1 ? shippingAddr : customerAddr;
     const clientName = shipping.name || customer.name || '';
 
     let cartItems=[];
@@ -738,9 +925,15 @@ app.post('/stripe-webhook',async(req,res)=>{
       } else {
         const v=sellers.find(x=>String(x.id)===String(ci.sellerId));
         if(v){
-          v.balance        =parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
-          v.totalSales     =parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
-          v.totalCommission=parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
+          // Commission : utiliser celle du vendeur si définie, sinon globale
+          const vCommMode = v.commissionMode || cfg.commissionMode || 'flat';
+          const vCommFlat = v.commissionFlat !== undefined ? v.commissionFlat : cfg.commissionFlat;
+          const vCommRate = v.commissionRate !== undefined ? v.commissionRate : cfg.commissionRate;
+          const itemCommission = vCommMode==='flat' ? vCommFlat*qty : itemAmount*vCommRate;
+          const itemNet = itemAmount - itemCommission;
+          v.balance        = parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
+          v.totalSales     = parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
+          v.totalCommission= parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
           const s=(v.stock||[]).find(x=>x.id===ci.id);
           if(s&&s.qty>0){s.qty=Math.max(0,s.qty-qty);addLog('info',`📦 ${v.name} ${s.name} → ${s.qty}`);}
           await saveSeller(v);
@@ -781,44 +974,7 @@ app.post('/stripe-webhook',async(req,res)=>{
 // ─────────────────────────────────────────
 app.get('/shop-app',(req,res)=>res.sendFile(path.join(__dirname,'shop.html')));
 
-app.get('/seller-dashboard',(req,res)=>{
-  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>VendorOS</title><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"><style>:root{--gold:#F0B429;--gdim:rgba(240,180,41,.08);--bg0:#08080A;--bg1:#0F0F12;--bg2:#161619;--bg3:#1E1E23;--bg4:#26262D;--gb:rgba(255,255,255,.07);--text:#F0EEE8;--t2:#8A8680;--t3:#4A4744;--green:#4ADE80;--grdim:rgba(74,222,128,.08);--red:#F87171;--rdim:rgba(248,113,113,.08);--blue:#4FC3F7;--bdim:rgba(79,195,247,.08);--r:14px;--rs:8px;}*{margin:0;padding:0;box-sizing:border-box;}body{background:var(--bg0);color:var(--text);font-family:'Bricolage Grotesque',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}.lw{flex:1;display:flex;align-items:center;justify-content:center;}.lb{width:380px;background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:32px;}.ll{font-size:22px;font-weight:800;margin-bottom:4px;}.ll span{color:var(--gold);}.ls{font-size:13px;color:var(--t2);margin-bottom:24px;}.fl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:6px;}.fi{width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:10px 13px;border-radius:var(--rs);outline:none;margin-bottom:14px;}.fi:focus{border-color:var(--gold);}.topbar{flex-shrink:0;background:var(--bg1);border-bottom:1px solid var(--gb);padding:0 20px;display:flex;align-items:center;height:52px;gap:12px;}.tl{font-size:16px;font-weight:800;}.tl span{color:var(--gold);}.tnav{padding:7px 14px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;color:var(--t2);transition:all .15s;}.tnav.active{background:var(--gdim);color:var(--gold);}.ab{flex:1;display:flex;overflow:hidden;}.co{flex:1;overflow-y:auto;padding:20px;}.panel{display:none;}.panel.active{display:block;}.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}.sc{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:16px 18px;}.sl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-bottom:8px;}.sv{font-size:22px;font-weight:800;}.sv.gold{color:var(--gold);}.sv.green{color:var(--green);}.sv.blue{color:var(--blue);}.card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:14px;overflow:hidden;}.ch{padding:12px 16px;border-bottom:1px solid var(--gb);display:flex;align-items:center;justify-content:space-between;}.ct{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;}.btn{padding:8px 14px;border-radius:var(--rs);font-family:'Bricolage Grotesque';font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;border:1px solid var(--gb);background:var(--bg3);color:var(--text);}.btn:active{transform:scale(.97);}.btn.p{background:var(--gold);color:#000;border-color:var(--gold);}.btn.d{background:var(--rdim);color:var(--red);border-color:rgba(248,113,113,.25);}.btn.f{width:100%;padding:11px;}.btn.sm{padding:5px 10px;font-size:11px;}.tw{overflow-x:auto;}table{width:100%;border-collapse:collapse;}th{text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);padding:9px 12px;border-bottom:1px solid var(--gb);}td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px;vertical-align:middle;}tr:last-child td{border:none;}.ci{background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:6px 10px;border-radius:var(--rs);outline:none;width:100%;}.ci:focus{border-color:var(--gold);}.ci.n{font-family:'DM Mono';font-size:14px;font-weight:700;color:var(--gold);text-align:center;width:70px;}.ci.pr{font-family:'DM Mono';font-size:12px;width:75px;}.ci.pf{font-family:'DM Mono';font-size:12px;width:65px;}.ci.ct{max-width:110px;}.sw{display:inline-block;position:relative;width:40px;height:22px;cursor:pointer;}.sw input{display:none;}.sw-t{position:absolute;inset:0;background:var(--bg4);border-radius:11px;transition:.2s;border:1px solid var(--gb);}.sw input:checked+.sw-t{background:var(--gold);border-color:var(--gold);}.sw-k{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;}.sw input:checked~.sw-k{transform:translateX(18px);}.bx{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:'DM Mono';}.bx.bl{background:var(--bdim);color:var(--blue);}.bx.gd{background:var(--gdim);color:var(--gold);}.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:14px;}.cc{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:14px;transition:border-color .15s;}.cc.on{border-color:rgba(240,180,41,.3);background:var(--gdim);}.cc-name{font-size:13px;font-weight:700;margin-bottom:4px;}.cc-meta{font-size:11px;color:var(--t3);margin-bottom:10px;}.cc-price{font-size:18px;font-weight:800;color:var(--gold);margin-bottom:10px;}.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--gb);border-radius:10px;padding:10px 18px;font-size:12px;font-weight:600;z-index:999;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.5);}.toast.show{transform:translateX(-50%) translateY(0);}.chip{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--gb);border-radius:20px;padding:4px 12px 4px 4px;}.chip-av{width:26px;height:26px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#000;}.co::-webkit-scrollbar{width:4px;}.co::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}</style></head><body>
-<div id="lv" class="lw"><div class="lb"><div class="ll">🛍 <span>Vendor</span>OS</div><div class="ls">Votre espace vendeur — entrez votre clé secrète</div><div class="fl">Clé secrète</div><input class="fi" type="password" id="si" placeholder="••••••••••••••••" onkeydown="if(event.key==='Enter')login()"><button class="btn p f" onclick="login()">Accéder à mon dashboard</button><div id="le" style="color:var(--red);font-size:12px;margin-top:8px;display:none;">Clé incorrecte</div></div></div>
-<div id="dv" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
-  <div class="topbar"><div class="tl">🛍 <span>Vendor</span>OS</div><div style="display:flex;gap:2px;flex:1;"><div class="tnav active" id="nav-stock" onclick="tab('stock')">📦 Stock</div><div class="tnav" id="nav-catalogue" onclick="tab('catalogue')">🛍 Catalogue</div></div><div style="display:flex;align-items:center;gap:10px;margin-left:auto;"><div class="chip"><div class="chip-av" id="av">?</div><span style="font-size:12px;font-weight:700;" id="nm">—</span></div><button class="btn sm d" onclick="logout()">Déconnexion</button></div></div>
-  <div class="ab"><div class="co">
-    <div class="sg"><div class="sc"><div class="sl">Solde</div><div class="sv gold" id="sb">0€</div></div><div class="sc"><div class="sl">Ventes</div><div class="sv green" id="ss">0€</div></div><div class="sc"><div class="sl">Valeur stock</div><div class="sv blue" id="sv">0€</div></div><div class="sc"><div class="sl">En vente</div><div class="sv" id="sa">0</div></div></div>
-    <div class="panel active" id="panel-stock"><div class="card"><div class="ch"><div class="ct">📦 Mon Stock <span class="bx bl" id="sc2">0</span></div><div style="display:flex;gap:8px;"><button class="btn sm" onclick="add()">+ Ajouter</button><button class="btn sm p" onclick="push()">🖥 Pousser</button></div></div><div class="tw"><table><thead><tr><th>Produit</th><th>Catégorie</th><th>Quantité</th><th>Prix €</th><th>Puffs K</th><th>Seuil</th><th></th></tr></thead><tbody id="sb2"></tbody></table></div></div></div>
-    <div class="panel" id="panel-catalogue"><div class="card"><div class="ch"><div class="ct">🛍 Catalogue <span class="bx gd" id="cc2">0 en vente</span></div><div style="display:flex;gap:8px;"><button class="btn sm" onclick="catAll(true)">Tout activer</button><button class="btn sm" onclick="catAll(false)">Tout désactiver</button><button class="btn sm p" onclick="push()">🖥 Pousser</button></div></div><div class="cg" id="cg2"></div></div><div style="background:var(--gdim);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px 16px;font-size:12px;color:var(--t2);">💡 Activez les articles à vendre puis cliquez "Pousser".</div></div>
-  </div></div>
-</div>
-<div class="toast" id="toast"></div>
-<script>
-const SRV='https://agentos-server-production-a5b4.up.railway.app';
-let sec='',seller=null,stock=[],nid=1;
-async function login(){
-  const s=document.getElementById('si').value.trim();if(!s)return;
-  try{const r=await fetch(SRV+'/seller/me',{headers:{'x-secret':s}});if(!r.ok)throw new Error();
-  seller=await r.json();sec=s;stock=seller.stock||[];nid=stock.length?Math.max(...stock.map(x=>x.id||0))+1:1;
-  document.getElementById('lv').style.display='none';document.getElementById('dv').style.display='flex';
-  document.getElementById('av').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
-  document.getElementById('nm').textContent=seller.shopName||seller.name;
-  document.getElementById('sb').textContent=parseFloat(seller.balance||0).toFixed(2)+'€';
-  document.getElementById('ss').textContent=parseFloat(seller.totalSales||0).toFixed(2)+'€';
-  renderStock();renderCat();stats();}catch(e){document.getElementById('le').style.display='block';}
-}
-function logout(){sec='';seller=null;stock=[];document.getElementById('lv').style.display='flex';document.getElementById('dv').style.display='none';document.getElementById('si').value='';document.getElementById('le').style.display='none';}
-function tab(t){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tnav').forEach(n=>n.classList.remove('active'));document.getElementById('panel-'+t).classList.add('active');document.getElementById('nav-'+t).classList.add('active');if(t==='catalogue')renderCat();}
-function stats(){const val=stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0),act=stock.filter(x=>x.enVente&&x.qty>0).length;document.getElementById('sv').textContent=val.toFixed(2)+'€';document.getElementById('sa').textContent=act;document.getElementById('sc2').textContent=stock.length;document.getElementById('cc2').textContent=act+' en vente';}
-function renderStock(){stats();const b=document.getElementById('sb2');if(!stock.length){b.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:28px;">Aucun article</td></tr>';return;}b.innerHTML=stock.map((s,i)=>'<tr><td><input class="ci" value="'+(s.name||'')+'" oninput="stock['+i+'].name=this.value;stats()"></td><td><input class="ci ct" value="'+(s.cat||'')+'" oninput="stock['+i+'].cat=this.value"></td><td><input class="ci n" type="number" value="'+(s.qty||0)+'" oninput="stock['+i+'].qty=parseInt(this.value)||0;stats()"></td><td><input class="ci pr" type="number" step="0.01" value="'+(s.price||0)+'" oninput="stock['+i+'].price=parseFloat(this.value)||0;stats()"></td><td style="display:flex;align-items:center;gap:4px;"><input class="ci pf" type="number" value="'+(s.puffs?s.puffs/1000:'')+'" placeholder="18" oninput="stock['+i+'].puffs=(parseFloat(this.value)||0)*1000"><span style="font-size:10px;color:var(--t3);">K</span></td><td><input class="ci" type="number" value="'+(s.alert||5)+'" style="width:55px;" oninput="stock['+i+'].alert=parseInt(this.value)||5"></td><td><button class="btn sm d" onclick="del('+i+')">✕</button></td></tr>').join('');}
-function add(){stock.push({id:nid++,name:'',cat:'',qty:0,price:0,puffs:0,alert:5,enVente:false});renderStock();}
-function del(i){stock.splice(i,1);renderStock();renderCat();}
-function renderCat(){stats();const g=document.getElementById('cg2'),av=stock.filter(s=>s.qty>0);if(!av.length){g.innerHTML='<div style="text-align:center;color:var(--t3);padding:32px;grid-column:1/-1;">Aucun article en stock</div>';return;}g.innerHTML=av.map(s=>{const i=stock.indexOf(s),pf=s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs':'';return'<div class="cc'+(s.enVente?' on':'')+'"><div class="cc-name">'+(s.name||'Sans nom')+'</div><div class="cc-meta">'+(s.cat||'')+(pf?' · '+pf:'')+'</div><div class="cc-price">'+parseFloat(s.price||0).toFixed(2)+'€</div><div style="display:flex;align-items:center;gap:8px;"><label class="sw"><input type="checkbox" '+(s.enVente?'checked':'')+' onchange="stock['+i+'].enVente=this.checked;renderCat()"><span class="sw-t"></span><span class="sw-k"></span></label><span style="font-size:11px;color:'+(s.enVente?'var(--green)':'var(--t2)')+';">'+(s.enVente?'En vente ✓':'Désactivé')+'</span></div></div>';}).join('');}
-function catAll(st){stock.forEach(s=>{if(s.qty>0)s.enVente=st;});renderCat();}
-async function push(){const btn=event.target;btn.disabled=true;btn.textContent='⏳…';try{const r1=await fetch(SRV+'/seller/stock',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(stock)});if(!r1.ok)throw new Error('Erreur stock');const items=stock.filter(s=>s.enVente&&s.qty>0).map(s=>({title:s.name,description:s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs'+(s.cat?' · '+s.cat:''):(s.cat||''),price:String(s.price||0),asset:'EUR',payload:'stock_'+s.id,stockId:s.id}));const r2=await fetch(SRV+'/seller/shop',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(items)});if(!r2.ok)throw new Error('Erreur catalogue');stats();toast('✓ Synchronisé · '+stock.length+' articles · '+items.length+' en vente');}catch(e){toast('⚠ '+e.message);}finally{btn.disabled=false;btn.textContent=btn.textContent.includes('marketplace')?'🖥 Pousser vers marketplace':'🖥 Pousser';}}
-let tt;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),3000);}
-</script></body></html>`);
-});
+app.get('/seller-dashboard',(req,res)=>res.sendFile(path.join(__dirname,'vendor.html')));
 
 app.get('/payment-success',(req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>✅</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#4ade80;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">✅</div><h1>Paiement réussi !</h1><p>Retourne dans Telegram pour voir ta confirmation.</p></div></body></html>`));
 app.get('/payment-cancel', (req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>❌</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#f87171;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">❌</div><h1>Paiement annulé</h1><p>Retourne dans Telegram et réessaye.</p></div></body></html>`));
