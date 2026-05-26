@@ -798,14 +798,25 @@ const SRV='https://agentos-server-production-a5b4.up.railway.app';
 let sec='',seller=null,stock=[],nid=1;
 async function login(){
   const s=document.getElementById('si').value.trim();if(!s)return;
-  try{const r=await fetch(SRV+'/seller/me',{headers:{'x-secret':s}});if(!r.ok)throw new Error();
+  const errEl=document.getElementById('le');
+  errEl.style.display='none';
+  errEl.textContent='Clé incorrecte — contactez l\'administrateur.';
+  try{
+    const r=await fetch(SRV+'/seller/me',{headers:{'x-secret':s}});
+    if(!r.ok){
+      const data=await r.json().catch(()=>({}));
+      errEl.textContent='Erreur '+r.status+': '+(data.error||'Clé incorrecte');
+      errEl.style.display='block';
+      return;
+    }
   seller=await r.json();sec=s;stock=seller.stock||[];nid=stock.length?Math.max(...stock.map(x=>x.id||0))+1:1;
   document.getElementById('lv').style.display='none';document.getElementById('dv').style.display='flex';
   document.getElementById('av').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
   document.getElementById('nm').textContent=seller.shopName||seller.name;
   document.getElementById('sb').textContent=parseFloat(seller.balance||0).toFixed(2)+'€';
   document.getElementById('ss').textContent=parseFloat(seller.totalSales||0).toFixed(2)+'€';
-  renderStock();renderCat();stats();}catch(e){document.getElementById('le').style.display='block';}
+  renderStock();renderCat();stats();
+  }catch(e){errEl.textContent='Erreur réseau: '+e.message;errEl.style.display='block';}
 }
 function logout(){sec='';seller=null;stock=[];document.getElementById('lv').style.display='flex';document.getElementById('dv').style.display='none';document.getElementById('si').value='';document.getElementById('le').style.display='none';}
 function tab(t){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tnav').forEach(n=>n.classList.remove('active'));document.getElementById('panel-'+t).classList.add('active');document.getElementById('nav-'+t).classList.add('active');if(t==='catalogue')renderCat();}
