@@ -427,6 +427,7 @@ tr:hover td { background:rgba(255,255,255,.01); }
       <div class="tnav"        id="nav-stats"     onclick="switchTab('stats')">📊 Stats</div>
       <div class="tnav"        id="nav-promos"    onclick="switchTab('promos')">🏷 Promos</div>
       <div class="tnav"        id="nav-withdrawals" onclick="switchTab('withdrawals')">💸 Retraits</div>
+      <div class="tnav"        id="nav-settings"    onclick="switchTab('settings')">⚙️ Paramètres</div>
     </div>
     <div class="topbar-right">
       <div class="seller-chip">
@@ -453,64 +454,141 @@ tr:hover td { background:rgba(255,255,255,.01); }
            PANEL STOCK
       ══════════════════════════════════════ -->
       <div class="panel active" id="panel-stock">
+        <div class="ph">
+          <div class="ph-title">📦 Mon Stock</div>
+          <div class="ph-sub">Gérez vos goûts, marques et taux de nicotine</div>
+        </div>
+        <div class="g4 mb16" id="vStockStats"></div>
+
+        <!-- Actions + recherche -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn bp" onclick="addStockRow()">+ Ajouter</button>
+            <button class="btn" onclick="vSaveLocal()">💾 Sauvegarder</button>
+            <button class="btn bp" onclick="pushStock()">🖥 Pousser</button>
+          </div>
+          <input type="text" id="vStockSearch" placeholder="Rechercher un goût…"
+            style="background:var(--glass);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:8px 14px;border-radius:var(--rs);outline:none;width:200px;"
+            onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'" oninput="renderStock()">
+        </div>
+
         <div class="card">
-          <div class="card-head">
-            <div class="card-title">📦 Mon Stock <span class="bx bl" id="stockCountBadge">0</span></div>
-            <div class="card-actions">
-              <button class="btn sm" onclick="addStockRow()">+ Ajouter</button>
-              <button class="btn sm primary" onclick="pushStock()">🖥 Sauvegarder & pousser</button>
-            </div>
-          </div>
-          <div class="alert gold" style="margin:12px 16px 0;font-size:11px;">
-            💡 Renseignez vos articles ici, puis activez-les dans <strong>Catalogue</strong> pour les mettre en vente.
-          </div>
-          <div class="tw" style="margin-top:12px;">
+          <div class="tw">
             <table>
               <thead><tr>
-                <th>📷</th><th>Produit</th><th>Catégorie</th>
-                <th>Qté</th><th>Prix €</th><th>Puffs K</th><th>Seuil alerte</th><th></th>
+                <th style="width:36px;padding:10px 8px;">
+                  <label class="sw" style="display:inline-block;width:32px;height:18px;">
+                    <input type="checkbox" id="vChkAll" onchange="vSelectAll(this.checked)">
+                    <span class="sw-t"></span><span class="sw-k"></span>
+                  </label>
+                </th>
+                <th>Photo</th>
+                <th>Goût</th>
+                <th>Marque</th>
+                <th>Taux</th>
+                <th>Quantité</th>
+                <th>Prix €</th>
+                <th>💨 Puffs K</th>
+                <th>Seuil</th>
+                <th>Statut</th>
+                <th></th>
               </tr></thead>
               <tbody id="stockBody"></tbody>
             </table>
           </div>
         </div>
+
+        <!-- BARRE ÉDITION EN MASSE -->
+        <div id="vBulkBar" style="display:none;position:sticky;bottom:16px;z-index:100;margin-top:16px;">
+          <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:var(--r);padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.6);">
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <span style="font-size:15px;">✦</span>
+                <span id="vBulkCount" style="font-size:13px;font-weight:700;color:var(--gold);">0 sélectionné(s)</span>
+              </div>
+              <div style="width:1px;height:28px;background:var(--gb);"></div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Marque</span>
+                <input id="vBulkCat" type="text" placeholder="JNR" style="width:80px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
+                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('cat')">✓</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Prix €</span>
+                <input id="vBulkPrice" type="number" placeholder="0.00" step="0.01" style="width:72px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
+                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('price')">✓</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Puffs K</span>
+                <input id="vBulkPuffs" type="number" placeholder="18" style="width:62px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
+                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('puffs')">✓</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Seuil</span>
+                <input id="vBulkAlert" type="number" placeholder="5" style="width:56px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
+                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('alert')">✓</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <select id="vBulkQtyMode" style="background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:11px;padding:5px 8px;border-radius:var(--rs);outline:none;cursor:pointer;">
+                  <option value="set">= Qté</option>
+                  <option value="add">+ Ajouter</option>
+                  <option value="sub">− Retirer</option>
+                </select>
+                <input id="vBulkQty" type="number" placeholder="0" style="width:60px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
+                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('qty')">✓</button>
+              </div>
+              <div style="margin-left:auto;display:flex;gap:8px;">
+                <button class="btn bsm bd" onclick="vBulkDelete()">🗑 Supprimer</button>
+                <button class="btn bsm" onclick="vDeselectAll()">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g3" style="margin-top:16px;">
+          <div class="stat"><div class="sl">Goûts</div><div class="sv gr" id="vStCount">0</div></div>
+          <div class="stat"><div class="sl">Alertes stock bas</div><div class="sv rd" id="vStAlerts">0</div></div>
+          <div class="stat"><div class="sl">Valeur totale</div><div class="sv bl" id="vStVal">0€</div></div>
+        </div>
       </div>
 
-      <!-- ══════════════════════════════════════
-           PANEL CATALOGUE
-      ══════════════════════════════════════ -->
+      <!-- ══ CATALOGUE ══ -->
       <div class="panel" id="panel-catalogue">
-        <div class="card">
-          <div class="card-head">
-            <div class="card-title">🛍 Catalogue <span class="bx gd" id="catActiveBadge">0 en vente</span></div>
-            <div class="card-actions">
-              <button class="btn sm" onclick="catSelectAll(true)">Tout activer</button>
-              <button class="btn sm" onclick="catSelectAll(false)">Tout désactiver</button>
-              <button class="btn sm primary" onclick="pushCatalogue()">🖥 Pousser vers marketplace</button>
-            </div>
-          </div>
-          <!-- FILTRES identiques au shop -->
-          <div class="cat-filters" id="catFilters">
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);">Marque</span>
-            <div id="brandFilterChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-left:8px;">Puffs</span>
-            <div id="puffsFilterChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-            <div class="price-range" style="margin-left:8px;">
-              <span style="font-size:10px;font-weight:700;color:var(--t3);">Prix</span>
-              <input type="number" id="catPriceMin" placeholder="Min" oninput="renderCatalogue()">
-              <span style="color:var(--t3);font-size:11px;">—</span>
-              <input type="number" id="catPriceMax" placeholder="Max" oninput="renderCatalogue()">
-            </div>
-            <select class="sort-select" id="catSort" onchange="renderCatalogue()">
-              <option value="">Trier par…</option>
-              <option value="price-asc">Prix croissant</option>
-              <option value="price-desc">Prix décroissant</option>
-              <option value="name">Nom A→Z</option>
-              <option value="stock-desc">Stock le plus élevé</option>
-            </select>
-          </div>
-          <div class="cat-grid" id="catGrid"></div>
+        <div class="ph">
+          <div class="ph-title">🛍 Catalogue</div>
+          <div class="ph-sub">Activez les goûts à mettre en vente sur le marketplace</div>
         </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="filter-section">
+            <div class="filter-row">
+              <span class="filter-label">Marque</span>
+              <div id="brandFilterChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            </div>
+            <div class="filter-row">
+              <span class="filter-label">Puffs</span>
+              <div id="puffsFilterChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            </div>
+            <div class="price-filter-row">
+              <span class="filter-label">Prix</span>
+              <input class="pf-input" type="number" id="catPriceMin" placeholder="Min €" oninput="renderCatalogue()">
+              <span style="color:var(--t3);font-size:12px;">—</span>
+              <input class="pf-input" type="number" id="catPriceMax" placeholder="Max €" oninput="renderCatalogue()">
+              <select class="sort-select" id="catSort" onchange="renderCatalogue()">
+                <option value="">Tri par défaut</option>
+                <option value="price_asc">Prix croissant</option>
+                <option value="price_desc">Prix décroissant</option>
+                <option value="name_asc">Goût A→Z</option>
+              </select>
+              <button class="btn bsm" onclick="clearCatFilters()">✕ Effacer</button>
+            </div>
+          </div>
+          <div class="btn-row" style="border-top:1px solid var(--gb);padding-top:14px;margin-top:4px;">
+            <button class="btn bsm" onclick="catSelectAll(true)">Tout activer</button>
+            <button class="btn bsm" onclick="catSelectAll(false)">Tout désactiver</button>
+            <button class="btn bsm bp" onclick="pushCatalogue()">🖥 Pousser vers marketplace</button>
+            <span id="catActiveBadge" style="font-size:12px;color:var(--t2);margin-left:auto;align-self:center;"></span>
+          </div>
+        </div>
+        <div class="cat-grid" id="catGrid"></div>
       </div>
 
       <!-- ══════════════════════════════════════
@@ -674,6 +752,71 @@ tr:hover td { background:rgba(255,255,255,.01); }
         </div>
       </div>
 
+      <!-- ══ SETTINGS ══ -->
+      <div class="panel" id="panel-settings">
+        <div class="ph">
+          <div class="ph-title">⚙️ Paramètres</div>
+          <div class="ph-sub">Configurez vos notifications et préférences</div>
+        </div>
+
+        <!-- NOTIFS STOCK BAS -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-head"><div class="card-title">🔔 Alertes stock bas Telegram</div></div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--gb);">
+              <div>
+                <div style="font-size:13px;font-weight:700;">Activer les alertes</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:3px;">Recevez une alerte Telegram quand un goût passe sous son seuil</div>
+              </div>
+              <label class="sw"><input type="checkbox" id="settAlertsEnabled" onchange="saveSettings()"><span class="sw-t"></span><span class="sw-k"></span></label>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--gb);">
+              <div>
+                <div style="font-size:13px;font-weight:700;">Seuil global par défaut</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:3px;">Alerte si stock ≤ ce nombre (peut être surchargé par article)</div>
+              </div>
+              <input type="number" id="settThreshold" min="1" max="100" value="5"
+                style="width:70px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:16px;font-weight:800;padding:7px 10px;border-radius:var(--rs);outline:none;text-align:center;"
+                onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
+            </div>
+
+            <div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Seuils par goût</div>
+              <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">Personnalisez le seuil d'alerte pour chaque goût — laissez vide pour utiliser le seuil global</div>
+              <div id="perItemThresholds" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
+            </div>
+
+            <div style="padding-top:10px;border-top:1px solid var(--gb);">
+              <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Test des alertes</div>
+              <div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Envoyez une alerte test sur votre Telegram pour vérifier que tout fonctionne</div>
+              <button class="btn" onclick="sendTestAlert()" style="background:var(--bdim);color:var(--blue);border-color:rgba(79,195,247,.3);">📩 Envoyer une alerte test</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- INFOS BOUTIQUE -->
+        <div class="card">
+          <div class="card-head"><div class="card-title">🏪 Votre boutique</div></div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px;">Nom de la boutique</div>
+              <div style="font-size:16px;font-weight:700;" id="settShopName">—</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px;">Votre clé secrète</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <code id="settSecretKey" style="font-family:'DM Mono';font-size:12px;color:var(--t2);background:rgba(0,0,0,.3);padding:8px 12px;border-radius:var(--rs);flex:1;filter:blur(4px);cursor:pointer;" onclick="this.style.filter='none'" title="Cliquez pour révéler">••••••••••••••••</code>
+                <button class="btn bsm" onclick="copyKey()">📋</button>
+              </div>
+              <div style="font-size:10px;color:var(--t3);margin-top:4px;">Cliquez sur la clé pour la révéler</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -709,6 +852,7 @@ let chartOrders2   = null;
 function fmtPuffs(p){ return p>=1000?(p/1000).toFixed(0)+'K':String(p); }
 function extractBrand(cat){ return (cat||'').trim().split(' ')[0]||''; }
 function puffsKey(p){ return p?fmtPuffs(p):''; }
+function emoji(n=''){ return getEmoji(n); } // alias
 function getEmoji(name=''){
   const n=name.toLowerCase();
   if(n.includes('blue')||n.includes('myrt')||n.includes('blueberry')) return '🫐';
@@ -744,9 +888,93 @@ async function api(method, path, body){
 }
 
 // ═══════════════════════════════════════════════════
-//  AUTH
+//  PARAMÈTRES & NOTIFS STOCK BAS
 // ═══════════════════════════════════════════════════
-document.getElementById('secretInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+function getSettings(){
+  try { return JSON.parse(localStorage.getItem('vos_settings_'+(seller?.id||''))||'{}'); } catch(e){ return {}; }
+}
+
+function saveSettings(){
+  const s = {
+    alertsEnabled  : document.getElementById('settAlertsEnabled').checked,
+    globalThreshold: parseInt(document.getElementById('settThreshold').value)||5,
+    perItem        : getPerItemSettings(),
+  };
+  localStorage.setItem('vos_settings_'+(seller?.id||''), JSON.stringify(s));
+  showToast('✓ Paramètres sauvegardés');
+}
+
+function getPerItemSettings(){
+  const result = {};
+  document.querySelectorAll('.per-item-input').forEach(input=>{
+    const id = parseInt(input.dataset.id);
+    const val = parseInt(input.value);
+    if(val>0) result[id] = val;
+  });
+  return result;
+}
+
+function loadSettings(){
+  const s = getSettings();
+  document.getElementById('settAlertsEnabled').checked = s.alertsEnabled !== false;
+  document.getElementById('settThreshold').value       = s.globalThreshold || 5;
+  // Infos boutique
+  if(document.getElementById('settShopName')) document.getElementById('settShopName').textContent = seller?.shopName||seller?.name||'—';
+  if(document.getElementById('settSecretKey')) document.getElementById('settSecretKey').dataset.key = secret;
+  renderPerItemThresholds(s.perItem||{});
+}
+
+function renderPerItemThresholds(perItem={}){
+  const el = document.getElementById('perItemThresholds');
+  if(!stock.length){
+    el.innerHTML='<div style="color:var(--t3);font-size:12px;">Ajoutez des goûts dans le stock pour les configurer ici.</div>';
+    return;
+  }
+  el.innerHTML = stock.map(s=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--gb);border-radius:var(--rs);">
+      <div>
+        <div style="font-size:12px;font-weight:700;">${s.name||'Sans nom'}</div>
+        <div style="font-size:10px;color:var(--t3);">${s.qty} en stock · seuil par défaut : 5</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label class="sw" style="flex-shrink:0;">
+          <input type="checkbox" class="per-item-notif" data-id="${s.id}" ${perItem[s.id]!==0?'checked':''} onchange="renderPerItemThresholds(getPerItemSettings())">
+          <span class="sw-t"></span><span class="sw-k"></span>
+        </label>
+        <input type="number" class="per-item-input" data-id="${s.id}" min="1" max="100" placeholder="seuil"
+          value="${perItem[s.id]||''}"
+          style="width:65px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:13px;font-weight:700;padding:5px 8px;border-radius:var(--rs);outline:none;text-align:center;"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
+      </div>
+    </div>`).join('');
+}
+
+function checkLocalAlerts(){
+  const settings = getSettings();
+  if(!settings.alertsEnabled) return;
+  const threshold = settings.globalThreshold || 5;
+  const low = stock.filter(s=>{
+    const t = settings.perItem?.[s.id] || threshold;
+    return s.qty>0 && s.qty<=t;
+  });
+  if(low.length){
+    showToast(`⚠ ${low.length} goût(s) en stock bas !`,'err');
+  }
+}
+
+async function sendTestAlert(){
+  try {
+    await api('POST','/seller/stock-alert-test',{});
+    showToast('✓ Alerte test envoyée sur Telegram');
+  } catch(e){ showToast('⚠ '+e.message,'err'); }
+}
+
+function copyKey(){
+  const key = document.getElementById('settSecretKey').dataset.key||'';
+  navigator.clipboard.writeText(key).then(()=>showToast('📋 Clé copiée !'));
+}
+
+
 
 async function doLogin(){
   const s = document.getElementById('secretInput').value.trim();
@@ -808,6 +1036,7 @@ function switchTab(tab){
   if(tab==='stats')     loadStats();
   if(tab==='promos')    renderPromos();
   if(tab==='withdrawals') renderWithdrawals();
+  if(tab==='settings')  loadSettings();
 }
 
 // ═══════════════════════════════════════════════════
@@ -825,179 +1054,262 @@ function updateGlobalStats(){
 }
 
 // ═══════════════════════════════════════════════════
-//  PANEL STOCK
+//  STOCK — variables bulk
 // ═══════════════════════════════════════════════════
-function renderStockPanel(){
-  updateGlobalStats();
+let vBulkSelected = new Set();
+
+function stockSt(q,a){
+  if(q===0)      return['Rupture','tr2'];
+  if(q<=(a||5))  return['Stock bas','ta'];
+  return['Dispo','tg'];
+}
+
+function updateStockStats(){
+  const total  = stock.length;
+  const val    = stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0);
+  const alerts = stock.filter(x=>x.qty>0&&x.qty<=(x.alert||5)).length;
+  const active = stock.filter(x=>x.enVente&&x.qty>0).length;
+  document.getElementById('vStCount').textContent  = total;
+  document.getElementById('vStAlerts').textContent = alerts;
+  document.getElementById('vStVal').textContent    = val.toFixed(2)+'€';
+  document.getElementById('catActiveBadge').textContent = active+' en vente';
+  // Stats sidebar
+  if(document.getElementById('stVal'))    document.getElementById('stVal').textContent    = val.toFixed(2)+'€';
+  if(document.getElementById('stActive')) document.getElementById('stActive').textContent = active;
+}
+
+function renderStock(){
+  updateStockStats();
+  const q = (document.getElementById('vStockSearch')?.value||'').toLowerCase();
   const body = document.getElementById('stockBody');
-  if(!stock.length){
-    body.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:32px;">
-      Aucun article — cliquez sur "+ Ajouter"</td></tr>`;
+  const items = q ? stock.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.cat||'').toLowerCase().includes(q)||(s.taux||'').toLowerCase().includes(q)) : stock;
+
+  if(!items.length){
+    body.innerHTML=`<tr><td colspan="11" style="text-align:center;color:var(--t3);padding:32px;">Aucun article — cliquez sur "+ Ajouter"</td></tr>`;
     return;
   }
-  body.innerHTML = stock.map((s,i)=>{
-    const imgHTML = s.image
-      ? `<img class="img-thumb" src="${s.image}" onclick="pickImg(${i})" onerror="this.style.display='none'">`
-      : `<div class="img-pick" onclick="pickImg(${i})">📷</div>`;
-    return `<tr>
-      <td>
+
+  body.innerHTML = items.map((s,i)=>{
+    const idx      = stock.indexOf(s);
+    const isChk    = vBulkSelected.has(s.id);
+    const [lbl,tc] = stockSt(s.qty,s.alert||5);
+    const imgHTML  = s.image
+      ? `<img src="${s.image}" style="width:42px;height:42px;border-radius:8px;object-fit:cover;border:1px solid var(--gb);cursor:pointer;" onclick="pickImg(${i})" onerror="this.style.display='none'">`
+      : `<div onclick="pickImg(${i})" style="width:42px;height:42px;border-radius:8px;background:var(--bg3);border:2px dashed var(--gb);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;">${emoji(s.name)}</div>`;
+
+    return `<tr id="vrow_${s.id}" style="${isChk?'background:rgba(240,180,41,.05)':''}">
+      <td style="padding:8px;text-align:center;">
+        <label class="sw" style="display:inline-block;width:32px;height:18px;">
+          <input type="checkbox" ${isChk?'checked':''} onchange="vToggleRow(${s.id},this.checked)">
+          <span class="sw-t"></span><span class="sw-k"></span>
+        </label>
+      </td>
+      <td style="width:60px;">
         ${imgHTML}
         <input type="file" id="imgInput_${i}" accept="image/*" style="display:none" onchange="loadImg(${i},this)">
-        ${s.image?`<div style="font-size:9px;color:var(--red);cursor:pointer;margin-top:3px;text-align:center;" onclick="stock[${i}].image='';renderStockPanel()">✕ Suppr.</div>`:''}
+        ${s.image?`<div style="font-size:9px;color:var(--red);cursor:pointer;margin-top:2px;text-align:center;" onclick="stock[${idx}].image='';renderStock()">✕</div>`:''}
       </td>
-      <td><input class="fi wide" value="${s.name||''}" oninput="stock[${i}].name=this.value;updateGlobalStats()"></td>
-      <td><input class="fi cat" value="${s.cat||''}" oninput="stock[${i}].cat=this.value"></td>
-      <td><input class="fi num" type="number" min="0" value="${s.qty||0}" oninput="stock[${i}].qty=parseInt(this.value)||0;updateGlobalStats()"></td>
-      <td><input class="fi pr" type="number" step="0.01" value="${s.price||0}" oninput="stock[${i}].price=parseFloat(this.value)||0;updateGlobalStats()"></td>
-      <td style="display:flex;align-items:center;gap:4px;">
-        <input class="fi pf" type="number" placeholder="18" value="${s.puffs?s.puffs/1000:''}" oninput="stock[${i}].puffs=(parseFloat(this.value)||0)*1000">
-        <span style="font-size:10px;color:var(--t3);">K</span>
+      <td><input class="fi wide" value="${s.name||''}" oninput="stock[${idx}].name=this.value;updateStockStats()" placeholder="ex: Blue Razz Ice"></td>
+      <td><input class="fi cat" value="${s.cat||''}" oninput="stock[${idx}].cat=this.value" placeholder="ex: JNR" style="max-width:90px;"></td>
+      <td><input class="fi cat" value="${s.taux||''}" oninput="stock[${idx}].taux=this.value" placeholder="ex: 2%" style="max-width:70px;"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <button class="btn bsm" onclick="chQty(${idx},-1)" style="width:24px;padding:3px;font-size:12px;">−</button>
+          <input class="fi num" type="number" min="0" value="${s.qty||0}" oninput="stock[${idx}].qty=parseInt(this.value)||0;updateStockStats()">
+          <button class="btn bsm" onclick="chQty(${idx},1)" style="width:24px;padding:3px;font-size:12px;">+</button>
+        </div>
       </td>
-      <td><input class="fi" type="number" style="width:60px;" value="${s.alert||5}" oninput="stock[${i}].alert=parseInt(this.value)||5"></td>
-      <td><button class="btn xs danger" onclick="delStock(${i})">✕</button></td>
+      <td><input class="fi pr" type="number" step="0.01" value="${s.price||0}" oninput="stock[${idx}].price=parseFloat(this.value)||0;updateStockStats()"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="fi pf" type="number" placeholder="18" value="${s.puffs?s.puffs/1000:''}" oninput="stock[${idx}].puffs=(parseFloat(this.value)||0)*1000">
+          <span style="font-size:10px;color:var(--t3);">K</span>
+        </div>
+      </td>
+      <td><input class="fi" type="number" style="width:56px;" value="${s.alert||5}" oninput="stock[${idx}].alert=parseInt(this.value)||5"></td>
+      <td><span class="tag ${tc}">${lbl}</span></td>
+      <td><button class="btn bsm bd" onclick="delStock(${idx})">✕</button></td>
     </tr>`;
   }).join('');
 }
 
+// Alias pour compat
+function renderStockPanel(){ renderStock(); }
+
+function chQty(idx, d){ stock[idx].qty = Math.max(0,(stock[idx].qty||0)+d); renderStock(); }
+
 function addStockRow(){
-  stock.push({id:nid++, name:'', cat:'', qty:0, price:0, puffs:0, alert:5, enVente:false, image:''});
-  renderStockPanel();
-  // Scroll au dernier
+  stock.push({id:nid++, name:'', cat:'', taux:'', qty:0, price:0, puffs:0, alert:5, enVente:false, image:''});
+  renderStock();
   const last = document.getElementById('stockBody').lastElementChild;
-  if(last) last.scrollIntoView({behavior:'smooth', block:'nearest'});
+  if(last) last.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-function delStock(i){
-  stock.splice(i,1);
-  renderStockPanel();
+function delStock(idx){ stock.splice(idx,1); renderStock(); renderCatalogue(); }
+
+function vSaveLocal(){ showToast('✓ Modifications sauvegardées localement'); }
+
+// ── Bulk edit
+function vToggleRow(id, checked){
+  if(checked) vBulkSelected.add(id); else vBulkSelected.delete(id);
+  const row = document.getElementById('vrow_'+id);
+  if(row) row.style.background = checked?'rgba(240,180,41,.05)':'';
+  vUpdateBulkBar();
+}
+
+function vSelectAll(checked){
+  stock.forEach(s=>{ if(checked) vBulkSelected.add(s.id); else vBulkSelected.delete(s.id); });
+  renderStock();
+  document.getElementById('vChkAll').checked = checked;
+  vUpdateBulkBar();
+}
+
+function vDeselectAll(){
+  vBulkSelected.clear();
+  renderStock();
+  document.getElementById('vChkAll').checked = false;
+  vUpdateBulkBar();
+}
+
+function vUpdateBulkBar(){
+  const n = vBulkSelected.size;
+  document.getElementById('vBulkBar').style.display = n>0?'block':'none';
+  document.getElementById('vBulkCount').textContent = n+' sélectionné(s)';
+}
+
+function vBulkApply(field){
+  const ids = [...vBulkSelected];
+  if(!ids.length) return;
+  ids.forEach(id=>{
+    const s = stock.find(x=>x.id===id); if(!s) return;
+    if(field==='cat')   { s.cat   = document.getElementById('vBulkCat').value;  }
+    if(field==='price') { s.price = parseFloat(document.getElementById('vBulkPrice').value)||0; }
+    if(field==='puffs') { s.puffs = (parseFloat(document.getElementById('vBulkPuffs').value)||0)*1000; }
+    if(field==='alert') { s.alert = parseInt(document.getElementById('vBulkAlert').value)||5; }
+    if(field==='qty')   {
+      const mode = document.getElementById('vBulkQtyMode').value;
+      const val  = parseInt(document.getElementById('vBulkQty').value)||0;
+      if(mode==='set') s.qty = val;
+      if(mode==='add') s.qty = Math.max(0,(s.qty||0)+val);
+      if(mode==='sub') s.qty = Math.max(0,(s.qty||0)-val);
+    }
+  });
+  renderStock();
+  showToast(`✓ ${field} mis à jour sur ${ids.length} article(s)`);
+}
+
+function vBulkDelete(){
+  if(!confirm(`Supprimer ${vBulkSelected.size} article(s) ?`)) return;
+  stock = stock.filter(s=>!vBulkSelected.has(s.id));
+  vBulkSelected.clear();
+  renderStock();
   renderCatalogue();
+  vUpdateBulkBar();
 }
 
-function pickImg(i){ document.getElementById('imgInput_'+i)?.click(); }
-function loadImg(i, input){
-  const file=input.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=600, canvas=document.createElement('canvas');
-      let w=img.width, h=img.height;
-      if(w>max){h=Math.round(h*max/w);w=max;}
-      if(h>max){w=Math.round(w*max/h);h=max;}
-      canvas.width=w; canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      stock[i].image = canvas.toDataURL('image/jpeg',0.8);
-      renderStockPanel();
-      showToast('✓ Image ajoutée');
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
+// ── Push stock
 async function pushStock(){
   try {
     await api('POST','/seller/stock', stock);
     seller.stock = stock;
-    showToast('✓ Stock sauvegardé et poussé');
+    showToast('✓ Stock poussé · '+stock.length+' goûts');
+    // Vérif alertes stock bas
+    checkLocalAlerts();
   } catch(e){ showToast('⚠ '+e.message,'err'); }
 }
 
+// ── Alertes stock bas locales (affichage dans settings)
+function checkLocalAlerts(){
+  const settings = getSettings();
+  if(!settings.alertsEnabled) return;
+  const threshold = settings.globalThreshold || 5;
+  const low = stock.filter(s=>s.qty>0 && s.qty<=(s.alert||threshold));
+  if(low.length){
+    showToast(`⚠ ${low.length} goût(s) en stock bas !`, 'warn');
+  }
+}
+
 // ═══════════════════════════════════════════════════
-//  PANEL CATALOGUE
+//  CATALOGUE
 // ═══════════════════════════════════════════════════
 function buildCatFilters(){
-  const brands  = [...new Set(stock.filter(s=>s.qty>0).map(s=>extractBrand(s.cat)).filter(Boolean))];
+  const brands    = [...new Set(stock.filter(s=>s.qty>0).map(s=>extractBrand(s.cat)).filter(Boolean))];
   const puffsVals = [...new Set(stock.filter(s=>s.qty>0&&s.puffs).map(s=>puffsKey(s.puffs)))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
 
   document.getElementById('brandFilterChips').innerHTML =
-    `<div class="filter-chip active" onclick="setCatFilter('brand','all',this)">Toutes</div>`
-    + brands.map(b=>`<div class="filter-chip" onclick="setCatFilter('brand','${b}',this)">${b}</div>`).join('');
+    `<div class="fchip ${catFilterBrand==='all'?'active':''}" onclick="setCatFilter('brand','all',this)">Toutes</div>`
+    + brands.map(b=>`<div class="fchip ${catFilterBrand===b?'ap':''}" onclick="setCatFilter('brand','${b}',this)">${b}</div>`).join('');
 
   document.getElementById('puffsFilterChips').innerHTML =
-    `<div class="filter-chip active" onclick="setCatFilter('puffs','all',this)">Tous</div>`
-    + puffsVals.map(v=>`<div class="filter-chip" onclick="setCatFilter('puffs','${v}',this)">💨 ${v}</div>`).join('');
+    `<div class="fchip ${catFilterPuffs==='all'?'active':''}" onclick="setCatFilter('puffs','all',this)">Tous</div>`
+    + puffsVals.map(v=>`<div class="fchip ${catFilterPuffs===v?'ab':''}" onclick="setCatFilter('puffs','${v}',this)">💨 ${v}</div>`).join('');
 }
 
 function setCatFilter(type, val, el){
-  if(type==='brand'){ catFilterBrand=val; document.querySelectorAll('#brandFilterChips .filter-chip').forEach(c=>c.classList.remove('active','active-purple')); el.classList.add(val==='all'?'active':'active-purple'); }
-  if(type==='puffs'){ catFilterPuffs=val; document.querySelectorAll('#puffsFilterChips .filter-chip').forEach(c=>c.classList.remove('active','active-blue')); el.classList.add(val==='all'?'active':'active-blue'); }
+  if(type==='brand') catFilterBrand=val;
+  if(type==='puffs') catFilterPuffs=val;
+  buildCatFilters();
   renderCatalogue();
+}
+
+function clearCatFilters(){
+  catFilterBrand='all'; catFilterPuffs='all';
+  document.getElementById('catPriceMin').value='';
+  document.getElementById('catPriceMax').value='';
+  document.getElementById('catSort').value='';
+  buildCatFilters(); renderCatalogue();
 }
 
 function renderCatalogue(){
   buildCatFilters();
   const minP = parseFloat(document.getElementById('catPriceMin')?.value)||0;
   const maxP = parseFloat(document.getElementById('catPriceMax')?.value)||Infinity;
-  const sort  = document.getElementById('catSort')?.value||'';
+  const sort = document.getElementById('catSort')?.value||'';
 
   let items = stock.filter(s=>s.qty>0);
   if(catFilterBrand!=='all') items=items.filter(s=>extractBrand(s.cat)===catFilterBrand);
   if(catFilterPuffs!=='all') items=items.filter(s=>puffsKey(s.puffs)===catFilterPuffs);
   items=items.filter(s=>parseFloat(s.price||0)>=minP && parseFloat(s.price||0)<=maxP);
-  if(sort==='price-asc')   items.sort((a,b)=>a.price-b.price);
-  if(sort==='price-desc')  items.sort((a,b)=>b.price-a.price);
-  if(sort==='name')        items.sort((a,b)=>a.name.localeCompare(b.name));
-  if(sort==='stock-desc')  items.sort((a,b)=>b.qty-a.qty);
+  if(sort==='price_asc')  items=[...items].sort((a,b)=>a.price-b.price);
+  if(sort==='price_desc') items=[...items].sort((a,b)=>b.price-a.price);
+  if(sort==='name_asc')   items=[...items].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  const active = stock.filter(s=>s.enVente&&s.qty>0).length;
+  document.getElementById('catActiveBadge').textContent = active+' en vente';
 
   const grid = document.getElementById('catGrid');
   if(!items.length){
-    grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:32px;font-size:13px;">Aucun article correspond aux filtres</div>`;
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🔍</div><div class="empty-title">Aucun goût correspondant</div></div>';
     return;
   }
 
-  const activeCount = stock.filter(s=>s.enVente&&s.qty>0).length;
-  document.getElementById('catActiveBadge').textContent = activeCount+' en vente';
-
   grid.innerHTML = items.map(s=>{
-    const idx = stock.indexOf(s);
+    const idx   = stock.indexOf(s);
     const brand = extractBrand(s.cat);
-    const nicotine = (s.cat||'').replace(brand,'').trim();
-    const ss = s.qty<=0?'out':s.qty<=(s.alert||5)?'low':'ok';
-    const sl = s.qty<=0?'Rupture':s.qty<=(s.alert||5)?s.qty+' restants':s.qty+' dispo';
-    const pf = s.puffs?fmtPuffs(s.puffs)+' puffs':'';
-    const em = s.image?'':`<span class="emoji">${getEmoji(s.name)}</span>`;
-    const imgEl = s.image?`<img src="${s.image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">${em}`:em;
-
-    return `<div class="cat-card ${s.enVente?'active-card':''}">
+    const pf    = s.puffs ? fmtPuffs(s.puffs)+' puffs' : '';
+    return `<div class="cat-card ${s.enVente?'on':''}">
       <div class="cat-card-img">
-        ${imgEl}
-        ${pf?`<div class="cat-card-puffs">${pf}</div>`:''}
-        <div class="cat-card-stock ${ss}">${sl}</div>
+        ${s.image?`<img src="${s.image}" alt="${s.name}">`:`<span style="font-size:32px;">${emoji(s.name)}</span>`}
       </div>
-      <div class="cat-card-body">
-        <div class="cat-card-brand">${brand}${nicotine?' · '+nicotine:''}</div>
-        <div class="cat-card-name">${s.name||'Sans nom'}</div>
-        <div class="cat-card-price">${parseFloat(s.price||0).toFixed(2)}€</div>
-        <div class="cat-card-footer">
-          <label class="sw" title="${s.enVente?'Désactiver':'Activer'}">
-            <input type="checkbox" ${s.enVente?'checked':''} onchange="toggleEnVente(${idx},this.checked)">
-            <span class="sw-t"></span><span class="sw-k"></span>
-          </label>
-          <span class="cat-card-sw-label" style="font-size:11px;color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'En vente ✓':'Désactivé'}</span>
-        </div>
+      <div class="cat-card-brand">${brand}${s.taux?' · '+s.taux:''}</div>
+      <div class="cat-card-name">${s.name||'Sans nom'}</div>
+      <div class="cat-card-meta">${[pf, s.qty+' en stock'].filter(Boolean).join(' · ')}</div>
+      <div class="cat-card-price">${parseFloat(s.price||0).toFixed(2)}€</div>
+      <div class="cat-card-toggle">
+        <label class="sw">
+          <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
+          <span class="sw-t"></span><span class="sw-k"></span>
+        </label>
+        <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'En vente ✓':'Désactivé'}</span>
       </div>
     </div>`;
   }).join('');
 }
 
-function toggleEnVente(i, val){
-  stock[i].enVente = val;
-  updateGlobalStats();
-  renderCatalogue();
-}
-function catSelectAll(val){
-  stock.forEach(s=>{ if(s.qty>0) s.enVente=val; });
-  renderCatalogue();
-}
+function catSelectAll(state){ stock.forEach(s=>{if(s.qty>0)s.enVente=state;}); renderCatalogue(); }
 
 async function pushCatalogue(){
-  // 1. Sauvegarder le stock d'abord
-  try { await api('POST','/seller/stock', stock); }
-  catch(e){ showToast('⚠ Erreur stock: '+e.message,'err'); return; }
-
-  // 2. Construire et pousser les shopItems
-  const shopItems = stock.filter(s=>s.enVente&&s.qty>0).map(s=>({
+  const items = stock.filter(s=>s.enVente&&s.qty>0).map(s=>({
     title      : s.name,
     image      : s.image||'',
     description: s.puffs ? fmtPuffs(s.puffs)+' puffs'+(s.cat?' · '+s.cat:'') : (s.cat||''),
@@ -1005,14 +1317,20 @@ async function pushCatalogue(){
     asset      : 'EUR',
     payload    : 'stock_'+s.id,
     stockId    : s.id,
+    cat        : (s.cat||'')+(s.taux?' '+s.taux:''),
   }));
-
   try {
-    await api('POST','/seller/shop', shopItems);
-    seller.stock = stock;
-    showToast(`✓ Catalogue poussé · ${shopItems.length} article${shopItems.length!==1?'s':''} en vente`);
+    await api('POST','/seller/shop', items);
+    showToast('✓ Catalogue poussé · '+items.length+' goût(s) en vente');
   } catch(e){ showToast('⚠ '+e.message,'err'); }
 }
+
+// ─── pushAll = stock + catalogue en une fois
+async function pushAll(){
+  await pushStock();
+  await pushCatalogue();
+}
+
 
 // ═══════════════════════════════════════════════════
 //  PANEL COMMANDES
