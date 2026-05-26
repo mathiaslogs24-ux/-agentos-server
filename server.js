@@ -760,6 +760,22 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   res.json({ok:true, seller:{...v, secret:undefined}});
 });
 
+// ── Test alerte stock bas
+app.post('/seller/stock-alert-test', sellerAuth, async(req,res)=>{
+  const v = req.seller;
+  if(!v.telegramId || !vendorBot)
+    return res.status(400).json({error:'Bot vendeur ou Telegram ID non configuré'});
+  try {
+    await vendorBot.sendMessage(v.telegramId,
+      `🔔 *Test d'alerte stock bas*\n\nVos alertes Telegram sont bien configurées ✓\n\nVous recevrez ce type de message quand un goût passe sous son seuil.`,
+      {parse_mode:'Markdown'}
+    );
+    res.json({ok:true});
+  } catch(e) {
+    res.status(400).json({error: e.message});
+  }
+});
+
 // ── Alertes stock bas — vérifiées à chaque push stock vendeur
 async function checkSellerStockAlerts(seller) {
   if(!seller.telegramId || !vendorBot) return;
