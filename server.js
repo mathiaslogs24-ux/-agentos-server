@@ -596,7 +596,7 @@ app.get('/marketplace',async(req,res)=>{
     const s=stock.find(x=>x.id===item.stockId);
     if(!s||s.qty<=0) return null;
     return{id:item.stockId,sellerId:'admin',sellerName:'Boutique Officielle',sellerShop:'Boutique Officielle',
-      title:item.title,description:item.description||'',price:parseFloat(item.price||0),
+      title:item.title,image:item.image||s.image||'',description:item.description||'',price:parseFloat(item.price||0),
       qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload};
   }).filter(Boolean);
   if(adminItems.length) result.push({sellerId:'admin',sellerName:'Boutique Officielle',items:adminItems});
@@ -606,7 +606,7 @@ app.get('/marketplace',async(req,res)=>{
       const s=(v.stock||[]).find(x=>x.id===item.stockId);
       if(!s||s.qty<=0) return null;
       return{id:item.stockId,sellerId:v.id,sellerName:v.name,sellerShop:v.shopName||v.name,
-        title:item.title,description:item.description||'',price:parseFloat(item.price||0),
+        title:item.title,image:item.image||s.image||'',description:item.description||'',price:parseFloat(item.price||0),
         qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload};
     }).filter(Boolean);
     if(items.length) result.push({sellerId:v.id,sellerName:v.name,sellerShop:v.shopName||v.name,items});
@@ -788,7 +788,7 @@ app.get('/seller-dashboard',(req,res)=>{
   <div class="topbar"><div class="tl">🛍 <span>Vendor</span>OS</div><div style="display:flex;gap:2px;flex:1;"><div class="tnav active" id="nav-stock" onclick="tab('stock')">📦 Stock</div><div class="tnav" id="nav-catalogue" onclick="tab('catalogue')">🛍 Catalogue</div></div><div style="display:flex;align-items:center;gap:10px;margin-left:auto;"><div class="chip"><div class="chip-av" id="av">?</div><span style="font-size:12px;font-weight:700;" id="nm">—</span></div><button class="btn sm d" onclick="logout()">Déconnexion</button></div></div>
   <div class="ab"><div class="co">
     <div class="sg"><div class="sc"><div class="sl">Solde</div><div class="sv gold" id="sb">0€</div></div><div class="sc"><div class="sl">Ventes</div><div class="sv green" id="ss">0€</div></div><div class="sc"><div class="sl">Valeur stock</div><div class="sv blue" id="sv">0€</div></div><div class="sc"><div class="sl">En vente</div><div class="sv" id="sa">0</div></div></div>
-    <div class="panel active" id="panel-stock"><div class="card"><div class="ch"><div class="ct">📦 Mon Stock <span class="bx bl" id="sc2">0</span></div><div style="display:flex;gap:8px;"><button class="btn sm" onclick="add()">+ Ajouter</button><button class="btn sm p" onclick="push()">🖥 Pousser</button></div></div><div class="tw"><table><thead><tr><th>Produit</th><th>Catégorie</th><th>Quantité</th><th>Prix €</th><th>Puffs K</th><th>Seuil</th><th></th></tr></thead><tbody id="sb2"></tbody></table></div></div></div>
+    <div class="panel active" id="panel-stock"><div class="card"><div class="ch"><div class="ct">📦 Mon Stock <span class="bx bl" id="sc2">0</span></div><div style="display:flex;gap:8px;"><button class="btn sm" onclick="add()">+ Ajouter</button><button class="btn sm p" onclick="push()">🖥 Pousser</button></div></div><div class="tw"><table><thead><tr><th>Produit</th><th>🖼 Image URL</th><th>Catégorie</th><th>Quantité</th><th>Prix €</th><th>Puffs K</th><th>Seuil</th><th></th></tr></thead><tbody id="sb2"></tbody></table></div></div></div>
     <div class="panel" id="panel-catalogue"><div class="card"><div class="ch"><div class="ct">🛍 Catalogue <span class="bx gd" id="cc2">0 en vente</span></div><div style="display:flex;gap:8px;"><button class="btn sm" onclick="catAll(true)">Tout activer</button><button class="btn sm" onclick="catAll(false)">Tout désactiver</button><button class="btn sm p" onclick="push()">🖥 Pousser</button></div></div><div class="cg" id="cg2"></div></div><div style="background:var(--gdim);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px 16px;font-size:12px;color:var(--t2);">💡 Activez les articles à vendre puis cliquez "Pousser".</div></div>
   </div></div>
 </div>
@@ -810,12 +810,41 @@ async function login(){
 function logout(){sec='';seller=null;stock=[];document.getElementById('lv').style.display='flex';document.getElementById('dv').style.display='none';document.getElementById('si').value='';document.getElementById('le').style.display='none';}
 function tab(t){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tnav').forEach(n=>n.classList.remove('active'));document.getElementById('panel-'+t).classList.add('active');document.getElementById('nav-'+t).classList.add('active');if(t==='catalogue')renderCat();}
 function stats(){const val=stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0),act=stock.filter(x=>x.enVente&&x.qty>0).length;document.getElementById('sv').textContent=val.toFixed(2)+'€';document.getElementById('sa').textContent=act;document.getElementById('sc2').textContent=stock.length;document.getElementById('cc2').textContent=act+' en vente';}
-function renderStock(){stats();const b=document.getElementById('sb2');if(!stock.length){b.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:28px;">Aucun article</td></tr>';return;}b.innerHTML=stock.map((s,i)=>'<tr><td><input class="ci" value="'+(s.name||'')+'" oninput="stock['+i+'].name=this.value;stats()"></td><td><input class="ci ct" value="'+(s.cat||'')+'" oninput="stock['+i+'].cat=this.value"></td><td><input class="ci n" type="number" value="'+(s.qty||0)+'" oninput="stock['+i+'].qty=parseInt(this.value)||0;stats()"></td><td><input class="ci pr" type="number" step="0.01" value="'+(s.price||0)+'" oninput="stock['+i+'].price=parseFloat(this.value)||0;stats()"></td><td style="display:flex;align-items:center;gap:4px;"><input class="ci pf" type="number" value="'+(s.puffs?s.puffs/1000:'')+'" placeholder="18" oninput="stock['+i+'].puffs=(parseFloat(this.value)||0)*1000"><span style="font-size:10px;color:var(--t3);">K</span></td><td><input class="ci" type="number" value="'+(s.alert||5)+'" style="width:55px;" oninput="stock['+i+'].alert=parseInt(this.value)||5"></td><td><button class="btn sm d" onclick="del('+i+')">✕</button></td></tr>').join('');}
-function add(){stock.push({id:nid++,name:'',cat:'',qty:0,price:0,puffs:0,alert:5,enVente:false});renderStock();}
+function renderStock(){stats();const b=document.getElementById('sb2');if(!stock.length){b.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:28px;">Aucun article</td></tr>';return;}b.innerHTML=stock.map((s,i)=>'<tr><td><input class="ci" value="'+(s.name||'')+'" oninput="stock['+i+'].name=this.value;stats()"></td>'
+    +'<td><div style="display:flex;align-items:center;gap:6px;">'
+    +(s.image?'<img src="'+s.image+'" style="width:36px;height:36px;border-radius:7px;object-fit:cover;border:1px solid var(--gb);cursor:pointer;" onclick="pickImg('+i+')" onerror="this.style.display=\'none\'">'
+      :'<div onclick="pickImg('+i+')" style="width:36px;height:36px;border-radius:7px;background:var(--bg3);border:1px dashed var(--gb);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;flex-shrink:0;">📷</div>')
+    +'<input type="file" id="imgf_'+i+'" accept="image/*" style="display:none" onchange="loadImg('+i+',this)">'
+    +'<span style="font-size:10px;color:var(--t3);">'+(s.image?'✓ Photo':'Ajouter')+'</span>'
+    +(s.image?'<span style="font-size:10px;color:var(--red);cursor:pointer;" onclick="stock['+i+'].image=\'\';renderStock()">✕</span>':'')
+    +'</div></td>'
+    +'<td><input class="ci ct" value="'+(s.cat||'')+'" oninput="stock['+i+'].cat=this.value"></td>'
+    +'<td><input class="ci n" type="number" value="'+(s.qty||0)+'" oninput="stock['+i+'].qty=parseInt(this.value)||0;stats()"></td><td><input class="ci pr" type="number" step="0.01" value="'+(s.price||0)+'" oninput="stock['+i+'].price=parseFloat(this.value)||0;stats()"></td><td style="display:flex;align-items:center;gap:4px;"><input class="ci pf" type="number" value="'+(s.puffs?s.puffs/1000:'')+'" placeholder="18" oninput="stock['+i+'].puffs=(parseFloat(this.value)||0)*1000"><span style="font-size:10px;color:var(--t3);">K</span></td><td><input class="ci" type="number" value="'+(s.alert||5)+'" style="width:55px;" oninput="stock['+i+'].alert=parseInt(this.value)||5"></td><td><button class="btn sm d" onclick="del('+i+')">✕</button></td></tr>').join('');}
+function pickImg(i){document.getElementById('imgf_'+i).click();}
+function loadImg(i,input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    // Redimensionner à max 600px pour éviter les images trop lourdes
+    const img=new Image();
+    img.onload=()=>{
+      const max=600,canvas=document.createElement('canvas');
+      let w=img.width,h=img.height;
+      if(w>max){h=Math.round(h*max/w);w=max;}
+      if(h>max){w=Math.round(w*max/h);h=max;}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      stock[i].image=canvas.toDataURL('image/jpeg',0.8);
+      renderStock();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
 function del(i){stock.splice(i,1);renderStock();renderCat();}
 function renderCat(){stats();const g=document.getElementById('cg2'),av=stock.filter(s=>s.qty>0);if(!av.length){g.innerHTML='<div style="text-align:center;color:var(--t3);padding:32px;grid-column:1/-1;">Aucun article en stock</div>';return;}g.innerHTML=av.map(s=>{const i=stock.indexOf(s),pf=s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs':'';return'<div class="cc'+(s.enVente?' on':'')+'"><div class="cc-name">'+(s.name||'Sans nom')+'</div><div class="cc-meta">'+(s.cat||'')+(pf?' · '+pf:'')+'</div><div class="cc-price">'+parseFloat(s.price||0).toFixed(2)+'€</div><div style="display:flex;align-items:center;gap:8px;"><label class="sw"><input type="checkbox" '+(s.enVente?'checked':'')+' onchange="stock['+i+'].enVente=this.checked;renderCat()"><span class="sw-t"></span><span class="sw-k"></span></label><span style="font-size:11px;color:'+(s.enVente?'var(--green)':'var(--t2)')+';">'+(s.enVente?'En vente ✓':'Désactivé')+'</span></div></div>';}).join('');}
 function catAll(st){stock.forEach(s=>{if(s.qty>0)s.enVente=st;});renderCat();}
-async function push(){const btn=event.target;btn.disabled=true;btn.textContent='⏳…';try{const r1=await fetch(SRV+'/seller/stock',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(stock)});if(!r1.ok)throw new Error('Erreur stock');const items=stock.filter(s=>s.enVente&&s.qty>0).map(s=>({title:s.name,description:s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs'+(s.cat?' · '+s.cat:''):(s.cat||''),price:String(s.price||0),asset:'EUR',payload:'stock_'+s.id,stockId:s.id}));const r2=await fetch(SRV+'/seller/shop',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(items)});if(!r2.ok)throw new Error('Erreur catalogue');stats();toast('✓ Synchronisé · '+stock.length+' articles · '+items.length+' en vente');}catch(e){toast('⚠ '+e.message);}finally{btn.disabled=false;btn.textContent=btn.textContent.includes('marketplace')?'🖥 Pousser vers marketplace':'🖥 Pousser';}}
+async function push(){const btn=event.target;btn.disabled=true;btn.textContent='⏳…';try{const r1=await fetch(SRV+'/seller/stock',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(stock)});if(!r1.ok)throw new Error('Erreur stock');const items=stock.filter(s=>s.enVente&&s.qty>0).map(s=>({title:s.name,image:s.image||'',description:s.puffs?(s.puffs>=1000?(s.puffs/1000).toFixed(0)+'K':s.puffs)+' puffs'+(s.cat?' · '+s.cat:''):(s.cat||''),price:String(s.price||0),asset:'EUR',payload:'stock_'+s.id,stockId:s.id}));const r2=await fetch(SRV+'/seller/shop',{method:'POST',headers:{'Content-Type':'application/json','x-secret':sec},body:JSON.stringify(items)});if(!r2.ok)throw new Error('Erreur catalogue');stats();toast('✓ Synchronisé · '+stock.length+' articles · '+items.length+' en vente');}catch(e){toast('⚠ '+e.message);}finally{btn.disabled=false;btn.textContent=btn.textContent.includes('marketplace')?'🖥 Pousser vers marketplace':'🖥 Pousser';}}
 let tt;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),3000);}
 </script></body></html>`);
 });
