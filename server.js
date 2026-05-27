@@ -241,8 +241,20 @@ async function callClaude(userId, userName, userMessage) {
 }
 
 // ─────────────────────────────────────────
-//  BOT CLIENT (marketplace)
+//  BOT ADMIN (notifications retraits)
 // ─────────────────────────────────────────
+let adminBot = null;
+
+function startAdminBot() {
+  const token = process.env.ADMIN_BOT_TOKEN;
+  if(!token){ addLog('warn','ADMIN_BOT_TOKEN non configuré'); return; }
+  try {
+    adminBot = new TelegramBot(token, {polling:false}); // pas besoin de polling
+    addLog('ok','Bot admin démarré ✓');
+  } catch(e) {
+    addLog('err','AdminBot: '+e.message);
+  }
+}
 function startBot() {
   if(running)            return {ok:false,reason:'Déjà démarré'};
   if(!cfg.telegramToken) return {ok:false,reason:'Token manquant'};
@@ -765,7 +777,17 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   addLog('ok', `💸 Retrait demandé · ${v.name} · ${amount}€`);
 
   // Notifier admin via bot
-  if(bot && cfg.adminTelegramId) {
+  if(adminBot && cfg.adminTelegramId) {
+    adminBot.sendMessage(cfg.adminTelegramId,
+      `💸 *Nouvelle demande de retrait*\n\n`
+      + `👤 Vendeur : *${v.shopName||v.name}*\n`
+      + `💰 Montant : *${parseFloat(amount).toFixed(2)}€*\n`
+      + `🧾 Bénéficiaire : ${wd.name||'—'}\n`
+      + `💳 ${coords}`,
+      {parse_mode:'Markdown'}
+    ).catch(e=>addLog('warn','AdminBot notif: '+e.message));
+  } else if(bot && cfg.adminTelegramId) {
+    // Fallback bot client si pas de bot admin
     bot.sendMessage(cfg.adminTelegramId,
       `💸 *Demande de retrait*\n\nVendeur : *${v.shopName||v.name}*\nMontant : *${parseFloat(amount).toFixed(2)}€*\nBénéficiaire : ${wd.name||'—'}\n${coords}`,
       {parse_mode:'Markdown'}
@@ -1033,6 +1055,23 @@ async function main() {
 
   if(cfg.telegramToken&&cfg.claudeKey) setTimeout(()=>startBot(),2000);
   setTimeout(()=>startVendorBot(), 2500);
+  setTimeout(()=>{
+    startAdminBot();
+    // Le bot admin répond /start pour récupérer l'ID admin
+    if(adminBot) {
+      adminBot.on('message', async(msg)=>{
+        if(msg.text?.startsWith('/start')) {
+          cfg.adminTelegramId = String(msg.from.id);
+          await saveConfig();
+          adminBot.sendMessage(msg.chat.id,
+            `✅ *Bot admin configuré !*\n\nVotre ID : \`${msg.from.id}\`\n\nVous recevrez maintenant les demandes de retrait sur ce bot.`,
+            {parse_mode:'Markdown'}
+          );
+          addLog('ok','Admin Telegram ID configuré: '+msg.from.id);
+        }
+      });
+    }
+  }, 3000);
 }
 
 main().catch(e=>{ console.error('Startup error:', e); process.exit(1); });
