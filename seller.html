@@ -398,21 +398,49 @@ input,textarea,select{font-family:inherit;}
 
       <!-- RETRAITS -->
       <div class="panel" id="panel-withdrawals">
-        <div class="g2" style="margin-bottom:11px;">
-          <div class="stat-card"><div class="stat-label">Solde dispo</div><div class="stat-val gold" id="wdBalance">—</div></div>
-          <div class="stat-card"><div class="stat-label">Total retiré</div><div class="stat-val blue" id="wdTotal">—</div></div>
+
+        <!-- Solde en gros -->
+        <div style="background:var(--bg2);border:1px solid var(--gborder);border-radius:var(--r);padding:20px;margin-bottom:12px;text-align:center;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-bottom:8px;">Solde disponible</div>
+          <div style="font-size:38px;font-weight:800;color:var(--gold);line-height:1;" id="wdBalance">—</div>
+          <div style="font-size:12px;color:var(--t3);margin-top:6px;">Total retiré : <span id="wdTotal" style="color:var(--t2);font-weight:700;">—</span></div>
         </div>
-        <div class="card" style="margin-bottom:11px;">
-          <div class="card-head"><div class="card-title">💸 Demander un retrait</div></div>
+
+        <!-- Formulaire simplifié -->
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-head"><div class="card-title">💸 Demander un virement</div></div>
           <div class="card-body">
-            <label class="fld-label">Montant (€)</label>
+
+            <label class="fld-label">Montant à retirer (€)</label>
             <input class="fld-input" id="wdAmount" type="number" min="1" step="0.01" placeholder="0.00">
-            <label class="fld-label">Coordonnées de paiement</label>
-            <textarea class="fld-input" id="wdCoords" rows="3" placeholder="IBAN, PayPal, crypto…" style="resize:none;"></textarea>
-            <button class="btn primary full" onclick="requestWithdrawal()">Envoyer la demande</button>
+
+            <label class="fld-label">Nom & Prénom</label>
+            <input class="fld-input" id="wdName" type="text" placeholder="Jean Dupont">
+
+            <label class="fld-label">Mode de paiement</label>
+            <select class="fld-select" id="wdMode" onchange="toggleWdMode()">
+              <option value="iban">Virement IBAN</option>
+              <option value="paypal">PayPal</option>
+            </select>
+
+            <div id="wdIbanBox">
+              <label class="fld-label">IBAN</label>
+              <input class="fld-input" id="wdIban" type="text" placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX" style="font-family:'DM Mono';letter-spacing:.04em;">
+            </div>
+
+            <div id="wdPaypalBox" style="display:none;">
+              <label class="fld-label">Email PayPal</label>
+              <input class="fld-input" id="wdPaypal" type="email" placeholder="email@paypal.com">
+            </div>
+
+            <button class="btn primary full" onclick="requestWithdrawal()" style="margin-top:4px;">Envoyer la demande</button>
           </div>
         </div>
-        <div class="card"><div class="card-head"><div class="card-title">Historique <span class="bx bl" id="wdCount">0</span></div></div><div id="withdrawalsList"></div></div>
+
+        <div class="card">
+          <div class="card-head"><div class="card-title">Historique <span class="bx bl" id="wdCount">0</span></div></div>
+          <div id="withdrawalsList"></div>
+        </div>
       </div>
 
       <!-- SETTINGS -->
@@ -1430,20 +1458,38 @@ function renderWithdrawals(){
   </div>`).join('');
 }
 
+function toggleWdMode(){
+  const mode = document.getElementById('wdMode')?.value;
+  if(!mode) return;
+  document.getElementById('wdIbanBox').style.display   = mode==='iban'?'block':'none';
+  document.getElementById('wdPaypalBox').style.display = mode==='paypal'?'block':'none';
+}
+
 async function requestWithdrawal(){
   const amount = parseFloat(document.getElementById('wdAmount').value);
-  const coords = document.getElementById('wdCoords').value.trim();
-  if(!amount||amount<=0){ showToast('⚠ Montant invalide','err'); return; }
-  if(amount>(seller.balance||0)){ showToast('⚠ Solde insuffisant','err'); return; }
-  if(!coords){ showToast('⚠ Coordonnées requises','err'); return; }
+  const name   = document.getElementById('wdName')?.value.trim()||'';
+  const mode   = document.getElementById('wdMode')?.value||'iban';
+  const iban   = document.getElementById('wdIban')?.value.trim()||'';
+  const paypal = document.getElementById('wdPaypal')?.value.trim()||'';
+
+  if(!amount||amount<=0)          { showToast('⚠ Montant invalide','err'); return; }
+  if(amount>(seller.balance||0))  { showToast('⚠ Solde insuffisant','err'); return; }
+  if(!name)                       { showToast('⚠ Nom et prénom requis','err'); return; }
+  if(mode==='iban'&&!iban)        { showToast('⚠ IBAN requis','err'); return; }
+  if(mode==='paypal'&&!paypal)    { showToast('⚠ Email PayPal requis','err'); return; }
+
+  const coords = mode==='iban' ? `IBAN: ${iban}` : `PayPal: ${paypal}`;
+
   try {
-    const res = await api('POST','/seller/withdrawal', {amount,coords});
+    const res = await api('POST','/seller/withdrawal', {amount, name, coords, mode});
     seller = {...seller, ...res.seller};
     renderWithdrawals();
     document.getElementById('wdAmount').value='';
-    document.getElementById('wdCoords').value='';
+    document.getElementById('wdName').value='';
+    document.getElementById('wdIban').value='';
+    if(document.getElementById('wdPaypal')) document.getElementById('wdPaypal').value='';
     updateGlobalStats();
-    showToast('✓ Demande de retrait envoyée');
+    showToast('✓ Demande de '+amount.toFixed(2)+'€ envoyée');
   } catch(e){ showToast('⚠ '+e.message,'err'); }
 }
 
