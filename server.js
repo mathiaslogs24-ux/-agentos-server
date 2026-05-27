@@ -742,7 +742,7 @@ app.post('/promo/check', async(req,res)=>{
 
 // ── Demande de retrait vendeur
 app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
-  const { amount, coords } = req.body;
+  const { amount, coords, name, mode } = req.body;
   const v = req.seller;
   if(!amount || amount <= 0)        return res.status(400).json({error:'Montant invalide'});
   if(amount > (v.balance||0))       return res.status(400).json({error:'Solde insuffisant'});
@@ -751,7 +751,9 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   const wd = {
     id     : Date.now(),
     amount : parseFloat(amount).toFixed(2),
+    name   : name||'',
     coords,
+    mode   : mode||'iban',
     date   : new Date().toLocaleString('fr-FR'),
     status : 'pending',
   };
@@ -765,13 +767,13 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   // Notifier admin via bot
   if(bot && cfg.adminTelegramId) {
     bot.sendMessage(cfg.adminTelegramId,
-      `💸 *Demande de retrait*\n\nVendeur : *${v.shopName||v.name}*\nMontant : *${parseFloat(amount).toFixed(2)}€*\nCoord : ${coords.slice(0,60)}\n\nValidez dans le dashboard.`,
+      `💸 *Demande de retrait*\n\nVendeur : *${v.shopName||v.name}*\nMontant : *${parseFloat(amount).toFixed(2)}€*\nBénéficiaire : ${wd.name||'—'}\n${coords}`,
       {parse_mode:'Markdown'}
     ).catch(()=>{});
   }
   if(v.telegramId && vendorBot) {
     vendorBot.sendMessage(v.telegramId,
-      `💸 *Demande de retrait envoyée !*\n\nMontant : *${parseFloat(amount).toFixed(2)}€*\n\nL'administrateur traitera votre demande sous 24-48h.`,
+      `💸 *Demande de retrait envoyée !*\n\nMontant : *${parseFloat(amount).toFixed(2)}€*\nBénéficiaire : ${wd.name||'—'}\n${coords}\n\nL'administrateur traitera votre demande sous 24-48h.`,
       {parse_mode:'Markdown'}
     ).catch(()=>{});
   }
