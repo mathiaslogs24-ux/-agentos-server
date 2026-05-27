@@ -272,7 +272,7 @@ input,textarea,select{font-family:inherit;}
 
       <!-- STOCK -->
       <div class="panel active" id="panel-stock">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
           <div style="display:flex;gap:7px;flex-wrap:wrap;">
             <button class="btn sm primary" onclick="addStockRow()">+ Ajouter</button>
             <button class="btn sm primary" onclick="pushStock()">🖥 Pousser</button>
@@ -281,8 +281,33 @@ input,textarea,select{font-family:inherit;}
             style="background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:8px 12px;border-radius:var(--rs);outline:none;width:130px;"
             onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'" oninput="renderStock()">
         </div>
-        <div id="stockBody"></div>
-        <div style="display:flex;gap:8px;margin-top:8px;" id="vStStats">
+        <div class="card">
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            <table style="min-width:700px;">
+              <thead><tr>
+                <th style="width:36px;padding:9px 8px;">
+                  <label class="sw" style="display:inline-block;width:32px;height:18px;">
+                    <input type="checkbox" id="vChkAll" onchange="vSelectAll(this.checked)">
+                    <span class="sw-t"></span><span class="sw-k"></span>
+                  </label>
+                </th>
+                <th>Réf.</th>
+                <th>Goût</th>
+                <th>🖼 Photo</th>
+                <th>Marque</th>
+                <th>Taux</th>
+                <th>Quantité</th>
+                <th>Prix €</th>
+                <th>💨 Puffs</th>
+                <th>Seuil</th>
+                <th>Statut</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="stockBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
           <span class="bx bl" id="vStCount">0 goûts</span>
           <span class="bx rd" id="vStAlerts">0 alertes</span>
           <span class="bx gd" id="vStVal"></span>
@@ -437,12 +462,6 @@ input,textarea,select{font-family:inherit;}
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-head"><div class="card-title">Historique <span class="bx bl" id="wdCount">0</span></div></div>
-          <div id="withdrawalsList"></div>
-        </div>
-      </div>
-
       <!-- SETTINGS -->
       <div class="panel" id="panel-settings">
         <div class="ph"><div class="ph-title">⚙️ Paramètres</div></div>
@@ -501,9 +520,6 @@ input,textarea,select{font-family:inherit;}
     </button>
     <button class="bnav" id="nav-promos" onclick="switchTab('promos',this)">
       <span class="bnav-icon">🏷</span><span class="bnav-label">Promos</span>
-    </button>
-    <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)">
-      <span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span>
     </button>
     <button class="bnav" id="nav-settings" onclick="switchTab('settings',this)">
       <span class="bnav-icon">⚙️</span><span class="bnav-label">Config</span>
@@ -802,12 +818,12 @@ function updateStockStats(){
 
 function renderStock(){
   updateStockStats();
-  const q = (document.getElementById('vStockSearch')?.value||'').toLowerCase();
+  const q    = (document.getElementById('vStockSearch')?.value||'').toLowerCase();
   const body = document.getElementById('stockBody');
   const items = q ? stock.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.cat||'').toLowerCase().includes(q)||(s.taux||'').toLowerCase().includes(q)) : stock;
 
   if(!items.length){
-    body.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Aucun goût</div><div class="empty-sub">Cliquez sur "+ Ajouter"</div></div>';
+    body.innerHTML='<tr><td colspan="11" style="text-align:center;color:var(--t3);padding:32px;">Aucun goût — cliquez sur "+ Ajouter"</td></tr>';
     return;
   }
 
@@ -815,49 +831,82 @@ function renderStock(){
     const idx      = stock.indexOf(s);
     const isChk    = vBulkSelected.has(s.id);
     const [lbl,tc] = stockSt(s.qty, s.alert||5);
-    const imgHTML  = s.image
-      ? `<div class="sc-img" onclick="pickImg(${idx})"><img src="${s.image}" onerror="this.style.display='none'"></div>`
-      : `<div class="sc-img" onclick="pickImg(${idx})">${emoji(s.name)}</div>`;
 
-    return `<div class="stock-card ${isChk?'selected':''}" id="vrow_${s.id}">
-      <div class="sc-check"><input type="checkbox" ${isChk?'checked':''} onchange="vToggleRow(${s.id},this.checked)"></div>
-      <input type="file" id="imgInput_${idx}" accept="image/*" style="display:none" onchange="loadImg(${idx},this)">
+    const imgBlock = s.image
+      ? '<div style="position:relative;width:44px;height:44px;flex-shrink:0;">'
+        + '<img src="'+s.image+'" onclick="pickImg('+idx+')" onerror="this.style.display=\'none\'"'
+        + ' style="width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--gb);cursor:pointer;display:block;">'
+        + '<div onclick="stock['+idx+'].image=\'\';renderStock()" style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:#fff;font-weight:800;">✕</div>'
+        + '</div>'
+      : '<div onclick="pickImg('+idx+')" style="width:44px;height:44px;border-radius:10px;background:var(--bg3);border:2px dashed var(--gb);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;flex-shrink:0;">'+emoji(s.name)+'</div>';
 
-      <div class="sc-top">
-        ${imgHTML}
-        <div class="sc-name-wrap">
-          <input class="sc-name-input" value="${s.name||''}" placeholder="Goût (ex: Blue Razz Ice)" oninput="stock[${idx}].name=this.value;updateStockStats()">
-          <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;">
-            <span class="tag ${tc}" style="font-size:10px;">${lbl}</span>
-            ${s.image?`<span style="font-size:10px;color:var(--red);cursor:pointer;" onclick="stock[${idx}].image='';renderStock()">✕ photo</span>`:''}
-          </div>
+    return `<tr id="vrow_${s.id}" style="${isChk?'background:rgba(240,180,41,.05);':''}">
+      <td style="padding:8px;text-align:center;width:36px;">
+        <label class="sw" style="display:inline-block;width:32px;height:18px;">
+          <input type="checkbox" ${isChk?'checked':''} onchange="vToggleRow(${s.id},this.checked)">
+          <span class="sw-t"></span><span class="sw-k"></span>
+        </label>
+      </td>
+      <td style="font-family:'DM Mono';font-size:10px;color:var(--t3);white-space:nowrap;">${s.ref||'—'}</td>
+      <td>
+        <input style="background:rgba(255,255,255,.04);border:1px solid transparent;color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:6px 9px;border-radius:var(--rs);outline:none;min-width:130px;width:100%;transition:border-color .15s;"
+          value="${s.name||''}" placeholder="Goût" oninput="stock[${idx}].name=this.value;updateStockStats()"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:7px;">
+          ${imgBlock}
+          <input type="file" id="imgInput_${idx}" accept="image/*" style="display:none" onchange="loadImg(${idx},this)">
+          ${!s.image?'<span style="font-size:10px;color:var(--t3);">Ajouter</span>':''}
         </div>
-      </div>
-
-      <div class="sc-meta-row">
-        <div class="sc-field"><label>Marque</label><input value="${s.cat||''}" placeholder="JNR" oninput="stock[${idx}].cat=this.value"></div>
-        <div class="sc-field"><label>Taux</label><input value="${s.taux||''}" placeholder="2%" oninput="stock[${idx}].taux=this.value"></div>
-        <div class="sc-field"><label>Prix €</label><input class="mono" type="number" step="0.01" value="${s.price||0}" oninput="stock[${idx}].price=parseFloat(this.value)||0;updateStockStats()"></div>
-        <div class="sc-field"><label>Puffs K</label><input class="mono" type="number" value="${s.puffs?s.puffs/1000:''}" placeholder="18" oninput="stock[${idx}].puffs=(parseFloat(this.value)||0)*1000"></div>
-      </div>
-
-      <div class="sc-qty-row">
-        <div class="sc-qty">
-          <button class="sc-qty-btn" onclick="chQty(${idx},-1)">−</button>
-          <div class="sc-qty-val">${s.qty||0}</div>
-          <button class="sc-qty-btn" onclick="chQty(${idx},1)">+</button>
+      </td>
+      <td>
+        <input style="background:rgba(255,255,255,.04);border:1px solid transparent;color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:6px 9px;border-radius:var(--rs);outline:none;max-width:100px;transition:border-color .15s;"
+          value="${s.cat||''}" placeholder="ex: JNR" oninput="stock[${idx}].cat=this.value"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+      </td>
+      <td>
+        <input style="background:rgba(255,255,255,.04);border:1px solid transparent;color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:6px 9px;border-radius:var(--rs);outline:none;max-width:70px;transition:border-color .15s;"
+          value="${s.taux||''}" placeholder="ex: 2%" oninput="stock[${idx}].taux=this.value"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <button class="btn xs" onclick="chQty(${idx},-1)" style="width:26px;height:26px;padding:0;font-size:14px;justify-content:center;">−</button>
+          <input type="number" min="0"
+            style="font-family:'DM Mono';font-size:15px;font-weight:800;color:var(--gold);text-align:center;width:52px;background:rgba(255,255,255,.04);border:1px solid transparent;border-radius:var(--rs);padding:5px;outline:none;transition:border-color .15s;"
+            value="${s.qty||0}" oninput="stock[${idx}].qty=parseInt(this.value)||0;updateStockStats()"
+            onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+          <button class="btn xs" onclick="chQty(${idx},1)" style="width:26px;height:26px;padding:0;font-size:14px;justify-content:center;">+</button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:10px;color:var(--t3);">Seuil</span>
-          <input type="number" value="${s.alert||5}" style="width:52px;background:var(--bg2);border:1px solid var(--gb);color:var(--t2);font-family:\'DM Mono\';font-size:13px;padding:5px 7px;border-radius:var(--rs);outline:none;text-align:center;" oninput="stock[${idx}].alert=parseInt(this.value)||5">
-          <button class="btn xs danger" onclick="delStock(${idx})">✕</button>
+      </td>
+      <td>
+        <input type="number" step="0.01"
+          style="font-family:'DM Mono';font-size:13px;text-align:center;width:70px;background:rgba(255,255,255,.04);border:1px solid transparent;border-radius:var(--rs);padding:6px;outline:none;color:var(--text);transition:border-color .15s;"
+          value="${s.price||0}" oninput="stock[${idx}].price=parseFloat(this.value)||0;updateStockStats()"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number"
+            style="font-family:'DM Mono';font-size:13px;text-align:center;width:52px;background:rgba(255,255,255,.04);border:1px solid transparent;border-radius:var(--rs);padding:6px;outline:none;color:var(--purple);transition:border-color .15s;"
+            value="${s.puffs?s.puffs/1000:''}" placeholder="18" oninput="stock[${idx}].puffs=(parseFloat(this.value)||0)*1000"
+            onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+          <span style="font-size:10px;color:var(--t3);">K</span>
         </div>
-      </div>
-    </div>`;
+      </td>
+      <td>
+        <input type="number"
+          style="font-family:'DM Mono';font-size:13px;text-align:center;width:48px;background:rgba(255,255,255,.04);border:1px solid transparent;border-radius:var(--rs);padding:6px;outline:none;color:var(--t2);transition:border-color .15s;"
+          value="${s.alert||5}" oninput="stock[${idx}].alert=parseInt(this.value)||5"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='transparent'">
+      </td>
+      <td><span class="tag ${tc}" style="font-size:10px;padding:3px 8px;">${lbl}</span></td>
+      <td><button class="btn xs danger" onclick="delStock(${idx})" style="width:28px;height:28px;padding:0;justify-content:center;">✕</button></td>
+    </tr>`;
   }).join('');
 }
 
-function renderStockPanel(){ renderStock(); }
 
 function stockSt(q,a){
   if(q===0)      return['Rupture','tr2'];
