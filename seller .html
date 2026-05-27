@@ -400,6 +400,7 @@ tr:hover td { background:rgba(255,255,255,.01); }
 .g2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 @media(max-width:700px) { .g2 { grid-template-columns:1fr; } }
 </style>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
@@ -407,10 +408,13 @@ tr:hover td { background:rgba(255,255,255,.01); }
 <div id="loginView">
   <div class="login-box">
     <div class="login-logo">🛍 <span>Vendor</span>OS</div>
-    <div class="login-sub">Votre espace vendeur — entrez votre clé secrète pour accéder à votre dashboard.</div>
-    <label class="login-label" for="secretInput">Clé secrète</label>
-    <input class="login-input" type="password" id="secretInput" placeholder="••••••••••••••••••••••••••••••••" autocomplete="current-password">
-    <button class="btn primary full" id="loginBtn" onclick="doLogin()">Accéder à mon dashboard →</button>
+    <div class="login-sub" id="loginSub">Connexion en cours…</div>
+    <!-- Fallback manuel si pas de Telegram -->
+    <div id="manualLoginBox" style="display:none;">
+      <label class="login-label" for="secretInput">Clé secrète</label>
+      <input class="login-input" type="password" id="secretInput" placeholder="••••••••••••••••••••••••••••••••" autocomplete="current-password">
+      <button class="btn primary full" id="loginBtn" onclick="doLogin()">Accéder à mon dashboard →</button>
+    </div>
     <div class="login-err" id="loginErr"></div>
   </div>
 </div>
@@ -976,8 +980,43 @@ function copyKey(){
 
 
 
+// ═══════════════════════════════════════════════════
+//  AUTH — Telegram Mini App + fallback clé manuelle
+// ═══════════════════════════════════════════════════
+const tg = window.Telegram?.WebApp;
+
+async function initAuth(){
+  if(tg) {
+    tg.ready(); tg.expand();
+    tg.setBackgroundColor('#080b12');
+    tg.setHeaderColor('#0d1220');
+    const tgUser = tg.initDataUnsafe?.user;
+    if(tgUser?.id) {
+      document.getElementById('loginSub').textContent = '🔐 Connexion automatique…';
+      try {
+        const r = await fetch(SERVER+'/seller/tg-auth',{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({telegramId: tgUser.id})
+        });
+        if(r.ok){
+          const data = await r.json();
+          secret = data.secret;
+          seller = data.seller;
+          stock  = seller.stock  || [];
+          promos = seller.promos || [];
+          nid    = stock.length ? Math.max(...stock.map(x=>x.id||0))+1 : 1;
+          bootDashboard(); return;
+        }
+      } catch(e) {}
+    }
+  }
+  // Fallback manuel
+  document.getElementById('loginSub').textContent = 'Entrez votre clé secrète pour accéder à votre espace.';
+  document.getElementById('manualLoginBox').style.display = 'block';
+}
+
 async function doLogin(){
-  const s = document.getElementById('secretInput').value.trim();
+  const s   = document.getElementById('secretInput').value.trim();
   const btn = document.getElementById('loginBtn');
   const err = document.getElementById('loginErr');
   if(!s){ err.textContent='Veuillez entrer votre clé secrète.'; err.style.display='block'; return; }
@@ -985,42 +1024,42 @@ async function doLogin(){
   err.style.display='none';
   try {
     const r = await fetch(SERVER+'/seller/me', { headers:{'x-secret':s,'Content-Type':'application/json'} });
-    if(!r.ok){
-      const d = await r.json().catch(()=>({}));
-      throw new Error(d.error||'Clé incorrecte (erreur '+r.status+')');
-    }
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.error||'Clé incorrecte'); }
     seller = await r.json();
     secret = s;
-    stock  = seller.stock || [];
+    stock  = seller.stock  || [];
     promos = seller.promos || [];
     nid    = stock.length ? Math.max(...stock.map(x=>x.id||0))+1 : 1;
-    // Boot dashboard
-    document.getElementById('loginView').style.display='none';
-    const dv = document.getElementById('dashView');
-    dv.style.display='flex';
-    document.getElementById('sellerAv').textContent = (seller.shopName||seller.name||'?')[0].toUpperCase();
-    document.getElementById('sellerNm').textContent = seller.shopName||seller.name;
-    updateGlobalStats();
-    renderStockPanel();
-    renderCatalogue();
+    bootDashboard();
   } catch(e) {
-    err.textContent = '⚠ '+e.message;
-    err.style.display = 'block';
-  } finally {
-    btn.disabled=false; btn.textContent='Accéder à mon dashboard →';
-  }
+    err.textContent='⚠ '+e.message; err.style.display='block';
+  } finally { btn.disabled=false; btn.textContent='Accéder à mon dashboard →'; }
+}
+
+function bootDashboard(){
+  document.getElementById('loginView').style.display='none';
+  document.getElementById('dashView').style.display='flex';
+  document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
+  document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
+  updateGlobalStats(); renderStockPanel(); renderCatalogue();
 }
 
 function doLogout(){
   secret=''; seller=null; stock=[]; promos=[]; orders=[];
   document.getElementById('loginView').style.display='flex';
   document.getElementById('dashView').style.display='none';
-  document.getElementById('secretInput').value='';
+  document.getElementById('loginSub').textContent='Entrez votre clé secrète.';
+  document.getElementById('manualLoginBox').style.display='block';
+  const inp=document.getElementById('secretInput'); if(inp) inp.value='';
   document.getElementById('loginErr').style.display='none';
-  // Reset charts
-  if(chartRevenue){ chartRevenue.destroy(); chartRevenue=null; }
-  if(chartOrders2){ chartOrders2.destroy(); chartOrders2=null; }
+  if(chartRevenue){chartRevenue.destroy();chartRevenue=null;}
+  if(chartOrders2){chartOrders2.destroy();chartOrders2=null;}
 }
+
+// Démarrage
+initAuth();
+
+
 
 // ═══════════════════════════════════════════════════
 //  TABS
