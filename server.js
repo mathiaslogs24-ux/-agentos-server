@@ -263,6 +263,53 @@ function startAdminBot() {
       }
     });
     adminBot.on('polling_error', err=>addLog('err','AdminBot polling: '+(err.message||String(err))));
+
+    // Bouton de confirmation de paiement
+    adminBot.on('callback_query', async(query)=>{
+      const data = query.data;
+      if(!data?.startsWith('confirm_wd_')) return;
+
+      // confirm_wd_[sellerId]_[wdId]_[amount]
+      const parts    = data.split('_');
+      const sellerId = parts[2];
+      const wdId     = parseInt(parts[3]);
+      const amount   = parseFloat(parts[4]);
+
+      try {
+        const sellers = await getSellers();
+        const v = sellers.find(x=>String(x.id)===String(sellerId));
+        if(!v) { adminBot.answerCallbackQuery(query.id,{text:'Vendeur introuvable'}); return; }
+
+        // Marquer le retrait comme payé
+        const wd = (v.withdrawals||[]).find(w=>w.id===wdId);
+        if(wd) wd.status='paid';
+
+        // Déduire du solde
+        v.balance = parseFloat((parseFloat(v.balance||0) - amount).toFixed(2));
+        if(v.balance < 0) v.balance = 0;
+        await saveSeller(v);
+
+        // Notifier le vendeur
+        if(v.telegramId && vendorBot) {
+          vendorBot.sendMessage(v.telegramId,
+            `✅ *Virement effectué !*\n\nMontant : *${amount.toFixed(2)}€*\n\nVotre paiement a bien été envoyé. Merci ! 🙏`,
+            {parse_mode:'Markdown'}
+          ).catch(()=>{});
+        }
+
+        // Mettre à jour le message admin
+        adminBot.editMessageReplyMarkup(
+          {inline_keyboard:[[{text:`✅ Payé — ${amount.toFixed(2)}€ à ${v.name}`, callback_data:'done'}]]},
+          {chat_id:query.message.chat.id, message_id:query.message.message_id}
+        ).catch(()=>{});
+
+        adminBot.answerCallbackQuery(query.id,{text:'✅ Paiement confirmé ! Vendeur notifié.'});
+        addLog('ok',`Retrait confirmé: ${v.name} · ${amount.toFixed(2)}€`);
+      } catch(e) {
+        adminBot.answerCallbackQuery(query.id,{text:'Erreur: '+e.message});
+        addLog('err','Confirmation retrait: '+e.message);
+      }
+    });
   } catch(e) {
     addLog('err','AdminBot démarrage: '+e.message);
   }
@@ -428,22 +475,81 @@ function startVendorBot() {
           vendorBot.sendMessage(userId,'💰 Votre solde est de 0€ — aucun retrait possible.');
           return;
         }
-        // Notifier l'admin via le bot client
-        if(bot && cfg.adminTelegramId) {
-          bot.sendMessage(cfg.adminTelegramId,
-            `💸 *Demande de retrait*\n\n`
-            + `Vendeur : *${seller.shopName||seller.name}*\n`
-            + `Montant : *${solde.toFixed(2)}€*\n\n`
-            + `Validez le virement puis réinitialisez le solde dans le dashboard.`,
-            {parse_mode:'Markdown'}
-          ).catch(()=>{});
-        }
-        addLog('ok', `Retrait demandé: ${seller.name} · ${solde.toFixed(2)}€`);
         vendorBot.sendMessage(userId,
-          `💸 *Demande de retrait envoyée !*\n\n`
-          + `Montant : *${solde.toFixed(2)}€*\n\n`
-          + `L'administrateur a été notifié et traitera votre demande sous 24-48h.`,
+          `💸 *Demande de virement*\n\nVotre solde disponible : *${solde.toFixed(2)}€*\n\nEnvoyez votre demande au format :\n\n\`/virement [montant] [Nom Prénom] [IBAN ou PayPal]\`\n\nExemple :\n\`/virement 50 Jean Dupont FR76 1234...\`\nou\n\`/virement 50 Jean Dupont paypal@email.com\``,
           {parse_mode:'Markdown'}
+        );
+        return;
+      }
+
+      // ── /virement — envoi effectif
+      if(text.startsWith('/virement')) {
+        const parts  = text.split(' ');
+        const amount = parseFloat(parts[1]);
+        const solde  = parseFloat(seller.balance||0);
+
+        if(!amount||amount<=0)    { vendorBot.sendMessage(userId,'⚠️ Montant invalide.'); return; }
+        if(amount < 30)           { vendorBot.sendMessage(userId,'⚠️ Montant minimum : *30€*.',{parse_mode:'Markdown'}); return; }
+        if(amount > solde)        { vendorBot.sendMessage(userId,`⚠️ Solde insuffisant (${solde.toFixed(2)}€ disponible).`); return; }
+        if(parts.length < 4)      { vendorBot.sendMessage(userId,'⚠️ Format invalide. Exemple :\n`/virement 50 Jean Dupont FR76...`',{parse_mode:'Markdown'}); return; }
+
+        const name   = parts[2]+' '+parts[3];
+        const coords = parts.slice(4).join(' ');
+        if(!coords) { vendorBot.sendMessage(userId,'⚠️ IBAN ou PayPal manquant.'); return; }
+
+        const wdId = Date.now();
+
+        // Envoyer au bot admin avec bouton de confirmation
+        if(adminBot && cfg.adminTelegramId) {
+          adminBot.sendMessage(cfg.adminTelegramId,
+            `💸 *Nouvelle demande de virement*\n\n`
+            + `👤 Vendeur : *${seller.shopName||seller.name}*\n`
+            + `💰 Montant : *${amount.toFixed(2)}€*\n`
+            + `🧾 Bénéficiaire : ${name}\n`
+            + `💳 ${coords}`,
+            {
+              parse_mode:'Markdown',
+              reply_markup:{
+                inline_keyboard:[[
+                  {text:'✅ Confirmer le paiement', callback_data:`confirm_wd_${seller.id}_${wdId}_${amount}`}
+                ]]
+              }
+            }
+          ).catch(e=>addLog('warn','AdminBot notif: '+e.message));
+        }
+
+        vendorBot.sendMessage(userId,
+          `✅ *Demande envoyée !*\n\nMontant : *${amount.toFixed(2)}€*\nBénéficiaire : ${name}\n${coords}\n\nVotre virement sera traité sous 24-48h.`,
+          {parse_mode:'Markdown'}
+        );
+
+        if(!seller.withdrawals) seller.withdrawals=[];
+        seller.withdrawals.unshift({id:wdId,amount:amount.toFixed(2),name,coords,date:new Date().toLocaleString('fr-FR'),status:'pending'});
+        await saveSeller(seller);
+        addLog('ok',`Retrait demandé: ${seller.name} · ${amount.toFixed(2)}€`);
+        return;
+      }
+
+      // ── /fonctions — liste toutes les commandes
+      if(text.startsWith('/fonctions')||text.startsWith('/aide')||text.startsWith('/help')) {
+        vendorBot.sendMessage(userId,
+          `📋 *Toutes les commandes disponibles*\n\n`
+          + `📦 /commandes — Vos 10 dernières ventes\n`
+          + `💰 /solde — Votre solde disponible\n`
+          + `📊 /stock — État de votre stock\n`
+          + `💸 /retrait — Instructions pour demander un virement\n`
+          + `🔑 /virement [montant] [Nom Prénom] [IBAN/PayPal] — Envoyer une demande de virement\n\n`
+          + `_Minimum de retrait : 30€_\n\n`
+          + `🛍 Ou utilisez le bouton ci-dessous pour accéder à votre dashboard complet :`,
+          {
+            parse_mode:'Markdown',
+            reply_markup:{
+              inline_keyboard:[[{
+                text:'🛍 Ouvrir mon dashboard',
+                web_app:{url:`https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`}
+              }]]
+            }
+          }
         );
         return;
       }
