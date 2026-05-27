@@ -314,14 +314,23 @@ function startVendorBot() {
           );
           return;
         }
+        const appUrl = `https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`;
         vendorBot.sendMessage(userId,
           `👋 Bonjour *${seller.shopName||seller.name}* !\n\n`
-          + `Voici vos commandes disponibles :\n\n`
+          + `🛍 Accédez à votre espace vendeur directement ici :\n\n`
           + `📦 /commandes — Vos dernières ventes\n`
-          + `💰 /solde — Votre solde disponible\n`
-          + `📊 /stock — État de votre stock\n`
+          + `💰 /solde — Votre solde\n`
+          + `📊 /stock — État du stock\n`
           + `💸 /retrait — Demander un virement`,
-          {parse_mode:'Markdown'}
+          {
+            parse_mode:'Markdown',
+            reply_markup:{
+              inline_keyboard:[[{
+                text: '🛍 Ouvrir mon dashboard',
+                web_app: { url: appUrl }
+              }]]
+            }
+          }
         );
         return;
       }
@@ -579,7 +588,17 @@ app.post('/sellers/:id/add-stock',auth,async(req,res)=>{
 // ─────────────────────────────────────────
 //  ROUTES VENDEUR (auth secret vendeur)
 // ─────────────────────────────────────────
-app.get('/seller/me',sellerAuth,(req,res)=>{const{secret,...safe}=req.seller;res.json(safe);});
+// ── Auth Telegram Mini App (login automatique par Telegram ID)
+app.post('/seller/tg-auth', async(req,res)=>{
+  const { telegramId } = req.body;
+  if(!telegramId) return res.status(400).json({error:'Telegram ID manquant'});
+  const sellers = await getSellers();
+  const seller  = sellers.find(v=>String(v.telegramId)===String(telegramId)&&v.active);
+  if(!seller) return res.status(401).json({error:'Vendeur non trouvé'});
+  res.json({ok:true, seller, secret:seller.secret});
+});
+
+app.get('/seller/me',sellerAuth,(req,res)=>{res.json(req.seller);});
 
 app.post('/seller/stock',sellerAuth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
