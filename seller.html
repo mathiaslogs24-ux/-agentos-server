@@ -2,832 +2,494 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>VendorOS</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,400;10..48,600;10..48,700;10..48,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-/* ═══════════════════════════════════════
-   VARIABLES
-═══════════════════════════════════════ */
-:root {
-  --gold   : #F0B429;
-  --gold2  : #FFD166;
-  --gdim   : rgba(240,180,41,.08);
-  --gborder: rgba(240,180,41,.25);
-  --bg0    : #08080A;
-  --bg1    : #0F0F12;
-  --bg2    : #161619;
-  --bg3    : #1E1E23;
-  --bg4    : #26262D;
-  --gb     : rgba(255,255,255,.07);
-  --gb2    : rgba(255,255,255,.04);
-  --text   : #F0EEE8;
-  --t2     : #8A8680;
-  --t3     : #4A4744;
-  --green  : #4ADE80;
-  --grdim  : rgba(74,222,128,.08);
-  --grbdr  : rgba(74,222,128,.25);
-  --red    : #F87171;
-  --rdim   : rgba(248,113,113,.08);
-  --rbdr   : rgba(248,113,113,.25);
-  --blue   : #4FC3F7;
-  --bdim   : rgba(79,195,247,.08);
-  --bbdr   : rgba(79,195,247,.25);
-  --purple : #C084FC;
-  --pdim   : rgba(192,132,252,.08);
-  --r      : 12px;
-  --rs     : 8px;
-  --rxs    : 5px;
-}
-
-/* ═══════════════════════════════════════
-   RESET + BASE
-═══════════════════════════════════════ */
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-html, body { height:100%; background:var(--bg0); color:var(--text); font-family:'Bricolage Grotesque',sans-serif; overflow:hidden; }
-button { font-family:inherit; cursor:pointer; }
-input, textarea, select { font-family:inherit; }
-a { color:inherit; text-decoration:none; }
-
-/* ═══════════════════════════════════════
-   LAYOUT
-═══════════════════════════════════════ */
-#app { height:100vh; display:flex; flex-direction:column; }
-
-/* ─── LOGIN ─── */
-#loginView {
-  flex:1; display:flex; align-items:center; justify-content:center;
-  background:radial-gradient(ellipse at 60% 40%, rgba(240,180,41,.04) 0%, transparent 70%);
-}
-.login-box {
-  width:min(400px, 90vw);
-  background:var(--bg2); border:1px solid var(--gb);
-  border-radius:var(--r); padding:32px;
-  box-shadow:0 24px 64px rgba(0,0,0,.4);
-}
-.login-logo { font-size:24px; font-weight:800; margin-bottom:6px; }
-.login-logo span { color:var(--gold); }
-.login-sub { font-size:13px; color:var(--t2); margin-bottom:28px; line-height:1.5; }
-.login-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--t3); margin-bottom:6px; display:block; }
-.login-input {
-  width:100%; background:var(--bg3); border:1px solid var(--gb);
-  color:var(--text); font-size:14px; padding:11px 14px;
-  border-radius:var(--rs); outline:none; margin-bottom:16px;
-  transition:border-color .15s;
-}
-.login-input:focus { border-color:var(--gold); }
-.login-err { color:var(--red); font-size:12px; margin-top:10px; display:none; background:var(--rdim); border:1px solid var(--rbdr); padding:8px 12px; border-radius:var(--rxs); }
-
-/* ─── TOPBAR ─── */
-.topbar {
-  flex-shrink:0; background:var(--bg1); border-bottom:1px solid var(--gb);
-  height:52px; padding:0 20px; display:flex; align-items:center; gap:4px;
-  position:relative; z-index:10;
-}
-.topbar-logo { font-size:16px; font-weight:800; margin-right:12px; white-space:nowrap; }
-.topbar-logo span { color:var(--gold); }
-.topbar-nav { display:flex; gap:2px; flex:1; overflow-x:auto; scrollbar-width:none; }
-.topbar-nav::-webkit-scrollbar { display:none; }
-.tnav {
-  padding:6px 13px; border-radius:var(--rs); font-size:12px; font-weight:700;
-  color:var(--t2); cursor:pointer; transition:all .15s; white-space:nowrap;
-  display:flex; align-items:center; gap:5px;
-}
-.tnav:hover { color:var(--text); background:rgba(255,255,255,.03); }
-.tnav.active { background:var(--gdim); color:var(--gold); }
-.tnav .badge {
-  background:var(--red); color:#fff; font-size:9px; font-weight:800;
-  min-width:16px; height:16px; border-radius:8px; padding:0 4px;
-  display:flex; align-items:center; justify-content:center;
-}
-.topbar-right { margin-left:auto; display:flex; align-items:center; gap:10px; flex-shrink:0; }
-.seller-chip {
-  display:flex; align-items:center; gap:8px;
-  background:var(--bg3); border:1px solid var(--gb);
-  border-radius:20px; padding:4px 12px 4px 4px;
-}
-.seller-av {
-  width:26px; height:26px; border-radius:50%; background:var(--gold);
-  display:flex; align-items:center; justify-content:center;
-  font-size:12px; font-weight:800; color:#000; flex-shrink:0;
-}
-.seller-nm { font-size:12px; font-weight:700; }
-
-/* ─── CONTENT ─── */
-.app-body { flex:1; overflow:hidden; display:flex; }
-.content { flex:1; overflow-y:auto; padding:20px; }
-.content::-webkit-scrollbar { width:4px; }
-.content::-webkit-scrollbar-thumb { background:var(--bg4); border-radius:2px; }
-
-/* ─── PANELS ─── */
-.panel { display:none; }
-.panel.active { display:block; }
-
-/* ═══════════════════════════════════════
-   COMPOSANTS
-═══════════════════════════════════════ */
-
-/* Boutons */
-.btn {
-  padding:8px 14px; border-radius:var(--rs); font-size:12px; font-weight:700;
-  border:1px solid var(--gb); background:var(--bg3); color:var(--text);
-  transition:all .15s; display:inline-flex; align-items:center; gap:6px;
-}
-.btn:hover { border-color:rgba(255,255,255,.15); }
-.btn:active { transform:scale(.97); }
-.btn.primary { background:var(--gold); color:#000; border-color:var(--gold); }
-.btn.primary:hover { background:var(--gold2); }
-.btn.danger  { background:var(--rdim); color:var(--red); border-color:var(--rbdr); }
-.btn.success { background:var(--grdim); color:var(--green); border-color:var(--grbdr); }
-.btn.full    { width:100%; justify-content:center; padding:12px; }
-.btn.sm      { padding:5px 10px; font-size:11px; }
-.btn.xs      { padding:3px 8px; font-size:10px; }
-.btn:disabled { opacity:.4; cursor:not-allowed; transform:none !important; }
-
-/* Cards */
-.card {
-  background:var(--bg2); border:1px solid var(--gb);
-  border-radius:var(--r); overflow:hidden; margin-bottom:14px;
-}
-.card-head {
-  padding:12px 16px; border-bottom:1px solid var(--gb);
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-}
-.card-title { font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; }
-.card-actions { display:flex; gap:6px; flex-wrap:wrap; }
-.card-body { padding:16px; }
-
-/* Stats row */
-.stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
-@media(max-width:800px) { .stats-grid { grid-template-columns:repeat(2,1fr); } }
-.stat-card {
-  background:var(--bg2); border:1px solid var(--gb);
-  border-radius:var(--r); padding:14px 16px;
-}
-.stat-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--t3); margin-bottom:8px; }
-.stat-val { font-size:22px; font-weight:800; line-height:1; }
-.stat-val.gold   { color:var(--gold); }
-.stat-val.green  { color:var(--green); }
-.stat-val.blue   { color:var(--blue); }
-.stat-val.purple { color:var(--purple); }
-.stat-sub { font-size:10px; color:var(--t3); margin-top:4px; }
-
-/* Table */
-.tw { overflow-x:auto; }
-table { width:100%; border-collapse:collapse; }
-th {
-  text-align:left; font-size:9px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.08em; color:var(--t3); padding:9px 12px;
-  border-bottom:1px solid var(--gb); white-space:nowrap;
-}
-td { padding:9px 12px; border-bottom:1px solid rgba(255,255,255,.03); font-size:13px; vertical-align:middle; }
-tr:last-child td { border:none; }
-tr:hover td { background:rgba(255,255,255,.01); }
-
-/* Inputs dans table */
-.fi {
-  background:var(--bg3); border:1px solid var(--gb); color:var(--text);
-  font-size:12px; padding:6px 10px; border-radius:var(--rxs);
-  outline:none; width:100%; transition:border-color .15s;
-}
-.fi:focus { border-color:var(--gold); }
-.fi.num  { font-family:'DM Mono'; font-size:14px; font-weight:700; color:var(--gold); text-align:center; width:72px; }
-.fi.pr   { font-family:'DM Mono'; font-size:12px; width:80px; }
-.fi.pf   { font-family:'DM Mono'; font-size:12px; width:68px; }
-.fi.cat  { max-width:120px; }
-.fi.wide { min-width:200px; }
-
-/* Toggle switch */
-.sw { display:inline-block; position:relative; width:40px; height:22px; cursor:pointer; flex-shrink:0; }
-.sw input { display:none; }
-.sw-t { position:absolute; inset:0; background:var(--bg4); border-radius:11px; transition:.2s; border:1px solid var(--gb); }
-.sw input:checked + .sw-t { background:var(--gold); border-color:var(--gold); }
-.sw-k { position:absolute; top:3px; left:3px; width:16px; height:16px; background:#fff; border-radius:50%; transition:.2s; pointer-events:none; }
-.sw input:checked ~ .sw-k { transform:translateX(18px); }
-
-/* Badges */
-.bx { display:inline-block; padding:2px 8px; border-radius:var(--rxs); font-size:10px; font-weight:700; font-family:'DM Mono'; }
-.bx.bl { background:var(--bdim); color:var(--blue); }
-.bx.gr { background:var(--grdim); color:var(--green); }
-.bx.gd { background:var(--gdim); color:var(--gold); }
-.bx.rd { background:var(--rdim); color:var(--red); }
-.bx.pu { background:var(--pdim); color:var(--purple); }
-
-/* Tags statut */
-.tag { display:inline-block; padding:3px 8px; border-radius:var(--rxs); font-size:11px; font-weight:700; }
-.tag.ok  { background:var(--grdim); color:var(--green); border:1px solid var(--grbdr); }
-.tag.err { background:var(--rdim);  color:var(--red);   border:1px solid var(--rbdr);  }
-.tag.warn { background:rgba(251,146,60,.1); color:#FB923C; border:1px solid rgba(251,146,60,.25); }
-.tag.pending { background:var(--bdim); color:var(--blue); border:1px solid var(--bbdr); }
-
-/* Alerte info */
-.alert { padding:12px 14px; border-radius:var(--rs); font-size:12px; line-height:1.5; }
-.alert.info { background:var(--bdim); border:1px solid var(--bbdr); color:var(--blue); }
-.alert.warn { background:rgba(251,146,60,.08); border:1px solid rgba(251,146,60,.25); color:#FB923C; }
-.alert.gold { background:var(--gdim); border:1px solid var(--gborder); color:var(--gold); }
-
-/* Catalogue — filtres */
-.cat-filters {
-  display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-  padding:12px 16px; border-bottom:1px solid var(--gb); background:var(--bg3);
-}
-.filter-chip {
-  padding:5px 12px; border-radius:18px; font-size:11px; font-weight:700;
-  border:1px solid var(--gb); background:var(--bg2); color:var(--t2);
-  cursor:pointer; transition:all .15s; white-space:nowrap;
-}
-.filter-chip:hover { color:var(--text); }
-.filter-chip.active { background:var(--gold); color:#000; border-color:var(--gold); }
-.filter-chip.active-purple { background:rgba(192,132,252,.18); color:var(--purple); border-color:rgba(192,132,252,.35); }
-.filter-chip.active-blue { background:rgba(79,195,247,.12); color:var(--blue); border-color:rgba(79,195,247,.3); }
-.sort-select {
-  background:var(--bg2); border:1px solid var(--gb); color:var(--t2);
-  font-size:11px; font-weight:700; padding:5px 10px; border-radius:18px;
-  outline:none; cursor:pointer; margin-left:auto;
-}
-.price-range { display:flex; align-items:center; gap:6px; }
-.price-range input {
-  width:70px; background:var(--bg2); border:1px solid var(--gb); color:var(--text);
-  font-family:'DM Mono'; font-size:11px; padding:5px 8px; border-radius:18px;
-  outline:none; text-align:center;
-}
-.price-range input:focus { border-color:var(--gold); }
-
-/* Catalogue — grille */
-.cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; padding:14px 16px; }
-.cat-card {
-  background:var(--bg3); border:1.5px solid var(--gb);
-  border-radius:var(--r); overflow:hidden; transition:border-color .15s;
-}
-.cat-card.active-card { border-color:var(--gold); background:var(--gdim); }
-.cat-card-img {
-  height:120px; background:var(--bg4); display:flex; align-items:center;
-  justify-content:center; font-size:44px; position:relative; overflow:hidden;
-}
-.cat-card-img img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.cat-card-img .emoji { position:relative; z-index:1; }
-.cat-card-puffs {
-  position:absolute; top:6px; left:6px; background:rgba(192,132,252,.2);
-  border:1px solid rgba(192,132,252,.4); border-radius:5px;
-  padding:2px 6px; font-size:9px; font-weight:700; color:var(--purple);
-  font-family:'DM Mono'; z-index:2;
-}
-.cat-card-stock {
-  position:absolute; top:6px; right:6px; border-radius:5px;
-  padding:2px 6px; font-size:9px; font-weight:700; font-family:'DM Mono'; z-index:2;
-}
-.cat-card-stock.ok  { background:rgba(74,222,128,.2); color:var(--green); }
-.cat-card-stock.low { background:rgba(251,146,60,.2); color:#FB923C; }
-.cat-card-stock.out { background:rgba(248,113,113,.15); color:var(--red); }
-.cat-card-body { padding:10px 12px; }
-.cat-card-brand { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--gold); margin-bottom:3px; }
-.cat-card-name { font-size:12px; font-weight:700; line-height:1.3; margin-bottom:8px; }
-.cat-card-price { font-size:16px; font-weight:800; margin-bottom:10px; }
-.cat-card-footer { display:flex; align-items:center; gap:8px; }
-.cat-card-footer .sw-label { font-size:11px; }
-
-/* Image upload */
-.img-pick {
-  width:36px; height:36px; border-radius:7px; background:var(--bg3);
-  border:1.5px dashed var(--gb); display:flex; align-items:center;
-  justify-content:center; font-size:16px; cursor:pointer; flex-shrink:0;
-  transition:border-color .15s;
-}
-.img-pick:hover { border-color:var(--gold); }
-.img-thumb {
-  width:36px; height:36px; border-radius:7px; object-fit:cover;
-  border:1px solid var(--gb); cursor:pointer; flex-shrink:0;
-}
-
-/* Commandes */
-.order-card {
-  background:var(--bg3); border:1px solid var(--gb);
-  border-radius:var(--r); padding:14px 16px; margin-bottom:10px;
-  transition:border-color .15s;
-}
-.order-card:hover { border-color:rgba(255,255,255,.12); }
-.order-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
-.order-id { font-family:'DM Mono'; font-size:10px; color:var(--t3); }
-.order-date { font-size:11px; color:var(--t3); margin-top:2px; }
-.order-items { margin-bottom:10px; }
-.order-item-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--gb2); }
-.order-item-row:last-child { border:none; }
-.order-item-name { font-size:13px; font-weight:700; flex:1; }
-.order-item-qty { font-family:'DM Mono'; font-size:12px; color:var(--t2); }
-.order-client { background:var(--bg2); border-radius:var(--rs); padding:10px 12px; margin-bottom:10px; font-size:12px; line-height:1.8; }
-.order-client strong { color:var(--text); font-weight:700; }
-.order-client .lbl { color:var(--t3); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
-.order-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-.order-amounts { display:flex; gap:16px; }
-.order-amt { text-align:right; }
-.order-amt .l { font-size:10px; color:var(--t3); }
-.order-amt .v { font-size:15px; font-weight:800; }
-
-/* Charts */
-.chart-wrap { position:relative; height:220px; }
-.chart-period-btns { display:flex; gap:6px; }
-.period-btn {
-  padding:4px 10px; border-radius:var(--rxs); font-size:11px; font-weight:700;
-  border:1px solid var(--gb); background:var(--bg3); color:var(--t2); cursor:pointer;
-}
-.period-btn.active { background:var(--gdim); color:var(--gold); border-color:var(--gborder); }
-
-/* Codes promo */
-.promo-card {
-  background:var(--bg3); border:1px solid var(--gb); border-radius:var(--r);
-  padding:14px 16px; display:flex; align-items:center; gap:12px;
-  margin-bottom:8px;
-}
-.promo-code {
-  font-family:'DM Mono'; font-size:15px; font-weight:700; color:var(--gold);
-  background:var(--gdim); border:1px solid var(--gborder); border-radius:var(--rxs);
-  padding:4px 10px; flex-shrink:0;
-}
-.promo-info { flex:1; min-width:0; }
-.promo-desc { font-size:12px; color:var(--t2); margin-top:3px; }
-.promo-uses { font-family:'DM Mono'; font-size:11px; color:var(--t3); margin-top:2px; }
-
-/* Retraits */
-.wd-card {
-  background:var(--bg3); border:1px solid var(--gb); border-radius:var(--r);
-  padding:12px 14px; display:flex; align-items:center; gap:12px; margin-bottom:8px;
-}
-.wd-amount { font-size:18px; font-weight:800; color:var(--gold); flex-shrink:0; width:80px; }
-.wd-info { flex:1; font-size:12px; color:var(--t2); }
-.wd-date { font-size:10px; color:var(--t3); margin-top:2px; }
-
-/* Form fields */
-.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
-.form-row.full { grid-template-columns:1fr; }
-.form-row.three { grid-template-columns:1fr 1fr 1fr; }
-.fld-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--t3); margin-bottom:6px; display:block; }
-.fld-input {
-  width:100%; background:var(--bg3); border:1px solid var(--gb); color:var(--text);
-  font-size:13px; padding:9px 12px; border-radius:var(--rs); outline:none; transition:border-color .15s;
-}
-.fld-input:focus { border-color:var(--gold); }
-.fld-select {
-  width:100%; background:var(--bg3); border:1px solid var(--gb); color:var(--text);
-  font-size:13px; padding:9px 12px; border-radius:var(--rs); outline:none; cursor:pointer;
-}
-
-/* Toast */
-.toast {
-  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(80px);
-  background:var(--bg3); border:1px solid var(--gb); border-radius:10px;
-  padding:10px 18px; font-size:12px; font-weight:700; z-index:999;
-  transition:transform .3s cubic-bezier(.32,.72,0,1);
-  box-shadow:0 8px 24px rgba(0,0,0,.5); pointer-events:none;
-}
-.toast.show { transform:translateX(-50%) translateY(0); }
-.toast.ok   { border-color:var(--grbdr); color:var(--green); }
-.toast.err  { border-color:var(--rbdr); color:var(--red); }
-
-/* Empty state */
-.empty-state {
-  text-align:center; padding:48px 20px;
-  display:flex; flex-direction:column; align-items:center; gap:12px;
-}
-.empty-icon { font-size:40px; opacity:.3; }
-.empty-title { font-size:15px; font-weight:700; color:var(--t2); }
-.empty-sub { font-size:12px; color:var(--t3); }
-
-/* Divider */
-.sep { height:1px; background:var(--gb); margin:12px 0; }
-
-/* Grid 2 */
-.g2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-@media(max-width:700px) { .g2 { grid-template-columns:1fr; } }
-</style>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --gold:#F0B429;--gold2:#FFD166;--gdim:rgba(240,180,41,.09);--gborder:rgba(240,180,41,.3);
+  --bg0:#08080A;--bg1:#0F0F12;--bg2:#161619;--bg3:#1E1E23;--bg4:#26262D;
+  --gb:rgba(255,255,255,.07);--gb2:rgba(255,255,255,.04);
+  --text:#F0EEE8;--t2:#8A8680;--t3:#4A4744;
+  --green:#4ADE80;--grdim:rgba(74,222,128,.09);--grbdr:rgba(74,222,128,.28);
+  --red:#F87171;--rdim:rgba(248,113,113,.09);--rbdr:rgba(248,113,113,.28);
+  --blue:#4FC3F7;--bdim:rgba(79,195,247,.09);--bbdr:rgba(79,195,247,.28);
+  --purple:#C084FC;--pdim:rgba(192,132,252,.09);
+  --r:14px;--rs:10px;--rxs:6px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --nav-h:58px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;background:var(--bg0);color:var(--text);font-family:'Bricolage Grotesque',sans-serif;overflow:hidden;}
+button{font-family:inherit;cursor:pointer;}
+input,textarea,select{font-family:inherit;}
+
+/* ── LAYOUT */
+#app{height:100dvh;display:flex;flex-direction:column;}
+
+/* ── LOGIN */
+#loginView{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{width:100%;max-width:380px;background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:26px;box-shadow:0 24px 48px rgba(0,0,0,.4);}
+.login-logo{font-size:22px;font-weight:800;margin-bottom:4px;}.login-logo span{color:var(--gold);}
+.login-sub{font-size:13px;color:var(--t2);margin-bottom:22px;line-height:1.5;min-height:20px;}
+.login-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:6px;display:block;}
+.login-input{width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-size:16px;padding:13px 14px;border-radius:var(--rs);outline:none;margin-bottom:14px;transition:border-color .15s;}
+.login-input:focus{border-color:var(--gold);}
+.login-err{color:var(--red);font-size:12px;margin-top:8px;display:none;background:var(--rdim);border:1px solid var(--rbdr);padding:8px 12px;border-radius:var(--rxs);}
+
+/* ── DASHBOARD */
+#dashView{flex:1;display:flex;flex-direction:column;min-height:0;}
+
+/* ── TOPBAR */
+.topbar{flex-shrink:0;background:var(--bg1);border-bottom:1px solid var(--gb);height:50px;padding:0 14px;display:flex;align-items:center;gap:10px;z-index:10;}
+.topbar-logo{font-size:15px;font-weight:800;flex:1;}.topbar-logo span{color:var(--gold);}
+.seller-chip{display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--gb);border-radius:20px;padding:4px 10px 4px 4px;min-width:0;}
+.seller-av{width:24px;height:24px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#000;flex-shrink:0;}
+.seller-nm{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;}
+
+/* ── CONTENT */
+.app-body{flex:1;overflow:hidden;}
+.content{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 10px;scrollbar-width:none;}
+.content::-webkit-scrollbar{display:none;}
+.panel{display:none;animation:fadeIn .18s ease;}
+.panel.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── BOTTOM NAV */
+.bottom-nav{flex-shrink:0;background:var(--bg1);border-top:1px solid var(--gb);height:calc(var(--nav-h) + var(--safe-b));padding-bottom:var(--safe-b);display:flex;z-index:10;}
+.bnav{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:none;color:var(--t3);cursor:pointer;padding:6px 2px;position:relative;transition:color .15s;}
+.bnav.active{color:var(--gold);}
+.bnav-icon{font-size:19px;line-height:1;}
+.bnav-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.bnav .nbadge{position:absolute;top:5px;right:calc(50% - 16px);background:var(--red);color:#fff;font-size:8px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 3px;}
+
+/* ── STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.stat-card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:11px 13px;}
+.stat-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px;}
+.stat-val{font-size:19px;font-weight:800;line-height:1;}
+.stat-val.gold{color:var(--gold);}.stat-val.green{color:var(--green);}.stat-val.blue{color:var(--blue);}
+
+/* ── CARD */
+.card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);overflow:hidden;margin-bottom:11px;}
+.card-head{padding:10px 13px;border-bottom:1px solid var(--gb);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.card-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.card-body{padding:13px;}
+
+/* ── BUTTONS */
+.btn{padding:9px 14px;border-radius:var(--rs);font-size:13px;font-weight:700;border:1px solid var(--gb);background:var(--bg3);color:var(--text);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:all .15s;}
+.btn:active{transform:scale(.95);}
+.btn.primary{background:var(--gold);color:#000;border-color:var(--gold);}
+.btn.danger{background:var(--rdim);color:var(--red);border-color:var(--rbdr);}
+.btn.success{background:var(--grdim);color:var(--green);border-color:var(--grbdr);}
+.btn.full{width:100%;justify-content:center;padding:14px;}
+.btn.sm{padding:7px 12px;font-size:12px;}
+.btn.xs{padding:5px 9px;font-size:11px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── STOCK CARDS (mobile) */
+.stock-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:12px;margin-bottom:9px;position:relative;}
+.stock-card.selected{border-color:var(--gborder);background:var(--gdim);}
+.sc-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.sc-img{width:48px;height:48px;border-radius:10px;background:var(--bg2);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;cursor:pointer;overflow:hidden;}
+.sc-img img{width:100%;height:100%;object-fit:cover;}
+.sc-name-wrap{flex:1;min-width:0;}
+.sc-name-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:15px;font-weight:700;padding:4px 0;outline:none;}
+.sc-name-input:focus{border-color:var(--gold);}
+.sc-meta-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.sc-field label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);display:block;margin-bottom:4px;}
+.sc-field input{width:100%;background:var(--bg2);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:8px 10px;border-radius:var(--rs);outline:none;transition:border-color .15s;}
+.sc-field input:focus{border-color:var(--gold);}
+.sc-field input.mono{font-family:'DM Mono';font-size:15px;font-weight:800;color:var(--gold);text-align:center;}
+.sc-qty-row{display:flex;align-items:center;justify-content:space-between;}
+.sc-qty{display:flex;align-items:center;gap:10px;}
+.sc-qty-btn{width:36px;height:36px;border-radius:10px;background:var(--bg2);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;}
+.sc-qty-btn:active{transform:scale(.88);}
+.sc-qty-val{font-family:'DM Mono';font-size:20px;font-weight:800;color:var(--gold);min-width:32px;text-align:center;}
+.sc-status{display:flex;align-items:center;gap:8px;}
+.sc-check{position:absolute;top:10px;right:10px;}
+.sc-check input{width:20px;height:20px;accent-color:var(--gold);cursor:pointer;}
+
+/* ── CATALOGUE GRID */
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
+.cat-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:11px;transition:border-color .2s;}
+.cat-card.on{border-color:var(--gborder);background:var(--gdim);}
+.cat-card-img{height:68px;background:var(--bg2);border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:8px;overflow:hidden;}
+.cat-card-img img{width:100%;height:100%;object-fit:cover;}
+.cat-card-brand{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:2px;}
+.cat-card-name{font-size:12px;font-weight:700;margin-bottom:3px;line-height:1.3;}
+.cat-card-meta{font-size:10px;color:var(--t3);margin-bottom:6px;}
+.cat-card-price{font-size:16px;font-weight:800;color:var(--gold);margin-bottom:8px;}
+.cat-card-toggle{display:flex;align-items:center;gap:7px;}
+
+/* ── FILTER CHIPS */
+.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.filter-row::-webkit-scrollbar{display:none;}
+.fchip{flex-shrink:0;padding:6px 12px;border-radius:16px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--gb);background:var(--bg3);color:var(--t2);white-space:nowrap;transition:all .15s;}
+.fchip:active{transform:scale(.95);}
+.fchip.active{background:var(--gold);color:#000;border-color:var(--gold);}
+.fchip.ap{background:var(--pdim);color:var(--purple);border-color:rgba(192,132,252,.35);}
+.fchip.ab{background:var(--bdim);color:var(--blue);border-color:var(--bbdr);}
+.sort-select{background:var(--bg3);border:1px solid var(--gb);color:var(--t2);font-family:'Bricolage Grotesque';font-size:12px;font-weight:700;padding:6px 10px;border-radius:16px;outline:none;cursor:pointer;}
+.price-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.price-filter label{font-size:10px;font-weight:700;color:var(--t3);}
+.pf-inp{width:72px;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'DM Mono';font-size:12px;padding:6px 8px;border-radius:var(--rs);outline:none;text-align:center;}
+.pf-inp:focus{border-color:var(--gold);}
+
+/* ── BULK BAR */
+.bulk-bar{display:none;position:fixed;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:20;padding:10px 12px;background:var(--bg2);border-top:2px solid var(--gold);box-shadow:0 -4px 20px rgba(0,0,0,.6);}
+.bulk-bar.show{display:block;}
+.bulk-title{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px;}
+.bulk-fields{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;align-items:flex-end;scrollbar-width:none;}
+.bulk-fields::-webkit-scrollbar{display:none;}
+.bulk-field{display:flex;flex-direction:column;gap:3px;flex-shrink:0;}
+.bulk-field label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);}
+.bulk-field input,.bulk-field select{background:rgba(255,255,255,.06);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:7px 10px;border-radius:var(--rs);outline:none;min-width:70px;}
+
+/* ── COMMANDES */
+.order-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px;margin-bottom:9px;}
+.order-amount{font-size:20px;font-weight:800;color:var(--gold);}
+.order-net{font-size:12px;color:var(--green);margin-top:2px;}
+.order-date{font-size:11px;color:var(--t3);margin-top:1px;margin-bottom:9px;}
+.order-items{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;}
+.order-item-tag{padding:4px 9px;border-radius:6px;font-size:11px;background:rgba(255,255,255,.04);border:1px solid var(--gb);}
+.order-client{background:var(--bg2);border-radius:var(--rs);padding:10px 12px;margin-bottom:9px;}
+.oc-row{display:flex;gap:8px;padding:2px 0;}
+.oc-lbl{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;min-width:60px;}
+.oc-val{font-size:12px;font-weight:500;}
+.order-footer{display:flex;align-items:center;justify-content:space-between;}
+
+/* ── STATS/CHART */
+.period-tabs{display:flex;gap:6px;margin-bottom:12px;}
+.period-btn{padding:7px 13px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--gb);color:var(--t2);background:var(--bg3);transition:all .15s;}
+.period-btn:active{transform:scale(.95);}
+.period-btn.active{background:var(--gdim);color:var(--gold);border-color:var(--gborder);}
+.chart-wrap{position:relative;height:160px;margin-top:6px;}
+
+/* ── PROMOS */
+.promo-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:12px;margin-bottom:8px;display:flex;gap:11px;align-items:flex-start;}
+.promo-code{font-family:'DM Mono';font-size:14px;font-weight:800;color:var(--gold);letter-spacing:.06em;}
+.promo-discount{font-size:18px;font-weight:800;margin-top:2px;}
+.promo-info{flex:1;min-width:0;}
+.promo-desc{font-size:12px;color:var(--t2);margin-top:3px;}
+.promo-uses{font-size:11px;color:var(--t3);margin-top:2px;}
+
+/* ── FORMS */
+.fld-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:5px;display:block;}
+.fld-input{width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-size:14px;padding:11px 13px;border-radius:var(--rs);outline:none;transition:border-color .15s;margin-bottom:11px;}
+.fld-input:focus{border-color:var(--gold);}
+.fld-select{width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-size:14px;padding:11px 13px;border-radius:var(--rs);outline:none;cursor:pointer;margin-bottom:11px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* ── RETRAITS */
+.wd-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--gb);}
+.wd-item:last-child{border:none;}
+.wd-amount{font-size:17px;font-weight:800;color:var(--gold);min-width:75px;}
+
+/* ── TOGGLE */
+.sw{display:inline-block;position:relative;width:42px;height:24px;cursor:pointer;flex-shrink:0;}
+.sw input{display:none;}
+.sw-t{position:absolute;inset:0;background:var(--bg4);border-radius:12px;transition:.22s;border:1px solid var(--gb);}
+.sw input:checked+.sw-t{background:var(--gold);border-color:var(--gold);}
+.sw-k{position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.22s;pointer-events:none;}
+.sw input:checked~.sw-k{transform:translateX(18px);}
+
+/* ── BADGES */
+.bx{display:inline-block;padding:2px 8px;border-radius:var(--rxs);font-size:10px;font-weight:700;font-family:'DM Mono';}
+.bx.bl{background:var(--bdim);color:var(--blue);}.bx.gr{background:var(--grdim);color:var(--green);}.bx.gd{background:var(--gdim);color:var(--gold);}.bx.rd{background:var(--rdim);color:var(--red);}
+.tag{display:inline-block;padding:3px 9px;border-radius:var(--rxs);font-size:11px;font-weight:700;}
+.tg{background:var(--grdim);color:var(--green);border:1px solid var(--grbdr);}
+.ta{background:rgba(251,146,60,.1);color:#FB923C;border:1px solid rgba(251,146,60,.25);}
+.tr2{background:var(--rdim);color:var(--red);border:1px solid var(--rbdr);}
+
+/* ── SETTINGS */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--gb);}
+.setting-row:last-child{border:none;}
+.setting-label{font-size:14px;font-weight:600;}
+.setting-sub{font-size:11px;color:var(--t3);margin-top:2px;}
+
+/* ── MISC */
+.sep{height:1px;background:var(--gb);margin:12px 0;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ph{margin-bottom:12px;}
+.ph-title{font-size:18px;font-weight:800;letter-spacing:-.02em;}
+.ph-sub{font-size:12px;color:var(--t2);margin-top:3px;}
+.alert{padding:11px 13px;border-radius:var(--rs);font-size:12px;line-height:1.5;margin-bottom:11px;}
+.alert.info{background:var(--bdim);border:1px solid var(--bbdr);color:var(--blue);}
+.alert.gold{background:var(--gdim);border:1px solid var(--gborder);color:var(--gold);}
+.empty-state{text-align:center;padding:36px 16px;}
+.empty-icon{font-size:36px;opacity:.25;margin-bottom:10px;}
+.empty-title{font-size:14px;font-weight:700;color:var(--t2);margin-bottom:5px;}
+.empty-sub{font-size:12px;color:var(--t3);}
+.toast{position:fixed;top:58px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--bg3);border:1px solid var(--gb);border-radius:10px;padding:10px 16px;font-size:12px;font-weight:700;z-index:999;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.5);white-space:nowrap;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{border-color:var(--grbdr);color:var(--green);}
+.toast.err{border-color:var(--rbdr);color:var(--red);}
+</style>
 </head>
 <body>
+<div id="app">
 
-<!-- ═══════════════════════ LOGIN ═══════════════════════ -->
+<!-- LOGIN -->
 <div id="loginView">
   <div class="login-box">
     <div class="login-logo">🛍 <span>Vendor</span>OS</div>
     <div class="login-sub" id="loginSub">Connexion en cours…</div>
-    <!-- Fallback manuel si pas de Telegram -->
     <div id="manualLoginBox" style="display:none;">
       <label class="login-label" for="secretInput">Clé secrète</label>
-      <input class="login-input" type="password" id="secretInput" placeholder="••••••••••••••••••••••••••••••••" autocomplete="current-password">
-      <button class="btn primary full" id="loginBtn" onclick="doLogin()">Accéder à mon dashboard →</button>
+      <input class="login-input" type="password" id="secretInput" placeholder="••••••••••••••••••••" autocomplete="current-password">
+      <button class="btn primary full" id="loginBtn" onclick="doLogin()">Accéder →</button>
     </div>
     <div class="login-err" id="loginErr"></div>
   </div>
 </div>
 
-<!-- ═══════════════════════ DASHBOARD ═══════════════════════ -->
-<div id="dashView" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
-  <!-- TOPBAR -->
+<!-- DASHBOARD -->
+<div id="dashView" style="display:none;flex:1;flex-direction:column;min-height:0;height:100dvh;">
+
   <div class="topbar">
     <div class="topbar-logo">🛍 <span>Vendor</span>OS</div>
-    <div class="topbar-nav">
-      <div class="tnav active" id="nav-stock"     onclick="switchTab('stock')">📦 Stock</div>
-      <div class="tnav"        id="nav-catalogue" onclick="switchTab('catalogue')">🛍 Catalogue</div>
-      <div class="tnav"        id="nav-orders"    onclick="switchTab('orders')">📋 Commandes <span class="badge" id="newOrdersBadge" style="display:none;">0</span></div>
-      <div class="tnav"        id="nav-stats"     onclick="switchTab('stats')">📊 Stats</div>
-      <div class="tnav"        id="nav-promos"    onclick="switchTab('promos')">🏷 Promos</div>
-      <div class="tnav"        id="nav-withdrawals" onclick="switchTab('withdrawals')">💸 Retraits</div>
-      <div class="tnav"        id="nav-settings"    onclick="switchTab('settings')">⚙️ Paramètres</div>
+    <div class="seller-chip">
+      <div class="seller-av" id="sellerAv">?</div>
+      <div class="seller-nm" id="sellerNm">—</div>
     </div>
-    <div class="topbar-right">
-      <div class="seller-chip">
-        <div class="seller-av" id="sellerAv">?</div>
-        <div class="seller-nm" id="sellerNm">—</div>
-      </div>
-      <button class="btn sm danger" onclick="doLogout()">Déconnexion</button>
-    </div>
+    <button class="btn xs danger" onclick="doLogout()" style="margin-left:6px;flex-shrink:0;">↩</button>
   </div>
 
-  <!-- CONTENT -->
   <div class="app-body">
     <div class="content" id="mainContent">
 
-      <!-- ── STATS RAPIDES (toujours visibles en haut) -->
+      <!-- STATS -->
       <div class="stats-grid" id="statsRow">
-        <div class="stat-card"><div class="stat-label">Solde disponible</div><div class="stat-val gold" id="stBal">—</div></div>
-        <div class="stat-card"><div class="stat-label">Ventes totales</div><div class="stat-val green" id="stSales">—</div></div>
-        <div class="stat-card"><div class="stat-label">Valeur du stock</div><div class="stat-val blue" id="stVal">—</div></div>
-        <div class="stat-card"><div class="stat-label">Articles en vente</div><div class="stat-val" id="stActive">—</div></div>
+        <div class="stat-card"><div class="stat-label">Solde</div><div class="stat-val gold" id="stBal">—</div></div>
+        <div class="stat-card"><div class="stat-label">Ventes</div><div class="stat-val green" id="stSales">—</div></div>
+        <div class="stat-card"><div class="stat-label">Val. stock</div><div class="stat-val blue" id="stVal">—</div></div>
+        <div class="stat-card"><div class="stat-label">En vente</div><div class="stat-val" id="stActive">—</div></div>
       </div>
 
-      <!-- ══════════════════════════════════════
-           PANEL STOCK
-      ══════════════════════════════════════ -->
+      <!-- STOCK -->
       <div class="panel active" id="panel-stock">
-        <div class="ph">
-          <div class="ph-title">📦 Mon Stock</div>
-          <div class="ph-sub">Gérez vos goûts, marques et taux de nicotine</div>
-        </div>
-        <div class="g4 mb16" id="vStockStats"></div>
-
-        <!-- Actions + recherche -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn bp" onclick="addStockRow()">+ Ajouter</button>
-            <button class="btn" onclick="vSaveLocal()">💾 Sauvegarder</button>
-            <button class="btn bp" onclick="pushStock()">🖥 Pousser</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
+          <div style="display:flex;gap:7px;flex-wrap:wrap;">
+            <button class="btn sm primary" onclick="addStockRow()">+ Ajouter</button>
+            <button class="btn sm primary" onclick="pushStock()">🖥 Pousser</button>
           </div>
-          <input type="text" id="vStockSearch" placeholder="Rechercher un goût…"
-            style="background:var(--glass);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:8px 14px;border-radius:var(--rs);outline:none;width:200px;"
+          <input type="text" id="vStockSearch" placeholder="Rechercher…"
+            style="background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:8px 12px;border-radius:var(--rs);outline:none;width:130px;"
             onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'" oninput="renderStock()">
         </div>
-
-        <div class="card">
-          <div class="tw">
-            <table>
-              <thead><tr>
-                <th style="width:36px;padding:10px 8px;">
-                  <label class="sw" style="display:inline-block;width:32px;height:18px;">
-                    <input type="checkbox" id="vChkAll" onchange="vSelectAll(this.checked)">
-                    <span class="sw-t"></span><span class="sw-k"></span>
-                  </label>
-                </th>
-                <th>Photo</th>
-                <th>Goût</th>
-                <th>Marque</th>
-                <th>Taux</th>
-                <th>Quantité</th>
-                <th>Prix €</th>
-                <th>💨 Puffs K</th>
-                <th>Seuil</th>
-                <th>Statut</th>
-                <th></th>
-              </tr></thead>
-              <tbody id="stockBody"></tbody>
-            </table>
-          </div>
+        <div id="stockBody"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;" id="vStStats">
+          <span class="bx bl" id="vStCount">0 goûts</span>
+          <span class="bx rd" id="vStAlerts">0 alertes</span>
+          <span class="bx gd" id="vStVal"></span>
         </div>
-
-        <!-- BARRE ÉDITION EN MASSE -->
-        <div id="vBulkBar" style="display:none;position:sticky;bottom:16px;z-index:100;margin-top:16px;">
-          <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:var(--r);padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.6);">
-            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                <span style="font-size:15px;">✦</span>
-                <span id="vBulkCount" style="font-size:13px;font-weight:700;color:var(--gold);">0 sélectionné(s)</span>
-              </div>
-              <div style="width:1px;height:28px;background:var(--gb);"></div>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Marque</span>
-                <input id="vBulkCat" type="text" placeholder="JNR" style="width:80px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
-                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('cat')">✓</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Prix €</span>
-                <input id="vBulkPrice" type="number" placeholder="0.00" step="0.01" style="width:72px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
-                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('price')">✓</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Puffs K</span>
-                <input id="vBulkPuffs" type="number" placeholder="18" style="width:62px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
-                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('puffs')">✓</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Seuil</span>
-                <input id="vBulkAlert" type="number" placeholder="5" style="width:56px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
-                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('alert')">✓</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <select id="vBulkQtyMode" style="background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:11px;padding:5px 8px;border-radius:var(--rs);outline:none;cursor:pointer;">
-                  <option value="set">= Qté</option>
-                  <option value="add">+ Ajouter</option>
-                  <option value="sub">− Retirer</option>
-                </select>
-                <input id="vBulkQty" type="number" placeholder="0" style="width:60px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:12px;padding:5px 9px;border-radius:var(--rs);outline:none;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'">
-                <button class="btn bsm" style="background:var(--gdim);color:var(--gold);border-color:rgba(240,180,41,.3);" onclick="vBulkApply('qty')">✓</button>
-              </div>
-              <div style="margin-left:auto;display:flex;gap:8px;">
-                <button class="btn bsm bd" onclick="vBulkDelete()">🗑 Supprimer</button>
-                <button class="btn bsm" onclick="vDeselectAll()">✕</button>
-              </div>
+        <!-- BULK BAR -->
+        <div class="bulk-bar" id="vBulkBar">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span class="bulk-title" id="vBulkCount">0 sélectionné(s)</span>
+            <div style="display:flex;gap:6px;">
+              <button class="btn xs danger" onclick="vBulkDelete()">🗑</button>
+              <button class="btn xs" onclick="vDeselectAll()">✕</button>
             </div>
           </div>
-        </div>
-
-        <div class="g3" style="margin-top:16px;">
-          <div class="stat"><div class="sl">Goûts</div><div class="sv gr" id="vStCount">0</div></div>
-          <div class="stat"><div class="sl">Alertes stock bas</div><div class="sv rd" id="vStAlerts">0</div></div>
-          <div class="stat"><div class="sl">Valeur totale</div><div class="sv bl" id="vStVal">0€</div></div>
+          <div class="bulk-fields">
+            <div class="bulk-field"><label>Marque</label><input id="vBulkCat" placeholder="JNR" style="width:80px;"></div>
+            <div class="bulk-field"><label>Prix €</label><input id="vBulkPrice" type="number" placeholder="15" style="width:70px;"></div>
+            <div class="bulk-field"><label>Puffs K</label><input id="vBulkPuffs" type="number" placeholder="18" style="width:70px;"></div>
+            <div class="bulk-field"><label>Seuil</label><input id="vBulkAlert" type="number" placeholder="5" style="width:65px;"></div>
+            <div class="bulk-field"><label>Qté</label>
+              <div style="display:flex;gap:5px;">
+                <select id="vBulkQtyMode" style="width:70px;font-size:12px;padding:7px 6px;background:rgba(255,255,255,.06);border:1px solid var(--gb);color:var(--text);border-radius:var(--rs);outline:none;">
+                  <option value="set">= Qté</option><option value="add">+ Ajout</option><option value="sub">− Retrait</option>
+                </select>
+                <input id="vBulkQty" type="number" placeholder="0" style="width:60px;">
+              </div>
+            </div>
+            <button class="btn sm primary" onclick="vBulkApplyAll()" style="align-self:flex-end;">✓ Appliquer</button>
+          </div>
         </div>
       </div>
 
-      <!-- ══ CATALOGUE ══ -->
+      <!-- CATALOGUE -->
       <div class="panel" id="panel-catalogue">
-        <div class="ph">
-          <div class="ph-title">🛍 Catalogue</div>
-          <div class="ph-sub">Activez les goûts à mettre en vente sur le marketplace</div>
-        </div>
-        <div class="card" style="margin-bottom:16px;">
-          <div class="filter-section">
-            <div class="filter-row">
-              <span class="filter-label">Marque</span>
-              <div id="brandFilterChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-            </div>
-            <div class="filter-row">
-              <span class="filter-label">Puffs</span>
-              <div id="puffsFilterChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-            </div>
-            <div class="price-filter-row">
-              <span class="filter-label">Prix</span>
-              <input class="pf-input" type="number" id="catPriceMin" placeholder="Min €" oninput="renderCatalogue()">
-              <span style="color:var(--t3);font-size:12px;">—</span>
-              <input class="pf-input" type="number" id="catPriceMax" placeholder="Max €" oninput="renderCatalogue()">
+        <div class="card" style="margin-bottom:11px;">
+          <div style="padding:11px 13px;">
+            <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="brandFilterChips"></div>
+            <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="puffsFilterChips"></div>
+            <div class="price-filter">
+              <label>Prix</label>
+              <input class="pf-inp" type="number" id="catPriceMin" placeholder="Min €" oninput="renderCatalogue()">
+              <span style="color:var(--t3);font-size:11px;">—</span>
+              <input class="pf-inp" type="number" id="catPriceMax" placeholder="Max €" oninput="renderCatalogue()">
               <select class="sort-select" id="catSort" onchange="renderCatalogue()">
-                <option value="">Tri par défaut</option>
-                <option value="price_asc">Prix croissant</option>
-                <option value="price_desc">Prix décroissant</option>
-                <option value="name_asc">Goût A→Z</option>
+                <option value="">Tri</option>
+                <option value="price_asc">Prix ↑</option>
+                <option value="price_desc">Prix ↓</option>
+                <option value="name_asc">A→Z</option>
               </select>
-              <button class="btn bsm" onclick="clearCatFilters()">✕ Effacer</button>
+            </div>
+            <div style="display:flex;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gb);">
+              <button class="btn sm" onclick="catSelectAll(true)">Tout ✓</button>
+              <button class="btn sm" onclick="catSelectAll(false)">Tout ✗</button>
+              <button class="btn sm primary" onclick="pushCatalogue()" style="margin-left:auto;">🖥 Pousser</button>
             </div>
           </div>
-          <div class="btn-row" style="border-top:1px solid var(--gb);padding-top:14px;margin-top:4px;">
-            <button class="btn bsm" onclick="catSelectAll(true)">Tout activer</button>
-            <button class="btn bsm" onclick="catSelectAll(false)">Tout désactiver</button>
-            <button class="btn bsm bp" onclick="pushCatalogue()">🖥 Pousser vers marketplace</button>
-            <span id="catActiveBadge" style="font-size:12px;color:var(--t2);margin-left:auto;align-self:center;"></span>
-          </div>
         </div>
+        <div style="font-size:12px;color:var(--t2);margin-bottom:8px;" id="catActiveBadge"></div>
         <div class="cat-grid" id="catGrid"></div>
       </div>
 
-      <!-- ══════════════════════════════════════
-           PANEL COMMANDES
-      ══════════════════════════════════════ -->
+      <!-- COMMANDES -->
       <div class="panel" id="panel-orders">
-        <div class="card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div class="card-title">📋 Mes Commandes</div>
-            <div class="card-actions">
-              <button class="btn sm" onclick="loadOrders()">↺ Actualiser</button>
-            </div>
-          </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:17px;font-weight:800;">📋 Commandes</div>
+          <select class="sort-select" id="orderFilter" onchange="renderOrders()" style="font-size:12px;">
+            <option value="all">Toutes</option>
+            <option value="pending">En attente</option>
+            <option value="shipped">Expédiées</option>
+          </select>
         </div>
-        <div id="ordersContainer" style="margin-top:10px;"></div>
+        <div id="ordersContainer"></div>
       </div>
 
-      <!-- ══════════════════════════════════════
-           PANEL STATS
-      ══════════════════════════════════════ -->
+      <!-- STATS -->
       <div class="panel" id="panel-stats">
-        <!-- Période -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div style="font-size:16px;font-weight:800;">📊 Statistiques</div>
-          <div class="chart-period-btns">
-            <div class="period-btn active" onclick="setPeriod('7d',this)">7j</div>
-            <div class="period-btn" onclick="setPeriod('30d',this)">30j</div>
-            <div class="period-btn" onclick="setPeriod('month',this)">Mois</div>
-          </div>
+        <div class="period-tabs">
+          <div class="period-btn active" onclick="setPeriod('7d',this)">7j</div>
+          <div class="period-btn" onclick="setPeriod('30d',this)">30j</div>
+          <div class="period-btn" onclick="setPeriod('month',this)">Mois</div>
         </div>
-        <div class="g2" style="margin-bottom:14px;">
-          <!-- Ventes par jour (bar) -->
-          <div class="card" style="margin-bottom:0;">
-            <div class="card-head"><div class="card-title">💰 Chiffre d'affaires</div></div>
-            <div class="card-body"><div class="chart-wrap"><canvas id="chartRevenue"></canvas></div></div>
-          </div>
-          <!-- Nombre de ventes (line) -->
-          <div class="card" style="margin-bottom:0;">
-            <div class="card-head"><div class="card-title">📦 Nombre de ventes</div></div>
-            <div class="card-body"><div class="chart-wrap"><canvas id="chartOrders"></canvas></div></div>
-          </div>
+        <div class="stats-grid" id="statsKpis"></div>
+        <div class="g2" style="margin-bottom:11px;">
+          <div class="card" style="margin-bottom:0;"><div class="card-head"><div class="card-title">💰 Ventes</div></div><div class="card-body"><div class="chart-wrap"><canvas id="chartRevenue"></canvas></div></div></div>
+          <div class="card" style="margin-bottom:0;"><div class="card-head"><div class="card-title">📦 Commandes</div></div><div class="card-body"><div class="chart-wrap"><canvas id="chartOrders2"></canvas></div></div></div>
         </div>
-        <!-- Top produits -->
-        <div class="card">
-          <div class="card-head"><div class="card-title">🏆 Top produits</div></div>
-          <div id="topProductsTable"></div>
-        </div>
-        <!-- Comparaison période précédente -->
-        <div class="card">
-          <div class="card-head"><div class="card-title">📈 Comparaison</div></div>
-          <div class="card-body" id="comparisonSection"></div>
-        </div>
+        <div class="card"><div class="card-head"><div class="card-title">🏆 Top goûts</div></div><div id="topProductsTable"></div></div>
       </div>
 
-      <!-- ══════════════════════════════════════
-           PANEL PROMOS
-      ══════════════════════════════════════ -->
+      <!-- PROMOS -->
       <div class="panel" id="panel-promos">
-        <div class="g2">
-          <!-- Créer un code -->
-          <div class="card" style="margin-bottom:0;">
-            <div class="card-head"><div class="card-title">➕ Créer un code promo</div></div>
-            <div class="card-body">
-              <div class="form-row">
-                <div>
-                  <label class="fld-label">Code</label>
-                  <input class="fld-input" id="promoCode" placeholder="EX: SUMMER10" oninput="this.value=this.value.toUpperCase()">
-                </div>
-                <div>
-                  <label class="fld-label">Type de réduction</label>
-                  <select class="fld-select" id="promoType">
-                    <option value="percent">% Pourcentage</option>
-                    <option value="fixed">€ Montant fixe</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div>
-                  <label class="fld-label">Valeur</label>
-                  <input class="fld-input" id="promoValue" type="number" min="0" step="0.5" placeholder="10">
-                </div>
-                <div>
-                  <label class="fld-label">Expiration (optionnel)</label>
-                  <input class="fld-input" id="promoExpiry" type="date">
-                </div>
-              </div>
-              <div class="form-row">
-                <div>
-                  <label class="fld-label">Limite d'utilisation</label>
-                  <select class="fld-select" id="promoLimitType" onchange="togglePromoLimit()">
-                    <option value="none">Illimité</option>
-                    <option value="total">Nb total d'utilisations</option>
-                    <option value="per_user">1 seul usage par client</option>
-                  </select>
-                </div>
-                <div id="promoLimitValBox" style="display:none;">
-                  <label class="fld-label">Nombre max</label>
-                  <input class="fld-input" id="promoLimitVal" type="number" min="1" placeholder="50">
-                </div>
-              </div>
-              <div class="form-row">
-                <div>
-                  <label class="fld-label">Applicable sur</label>
-                  <select class="fld-select" id="promoScope" onchange="togglePromoScope()">
-                    <option value="seller">Tous mes produits</option>
-                    <option value="category">Catégorie spécifique</option>
-                  </select>
-                </div>
-                <div id="promoCatBox" style="display:none;">
-                  <label class="fld-label">Catégorie</label>
-                  <input class="fld-input" id="promoCat" placeholder="ex: JNR 2%">
-                </div>
-              </div>
-              <button class="btn primary full" onclick="createPromo()">Créer le code promo</button>
+        <div class="card" style="margin-bottom:11px;">
+          <div class="card-head"><div class="card-title">➕ Nouveau code</div></div>
+          <div class="card-body">
+            <div class="form-row" style="margin-bottom:10px;">
+              <div><label class="fld-label">Code</label><input class="fld-input" type="text" id="promoCode" placeholder="SUMMER10" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase;margin-bottom:0;"></div>
+              <div><label class="fld-label">Type</label><select class="fld-select" id="promoType" onchange="togglePromoType()" style="margin-bottom:0;"><option value="percent">% Pourcentage</option><option value="fixed">€ Montant fixe</option></select></div>
             </div>
-          </div>
-          <!-- Liste des codes -->
-          <div>
-            <div class="card" style="margin-bottom:0;">
-              <div class="card-head">
-                <div class="card-title">🏷 Mes codes actifs <span class="bx gd" id="promosCount">0</span></div>
-                <button class="btn sm" onclick="pushPromos()">🖥 Sauvegarder</button>
-              </div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div><label class="fld-label">Valeur <span id="promoTypeLabel">(%)</span></label><input class="fld-input" type="number" id="promoValue" placeholder="10" style="margin-bottom:0;"></div>
+              <div><label class="fld-label">Limite</label><select class="fld-select" id="promoLimitType" style="margin-bottom:0;" onchange="document.getElementById('promoLimitValBox').style.display=this.value==='total'?'block':'none'"><option value="unlimited">Illimitée</option><option value="total">Nb d'utilisations</option><option value="per_user">1 par client</option></select></div>
             </div>
-            <div id="promosList" style="margin-top:10px;"></div>
+            <div id="promoLimitValBox" style="display:none;margin-bottom:10px;"><label class="fld-label">Nb max</label><input class="fld-input" type="number" id="promoLimitVal" placeholder="100" style="margin-bottom:0;"></div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div><label class="fld-label">Scope</label><select class="fld-select" id="promoScope" style="margin-bottom:0;" onchange="document.getElementById('promoCatBox').style.display=this.value==='category'?'block':'none'"><option value="seller">Tous mes goûts</option><option value="category">Une catégorie</option></select></div>
+              <div><label class="fld-label">Expiration</label><input class="fld-input" type="date" id="promoExpiry" style="margin-bottom:0;"></div>
+            </div>
+            <div id="promoCatBox" style="display:none;margin-bottom:10px;"><label class="fld-label">Catégorie</label><input class="fld-input" type="text" id="promoCat" placeholder="ex: JNR 2%" style="margin-bottom:0;"></div>
+            <button class="btn primary full" onclick="createPromo()">Créer le code</button>
           </div>
         </div>
+        <div class="card"><div class="card-head"><div class="card-title">Mes codes <span class="bx bl" id="promoCount">0</span></div></div><div id="promoList"></div></div>
       </div>
 
-      <!-- ══════════════════════════════════════
-           PANEL RETRAITS
-      ══════════════════════════════════════ -->
+      <!-- RETRAITS -->
       <div class="panel" id="panel-withdrawals">
-        <div class="g2">
-          <!-- Demande de retrait -->
-          <div class="card" style="margin-bottom:0;">
-            <div class="card-head"><div class="card-title">💸 Demander un retrait</div></div>
-            <div class="card-body">
-              <div style="background:var(--gdim);border:1px solid var(--gborder);border-radius:var(--rs);padding:14px;margin-bottom:16px;">
-                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:6px;">Solde disponible</div>
-                <div style="font-size:28px;font-weight:800;color:var(--gold);" id="wdBalance">—</div>
-              </div>
-              <div style="margin-bottom:12px;">
-                <label class="fld-label">Montant à retirer (€)</label>
-                <input class="fld-input" id="wdAmount" type="number" min="1" step="0.01" placeholder="0.00">
-              </div>
-              <div style="margin-bottom:16px;">
-                <label class="fld-label">Coordonnées bancaires / PayPal / crypto</label>
-                <textarea class="fld-input" id="wdCoords" rows="3" placeholder="IBAN, adresse PayPal, adresse crypto…" style="resize:vertical;"></textarea>
-              </div>
-              <button class="btn primary full" onclick="requestWithdrawal()">Envoyer la demande</button>
-            </div>
-          </div>
-          <!-- Historique -->
-          <div>
-            <div class="card" style="margin-bottom:0;">
-              <div class="card-head"><div class="card-title">📜 Historique des retraits</div></div>
-            </div>
-            <div id="withdrawalsList" style="margin-top:10px;"></div>
+        <div class="g2" style="margin-bottom:11px;">
+          <div class="stat-card"><div class="stat-label">Solde dispo</div><div class="stat-val gold" id="wdBalance">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total retiré</div><div class="stat-val blue" id="wdTotal">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:11px;">
+          <div class="card-head"><div class="card-title">💸 Demander un retrait</div></div>
+          <div class="card-body">
+            <label class="fld-label">Montant (€)</label>
+            <input class="fld-input" id="wdAmount" type="number" min="1" step="0.01" placeholder="0.00">
+            <label class="fld-label">Coordonnées de paiement</label>
+            <textarea class="fld-input" id="wdCoords" rows="3" placeholder="IBAN, PayPal, crypto…" style="resize:none;"></textarea>
+            <button class="btn primary full" onclick="requestWithdrawal()">Envoyer la demande</button>
           </div>
         </div>
+        <div class="card"><div class="card-head"><div class="card-title">Historique <span class="bx bl" id="wdCount">0</span></div></div><div id="withdrawalsList"></div></div>
       </div>
 
-      <!-- ══ SETTINGS ══ -->
+      <!-- SETTINGS -->
       <div class="panel" id="panel-settings">
-        <div class="ph">
-          <div class="ph-title">⚙️ Paramètres</div>
-          <div class="ph-sub">Configurez vos notifications et préférences</div>
-        </div>
-
-        <!-- NOTIFS STOCK BAS -->
-        <div class="card" style="margin-bottom:14px;">
-          <div class="card-head"><div class="card-title">🔔 Alertes stock bas Telegram</div></div>
-          <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
-
-            <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--gb);">
-              <div>
-                <div style="font-size:13px;font-weight:700;">Activer les alertes</div>
-                <div style="font-size:11px;color:var(--t3);margin-top:3px;">Recevez une alerte Telegram quand un goût passe sous son seuil</div>
-              </div>
+        <div class="ph"><div class="ph-title">⚙️ Paramètres</div></div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">🔔 Alertes stock bas</div></div>
+          <div class="card-body">
+            <div class="setting-row">
+              <div><div class="setting-label">Activer les alertes</div><div class="setting-sub">Notification Telegram quand stock bas</div></div>
               <label class="sw"><input type="checkbox" id="settAlertsEnabled" onchange="saveSettings()"><span class="sw-t"></span><span class="sw-k"></span></label>
             </div>
-
-            <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--gb);">
-              <div>
-                <div style="font-size:13px;font-weight:700;">Seuil global par défaut</div>
-                <div style="font-size:11px;color:var(--t3);margin-top:3px;">Alerte si stock ≤ ce nombre (peut être surchargé par article)</div>
-              </div>
-              <input type="number" id="settThreshold" min="1" max="100" value="5"
-                style="width:70px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:16px;font-weight:800;padding:7px 10px;border-radius:var(--rs);outline:none;text-align:center;"
+            <div class="setting-row">
+              <div><div class="setting-label">Seuil par défaut</div><div class="setting-sub">Alerte si stock ≤ ce nombre</div></div>
+              <input type="number" id="settThreshold" min="1" value="5"
+                style="width:62px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:16px;font-weight:800;padding:6px 9px;border-radius:var(--rs);outline:none;text-align:center;"
                 onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
             </div>
-
-            <div>
-              <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Seuils par goût</div>
-              <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">Personnalisez le seuil d'alerte pour chaque goût — laissez vide pour utiliser le seuil global</div>
-              <div id="perItemThresholds" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
+            <div style="margin-top:12px;">
+              <button class="btn sm" onclick="sendTestAlert()" style="background:var(--bdim);color:var(--blue);border-color:var(--bbdr);">📩 Test d'alerte</button>
             </div>
-
-            <div style="padding-top:10px;border-top:1px solid var(--gb);">
-              <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Test des alertes</div>
-              <div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Envoyez une alerte test sur votre Telegram pour vérifier que tout fonctionne</div>
-              <button class="btn" onclick="sendTestAlert()" style="background:var(--bdim);color:var(--blue);border-color:rgba(79,195,247,.3);">📩 Envoyer une alerte test</button>
-            </div>
-
           </div>
         </div>
-
-        <!-- INFOS BOUTIQUE -->
         <div class="card">
-          <div class="card-head"><div class="card-title">🏪 Votre boutique</div></div>
-          <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
-            <div>
-              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px;">Nom de la boutique</div>
-              <div style="font-size:16px;font-weight:700;" id="settShopName">—</div>
+          <div class="card-head"><div class="card-title">🏪 Ma boutique</div></div>
+          <div class="card-body">
+            <div class="setting-row" style="padding-top:0;">
+              <div class="setting-label" id="settShopName">—</div>
             </div>
             <div>
-              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px;">Votre clé secrète</div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <code id="settSecretKey" style="font-family:'DM Mono';font-size:12px;color:var(--t2);background:rgba(0,0,0,.3);padding:8px 12px;border-radius:var(--rs);flex:1;filter:blur(4px);cursor:pointer;" onclick="this.style.filter='none'" title="Cliquez pour révéler">••••••••••••••••</code>
-                <button class="btn bsm" onclick="copyKey()">📋</button>
+              <div class="setting-sub" style="margin-bottom:8px;">Clé secrète (tapez pour révéler)</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <code id="settSecretKey" style="flex:1;font-family:'DM Mono';font-size:12px;color:var(--t2);background:rgba(0,0,0,.3);padding:9px 12px;border-radius:var(--rs);filter:blur(4px);cursor:pointer;word-break:break-all;" onclick="this.style.filter='none'">••••••</code>
+                <button class="btn xs" onclick="copyKey()">📋</button>
               </div>
-              <div style="font-size:10px;color:var(--t3);margin-top:4px;">Cliquez sur la clé pour la révéler</div>
             </div>
           </div>
         </div>
       </div>
 
-    </div>
-  </div>
-</div>
+    </div><!-- /content -->
+  </div><!-- /app-body -->
 
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="bnav active" id="nav-stock" onclick="switchTab('stock',this)">
+      <span class="bnav-icon">📦</span><span class="bnav-label">Stock</span>
+    </button>
+    <button class="bnav" id="nav-catalogue" onclick="switchTab('catalogue',this)">
+      <span class="bnav-icon">🛍</span><span class="bnav-label">Catalogue</span>
+    </button>
+    <button class="bnav" id="nav-orders" onclick="switchTab('orders',this)">
+      <span class="bnav-icon">📋</span><span class="bnav-label">Commandes</span>
+      <span class="nbadge" id="newOrdersBadge"></span>
+    </button>
+    <button class="bnav" id="nav-stats" onclick="switchTab('stats',this)">
+      <span class="bnav-icon">📊</span><span class="bnav-label">Stats</span>
+    </button>
+    <button class="bnav" id="nav-promos" onclick="switchTab('promos',this)">
+      <span class="bnav-icon">🏷</span><span class="bnav-label">Promos</span>
+    </button>
+    <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)">
+      <span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span>
+    </button>
+    <button class="bnav" id="nav-settings" onclick="switchTab('settings',this)">
+      <span class="bnav-icon">⚙️</span><span class="bnav-label">Config</span>
+    </button>
+  </div>
+
+</div><!-- /dashView -->
+
+</div><!-- /app -->
 <div class="toast" id="toast"></div>
 
 <script>
+'use strict';
+
 'use strict';
 
 // ═══════════════════════════════════════════════════
@@ -1064,18 +726,19 @@ initAuth();
 // ═══════════════════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════════════════
-function switchTab(tab){
+function switchTab(tab, el){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tnav').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.bnav').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+tab).classList.add('active');
-  document.getElementById('nav-'+tab).classList.add('active');
-  // Actions par tab
+  (el || document.getElementById('nav-'+tab))?.classList.add('active');
   if(tab==='catalogue') renderCatalogue();
   if(tab==='orders')    loadOrders();
   if(tab==='stats')     loadStats();
   if(tab==='promos')    renderPromos();
   if(tab==='withdrawals') renderWithdrawals();
   if(tab==='settings')  loadSettings();
+  // Scroll to top
+  document.getElementById('mainContent').scrollTop = 0;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1092,16 +755,85 @@ function updateGlobalStats(){
   document.getElementById('catActiveBadge').textContent  = active+' en vente';
 }
 
-// ═══════════════════════════════════════════════════
-//  STOCK — variables bulk
-// ═══════════════════════════════════════════════════
-let vBulkSelected = new Set();
+function updateStockStats(){
+  const total  = stock.length;
+  const val    = stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0);
+  const alerts = stock.filter(x=>x.qty>0&&x.qty<=(x.alert||5)).length;
+  const active = stock.filter(x=>x.enVente&&x.qty>0).length;
+  document.getElementById('vStCount').textContent = total+' goût'+(total!==1?'s':'');
+  document.getElementById('vStAlerts').textContent = alerts+' alerte'+(alerts!==1?'s':'');
+  document.getElementById('vStVal').textContent = val.toFixed(2)+'€';
+  document.getElementById('catActiveBadge').textContent = active+' goût'+(active!==1?'s':'')+' en vente';
+  if(document.getElementById('stVal'))    document.getElementById('stVal').textContent    = val.toFixed(2)+'€';
+  if(document.getElementById('stActive')) document.getElementById('stActive').textContent = active;
+}
+
+function renderStock(){
+  updateStockStats();
+  const q = (document.getElementById('vStockSearch')?.value||'').toLowerCase();
+  const body = document.getElementById('stockBody');
+  const items = q ? stock.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.cat||'').toLowerCase().includes(q)||(s.taux||'').toLowerCase().includes(q)) : stock;
+
+  if(!items.length){
+    body.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Aucun goût</div><div class="empty-sub">Cliquez sur "+ Ajouter"</div></div>';
+    return;
+  }
+
+  body.innerHTML = items.map((s)=>{
+    const idx      = stock.indexOf(s);
+    const isChk    = vBulkSelected.has(s.id);
+    const [lbl,tc] = stockSt(s.qty, s.alert||5);
+    const imgHTML  = s.image
+      ? `<div class="sc-img" onclick="pickImg(${idx})"><img src="${s.image}" onerror="this.style.display='none'"></div>`
+      : `<div class="sc-img" onclick="pickImg(${idx})">${emoji(s.name)}</div>`;
+
+    return `<div class="stock-card ${isChk?'selected':''}" id="vrow_${s.id}">
+      <div class="sc-check"><input type="checkbox" ${isChk?'checked':''} onchange="vToggleRow(${s.id},this.checked)"></div>
+      <input type="file" id="imgInput_${idx}" accept="image/*" style="display:none" onchange="loadImg(${idx},this)">
+
+      <div class="sc-top">
+        ${imgHTML}
+        <div class="sc-name-wrap">
+          <input class="sc-name-input" value="${s.name||''}" placeholder="Goût (ex: Blue Razz Ice)" oninput="stock[${idx}].name=this.value;updateStockStats()">
+          <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;">
+            <span class="tag ${tc}" style="font-size:10px;">${lbl}</span>
+            ${s.image?`<span style="font-size:10px;color:var(--red);cursor:pointer;" onclick="stock[${idx}].image='';renderStock()">✕ photo</span>`:''}
+          </div>
+        </div>
+      </div>
+
+      <div class="sc-meta-row">
+        <div class="sc-field"><label>Marque</label><input value="${s.cat||''}" placeholder="JNR" oninput="stock[${idx}].cat=this.value"></div>
+        <div class="sc-field"><label>Taux</label><input value="${s.taux||''}" placeholder="2%" oninput="stock[${idx}].taux=this.value"></div>
+        <div class="sc-field"><label>Prix €</label><input class="mono" type="number" step="0.01" value="${s.price||0}" oninput="stock[${idx}].price=parseFloat(this.value)||0;updateStockStats()"></div>
+        <div class="sc-field"><label>Puffs K</label><input class="mono" type="number" value="${s.puffs?s.puffs/1000:''}" placeholder="18" oninput="stock[${idx}].puffs=(parseFloat(this.value)||0)*1000"></div>
+      </div>
+
+      <div class="sc-qty-row">
+        <div class="sc-qty">
+          <button class="sc-qty-btn" onclick="chQty(${idx},-1)">−</button>
+          <div class="sc-qty-val">${s.qty||0}</div>
+          <button class="sc-qty-btn" onclick="chQty(${idx},1)">+</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;color:var(--t3);">Seuil</span>
+          <input type="number" value="${s.alert||5}" style="width:52px;background:var(--bg2);border:1px solid var(--gb);color:var(--t2);font-family:\'DM Mono\';font-size:13px;padding:5px 7px;border-radius:var(--rs);outline:none;text-align:center;" oninput="stock[${idx}].alert=parseInt(this.value)||5">
+          <button class="btn xs danger" onclick="delStock(${idx})">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderStockPanel(){ renderStock(); }
 
 function stockSt(q,a){
   if(q===0)      return['Rupture','tr2'];
   if(q<=(a||5))  return['Stock bas','ta'];
   return['Dispo','tg'];
 }
+
+let vBulkSelected = new Set();
 
 function updateStockStats(){
   const total  = stock.length;
@@ -1214,6 +946,20 @@ function vUpdateBulkBar(){
   const n = vBulkSelected.size;
   document.getElementById('vBulkBar').style.display = n>0?'block':'none';
   document.getElementById('vBulkCount').textContent = n+' sélectionné(s)';
+}
+
+function vBulkApplyAll(){
+  const cat   = document.getElementById('vBulkCat').value;
+  const price = parseFloat(document.getElementById('vBulkPrice').value);
+  const puffs = parseFloat(document.getElementById('vBulkPuffs').value);
+  const alert = parseInt(document.getElementById('vBulkAlert').value);
+  const mode  = document.getElementById('vBulkQtyMode').value;
+  const qty   = parseInt(document.getElementById('vBulkQty').value)||0;
+  if(cat)   vBulkApply('cat');
+  if(price) vBulkApply('price');
+  if(puffs) vBulkApply('puffs');
+  if(alert) vBulkApply('alert');
+  if(qty||mode!=='set') vBulkApply('qty');
 }
 
 function vBulkApply(field){
@@ -1705,6 +1451,7 @@ async function requestWithdrawal(){
 const spinStyle = document.createElement('style');
 spinStyle.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
 document.head.appendChild(spinStyle);
+
 </script>
 </body>
 </html>
