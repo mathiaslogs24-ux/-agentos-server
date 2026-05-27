@@ -803,6 +803,13 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   res.json({ok:true, seller:{...v, secret:undefined}});
 });
 
+// ── Sauvegarder les settings d'alertes côté serveur
+app.post('/seller/alert-settings', sellerAuth, async(req,res)=>{
+  req.seller.alertSettings = req.body;
+  await saveSeller(req.seller);
+  res.json({ok:true});
+});
+
 // ── Test alerte stock bas
 app.post('/seller/stock-alert-test', sellerAuth, async(req,res)=>{
   const v = req.seller;
@@ -822,9 +829,15 @@ app.post('/seller/stock-alert-test', sellerAuth, async(req,res)=>{
 // ── Alertes stock bas — vérifiées à chaque push stock vendeur
 async function checkSellerStockAlerts(seller) {
   if(!seller.telegramId || !vendorBot) return;
-  // Lire les settings du vendeur (stockés côté client, fallback seuil 5)
-  const threshold = seller.alertThreshold || 5;
-  const lowItems  = (seller.stock||[]).filter(s=>s.qty>0 && s.qty<=(s.alert||threshold));
+  // Utiliser les settings sauvegardés côté serveur
+  const settings  = seller.alertSettings || {};
+  if(settings.alertsEnabled === false) return; // alertes désactivées
+  const threshold  = settings.globalThreshold || 5;
+  const lowItems   = (seller.stock||[]).filter(s => {
+    if(s.qty <= 0) return false; // rupture totale — pas d'alerte (déjà rupture)
+    const itemThreshold = settings.perItem?.[s.id] || s.alert || threshold;
+    return s.qty <= itemThreshold;
+  });
   if(!lowItems.length) return;
   const msg = `⚠️ *Alerte stock bas !*\n\n`
     + lowItems.map(s=>`📦 *${s.name}* : ${s.qty} unité(s) restante(s)`).join('\n')
