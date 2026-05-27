@@ -823,6 +823,7 @@ function bootDashboard(){
   document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
   document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
   updateGlobalStats(); renderStockPanel(); renderCatalogue();
+  switchTab('stock');
 }
 
 function doLogout(){
