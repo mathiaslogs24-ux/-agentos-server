@@ -366,6 +366,19 @@ input,textarea,select{font-family:inherit;}
               <div><label class="fld-label">Prix (€) *</label><input class="fld-input" id="wizPrice" type="number" min="0" step="0.01" placeholder="15.00" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--gold);"></div>
               <div><label class="fld-label">Puffs (K)</label><input class="fld-input" id="wizPuffs" type="number" min="0" placeholder="18" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;color:var(--purple);"><span style="font-size:10px;color:var(--t3);">milliers</span></div>
             </div>
+            <!-- Carton complet -->
+            <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;margin-bottom:12px;" onclick="document.getElementById('wizCarton').click()" style="cursor:pointer;">
+              <label class="sw" onclick="event.stopPropagation()"><input type="checkbox" id="wizCarton" onchange="wizToggleCarton()"><span class="sw-t"></span><span class="sw-k"></span></label>
+              <div>
+                <div style="font-size:13px;font-weight:700;">📦 Carton complet</div>
+                <div style="font-size:11px;color:var(--t3);">Vente par carton entier — indiquez le nombre d'unités</div>
+              </div>
+            </div>
+            <div id="wizCartonBox" style="display:none;margin-bottom:12px;">
+              <label class="fld-label">Unités par carton</label>
+              <input class="fld-input" id="wizCartonQty" type="number" min="1" placeholder="ex: 10" style="font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--blue);">
+              <div style="font-size:11px;color:var(--t3);margin-top:-8px;">Ex: 10 = carton de 10 puffs</div>
+            </div>
           </div>
 
           <!-- ÉTAPE 3 : Stock + Seuil -->
@@ -858,7 +871,6 @@ function updateGlobalStats(){
   document.getElementById('stSales').textContent  = parseFloat(seller.totalSales||0).toFixed(2)+'€';
   document.getElementById('stVal').textContent    = val.toFixed(2)+'€';
   document.getElementById('stActive').textContent = active;
-  document.getElementById('stockCountBadge').textContent = stock.length+' article'+(stock.length!==1?'s':'');
   document.getElementById('catActiveBadge').textContent  = active+' en vente';
 }
 
@@ -886,6 +898,11 @@ function stockSt(q,a){
 // ═══ WIZARD ═══
 let wizStep=1, wizEditIdx=-1;
 
+function wizToggleCarton(){
+  const on = document.getElementById('wizCarton').checked;
+  document.getElementById('wizCartonBox').style.display = on ? 'block' : 'none';
+}
+
 function openAddWizard(editIdx=-1){
   wizEditIdx=editIdx;
   wizStep=1;
@@ -899,6 +916,9 @@ function openAddWizard(editIdx=-1){
   document.getElementById('wizQty').value=s?.qty||0;
   document.getElementById('wizAlert').value=s?.alert||5;
   document.getElementById('wizEnVente').checked=s?.enVente||false;
+  document.getElementById('wizCarton').checked=s?.carton||false;
+  document.getElementById('wizCartonQty').value=s?.cartonQty||'';
+  document.getElementById('wizCartonBox').style.display=s?.carton?'block':'none';
   const prev=document.getElementById('wizPhotoPreview');
   if(s?.image) prev.innerHTML='<img src="'+s.image+'" style="width:100%;height:100%;object-fit:cover;">';
   else prev.innerHTML='<span style="font-size:40px;">📷</span>';
@@ -943,6 +963,8 @@ function wizNext(){
       qty   :parseInt(document.getElementById('wizQty').value)||0,
       alert :parseInt(document.getElementById('wizAlert').value)||5,
       enVente:document.getElementById('wizEnVente').checked,
+      carton :document.getElementById('wizCarton').checked,
+      cartonQty:parseInt(document.getElementById('wizCartonQty').value)||0,
       image :img?img.src:(wizEditIdx>=0?stock[wizEditIdx].image||'':''),
     };
     if(wizEditIdx>=0) stock[wizEditIdx]=entry;
@@ -1010,7 +1032,10 @@ function renderStock(){
       +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="openAddWizard('+idx+')">'
         +'<div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(s.name||'Sans nom')+'</div>'
         +'<div style="font-size:11px;color:var(--t3);margin-top:2px;">'+(brand?brand+' · ':'')+puffsLbl+'</div>'
-        +'<div style="margin-top:4px;"><span class="tag '+tc+'" style="font-size:9px;padding:2px 7px;">'+lbl+'</span></div>'
+        +'<div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;">'
+          +'<span class="tag '+tc+'" style="font-size:9px;padding:2px 7px;">'+lbl+'</span>'
+          +(s.carton?'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(79,195,247,.12);color:var(--blue);border:1px solid rgba(79,195,247,.25);">📦 Carton'+(s.cartonQty?' ×'+s.cartonQty:'')+'</span>':'')
+        +'</div>'
       +'</div>'
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">'
         +'<div style="font-size:15px;font-weight:800;color:var(--gold);">'+(s.price||0)+'€</div>'
@@ -1030,29 +1055,10 @@ function addStockRow(){ openAddWizard(); }
 
 let vBulkSelected = new Set();
 
-function updateStockStats(){
-  const total  = stock.length;
-  const val    = stock.reduce((s,x)=>s+(x.qty||0)*(x.price||0),0);
-  const alerts = stock.filter(x=>x.qty>0&&x.qty<=(x.alert||5)).length;
-  const active = stock.filter(x=>x.enVente&&x.qty>0).length;
-  document.getElementById('vStCount').textContent  = total;
-  document.getElementById('vStAlerts').textContent = alerts;
-  document.getElementById('vStVal').textContent    = val.toFixed(2)+'€';
-  document.getElementById('catActiveBadge').textContent = active+' en vente';
-  // Stats sidebar
-  if(document.getElementById('stVal'))    document.getElementById('stVal').textContent    = val.toFixed(2)+'€';
-  if(document.getElementById('stActive')) document.getElementById('stActive').textContent = active;
-}
 
 
 function chQty(idx, d){ stock[idx].qty = Math.max(0,(stock[idx].qty||0)+d); renderStock(); }
 
-function addStockRow(){
-  stock.push({id:nid++, name:'', cat:'', taux:'', qty:0, price:0, puffs:0, alert:5, enVente:false, image:''});
-  renderStock();
-  const last = document.getElementById('stockBody').lastElementChild;
-  if(last) last.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
 
 function delStock(idx){ stock.splice(idx,1); renderStock(); renderCatalogue(); }
 
