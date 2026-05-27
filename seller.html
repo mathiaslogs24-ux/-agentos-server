@@ -831,6 +831,7 @@ function bootDashboard(){
   document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
   document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
   updateGlobalStats(); renderStockPanel(); renderCatalogue();
+  switchTab('stock');
 }
 
 function doLogout(){
@@ -1479,6 +1480,10 @@ function buildComparison(){
 // ═══════════════════════════════════════════════════
 //  PANEL PROMOS
 // ═══════════════════════════════════════════════════
+function togglePromoType(){
+  const v = document.getElementById('promoType').value;
+  document.getElementById('promoTypeLabel').textContent = v==='percent'?'(%)':'(€)';
+}
 function togglePromoLimit(){
   const v = document.getElementById('promoLimitType').value;
   document.getElementById('promoLimitValBox').style.display = v==='total'?'block':'none';
