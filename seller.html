@@ -595,7 +595,9 @@ function saveSettings(){
     perItem        : getPerItemSettings(),
   };
   localStorage.setItem('vos_settings_'+(seller?.id||''), JSON.stringify(s));
-  showToast('✓ Paramètres sauvegardés');
+  // Sync serveur — les alertes sont vérifiées côté serveur
+  if(secret) api('POST','/seller/alert-settings', s).catch(()=>{});
+  showToast('✓ Paramètres sauvegardés','ok');
 }
 
 function getPerItemSettings(){
@@ -609,10 +611,12 @@ function getPerItemSettings(){
 }
 
 function loadSettings(){
-  const s = getSettings();
+  // Priorité aux settings serveur, fallback localStorage
+  const serverSettings = seller?.alertSettings || {};
+  const localSettings  = JSON.parse(localStorage.getItem('vos_settings_'+(seller?.id||''))||'{}');
+  const s = Object.keys(serverSettings).length ? serverSettings : localSettings;
   document.getElementById('settAlertsEnabled').checked = s.alertsEnabled !== false;
   document.getElementById('settThreshold').value       = s.globalThreshold || 5;
-  // Infos boutique
   if(document.getElementById('settShopName')) document.getElementById('settShopName').textContent = seller?.shopName||seller?.name||'—';
   if(document.getElementById('settSecretKey')) document.getElementById('settSecretKey').dataset.key = secret;
   renderPerItemThresholds(s.perItem||{});
