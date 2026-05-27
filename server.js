@@ -1009,7 +1009,7 @@ app.post('/stripe-webhook',async(req,res)=>{
 // ─────────────────────────────────────────
 app.get('/shop-app',(req,res)=>res.sendFile(path.join(__dirname,'shop.html')));
 
-app.get('/seller-dashboard',(req,res)=>res.sendFile(path.join(__dirname,'vendor.html')));
+app.get('/seller-dashboard',(req,res)=>res.sendFile(path.join(__dirname,'seller.html')));
 
 app.get('/payment-success',(req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>✅</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#4ade80;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">✅</div><h1>Paiement réussi !</h1><p>Retourne dans Telegram pour voir ta confirmation.</p></div></body></html>`));
 app.get('/payment-cancel', (req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>❌</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#f87171;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">❌</div><h1>Paiement annulé</h1><p>Retourne dans Telegram et réessaye.</p></div></body></html>`));
