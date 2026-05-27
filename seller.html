@@ -606,8 +606,6 @@ input,textarea,select{font-family:inherit;}
 <script>
 'use strict';
 
-'use strict';
-
 // ═══════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════
@@ -821,7 +819,7 @@ async function doLogin(){
 function bootDashboard(){
   document.getElementById('loginView').style.display='none';
   const dv = document.getElementById('dashView');
-  dv.style.display='flex';
+  dv.style.cssText='display:flex;flex-direction:column;height:100dvh;width:100%;';
   document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
   document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
   updateGlobalStats(); renderStockPanel(); renderCatalogue();
