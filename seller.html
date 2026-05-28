@@ -322,7 +322,7 @@ input,textarea,select{font-family:inherit;}
 
       <!-- ═══ WIZARD AJOUT/EDITION ═══ -->
       <div id="wizardOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;backdrop-filter:blur(4px);" onclick="closeWizard()"></div>
-      <div id="wizardSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:101;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--gb);max-height:92dvh;overflow-y:auto;padding-bottom:calc(20px + var(--safe-b,0px));">
+      <div id="wizardSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:101;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--gb);max-height:85dvh;overflow-y:auto;padding-bottom:calc(var(--nav-h) + var(--safe-b) + 24px);">
         <div style="width:36px;height:4px;background:var(--bg3);border-radius:2px;margin:12px auto 0;"></div>
         <div style="padding:16px 18px 0;">
 
@@ -1110,7 +1110,11 @@ function vDeselectAll(){
 
 function vUpdateBulkBar(){
   const n = vBulkSelected.size;
-  document.getElementById('vBulkBar').style.display = n>0?'block':'none';
+  const bar = document.getElementById('vBulkBar');
+  bar.style.display = n>0?'block':'none';
+  // Also add padding to content so last item isn't hidden behind bulk bar
+  const content = document.getElementById('mainContent');
+  if(content) content.style.paddingBottom = n>0 ? '120px' : '10px';
   document.getElementById('vBulkCount').textContent = n+' sélectionné(s)';
 }
 
