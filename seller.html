@@ -437,6 +437,18 @@ input,textarea,select{font-family:inherit;}
         </div>
         <div style="font-size:12px;color:var(--t2);margin-bottom:8px;" id="catActiveBadge"></div>
         <div class="cat-grid" id="catGrid"></div>
+
+        <!-- SECTION CARTONS -->
+        <div id="cartonSection" style="margin-top:4px;display:none;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);">
+            <span style="font-size:18px;">📦</span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--blue);">Vente par carton</div>
+              <div style="font-size:10px;color:var(--t3);margin-top:1px;">Articles disponibles en carton complet</div>
+            </div>
+          </div>
+          <div class="cat-grid" id="cartonGrid"></div>
+        </div>
       </div>
 
       <!-- COMMANDES -->
@@ -599,6 +611,9 @@ input,textarea,select{font-family:inherit;}
     </button>
     <button class="bnav" id="nav-promos" onclick="switchTab('promos',this)">
       <span class="bnav-icon">🏷</span><span class="bnav-label">Promos</span>
+    </button>
+    <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)">
+      <span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span>
     </button>
     <button class="bnav" id="nav-settings" onclick="switchTab('settings',this)">
       <span class="bnav-icon">⚙️</span><span class="bnav-label">Config</span>
@@ -1240,6 +1255,39 @@ function renderCatalogue(){
       </div>
     </div>`;
   }).join('');
+
+  // ── Section Cartons
+  const cartonItems = stock.filter(s=>s.carton&&s.cartonQty>0&&s.qty>0);
+  const cartonSection = document.getElementById('cartonSection');
+  const cartonGrid    = document.getElementById('cartonGrid');
+  if(cartonItems.length){
+    cartonSection.style.display='block';
+    cartonGrid.innerHTML = cartonItems.map(s=>{
+      const idx         = stock.indexOf(s);
+      const brand       = extractBrand(s.cat);
+      const cartonPrice = (parseFloat(s.price||0)*s.cartonQty).toFixed(2);
+      const cartonsLeft = Math.floor(s.qty/s.cartonQty);
+      return `<div class="cat-card ${s.enVente?'on':''}">
+        <div class="cat-card-img" style="position:relative;">
+          ${s.image?`<img src="${s.image}" alt="${s.name}">`:`<span style="font-size:32px;">📦</span>`}
+          <span style="position:absolute;top:4px;left:4px;background:rgba(79,195,247,.2);border:1px solid rgba(79,195,247,.4);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--blue);">×${s.cartonQty}</span>
+        </div>
+        <div class="cat-card-brand">${brand}${s.taux?' · '+s.taux:''}</div>
+        <div class="cat-card-name">${s.name||'Sans nom'}</div>
+        <div class="cat-card-meta">Carton de ${s.cartonQty} · ${cartonsLeft} carton(s) dispo</div>
+        <div class="cat-card-price" style="color:var(--blue);">${cartonPrice}€</div>
+        <div class="cat-card-toggle">
+          <label class="sw">
+            <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
+            <span class="sw-t"></span><span class="sw-k"></span>
+          </label>
+          <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'En vente ✓':'Désactivé'}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    cartonSection.style.display='none';
+  }
 }
 
 function catSelectAll(state){ stock.forEach(s=>{if(s.qty>0)s.enVente=state;}); renderCatalogue(); }
@@ -1254,6 +1302,9 @@ async function pushCatalogue(){
     payload    : 'stock_'+s.id,
     stockId    : s.id,
     cat        : (s.cat||'')+(s.taux?' '+s.taux:''),
+    carton     : s.carton||false,
+    cartonQty  : s.cartonQty||0,
+    cartonPrice: s.carton&&s.cartonQty ? String((parseFloat(s.price||0)*s.cartonQty).toFixed(2)) : '0',
   }));
   try {
     await api('POST','/seller/shop', items);
@@ -1566,23 +1617,30 @@ async function pushPromos(){
 //  PANEL RETRAITS
 // ═══════════════════════════════════════════════════
 function renderWithdrawals(){
-  document.getElementById('wdBalance').textContent = parseFloat(seller.balance||0).toFixed(2)+'€';
+  document.getElementById('wdBalance').textContent = parseFloat(seller.balance||0).toFixed(2)+'\u20ac';
   document.getElementById('wdAmount').max = seller.balance||0;
-
   const withdrawals = seller.withdrawals||[];
+  const totalPaid = withdrawals.filter(w=>w.status==='paid').reduce((s,w)=>s+parseFloat(w.amount||0),0);
+  document.getElementById('wdTotal').textContent = totalPaid.toFixed(2)+'\u20ac';
   const el = document.getElementById('withdrawalsList');
   if(!withdrawals.length){
-    el.innerHTML=`<div class="empty-state"><div class="empty-icon">💸</div><div class="empty-title">Aucun retrait</div><div class="empty-sub">Vos demandes apparaîtront ici</div></div>`;
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">\ud83d\udcb8</div><div class="empty-title">Aucun retrait</div><div class="empty-sub">Vos demandes apparaîtront ici</div></div>';
     return;
   }
-  el.innerHTML = withdrawals.map(wd=>`<div class="wd-card">
-    <div class="wd-amount">${wd.amount}€</div>
-    <div class="wd-info">
-      <div>${wd.coords?.slice(0,40)||'—'}…</div>
-      <div class="wd-date">📅 ${wd.date}</div>
-    </div>
-    <span class="tag ${wd.status==='paid'?'ok':'pending'}">${wd.status==='paid'?'✓ Payé':'⏳ En attente'}</span>
-  </div>`).join('');
+  el.innerHTML = withdrawals.map(wd=>{
+    const amt = parseFloat(wd.amount||0).toFixed(2);
+    const coords = (wd.coords||'\u2014').slice(0,45);
+    const date = wd.date||'\u2014';
+    const isPaid = wd.status==='paid';
+    return '<div style="display:flex;align-items:center;gap:12px;padding:13px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:8px;">'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="font-size:18px;font-weight:800;color:var(--gold);">'+amt+'\u20ac</div>'
+      +'<div style="font-size:11px;color:var(--t2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+coords+'</div>'
+      +'<div style="font-size:10px;color:var(--t3);margin-top:2px;">\ud83d\udcc5 '+date+'</div>'
+      +'</div>'
+      +'<span class="tag '+(isPaid?'tg':'ta')+'">'+(isPaid?'\u2713 Pay\xe9':'\u23f3 En attente')+'</span>'
+      +'</div>';
+  }).join('');
 }
 
 function toggleWdMode(){
