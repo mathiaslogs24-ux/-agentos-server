@@ -1108,6 +1108,7 @@ app.post('/shop-checkout',async(req,res)=>{
     params.append('shipping_address_collection[allowed_countries][]','CH');
     params.append('shipping_address_collection[allowed_countries][]','LU');
     params.append('phone_number_collection[enabled]','true');
+    params.append('billing_address_collection','required');
     params.append('metadata[userId]',userId||'');
     params.append('metadata[userName]',userName||'');
     params.append('metadata[cartJson]',JSON.stringify(cart.map(i=>({sellerId:i.sellerId,id:i.id,price:i.price,qty:i.qty}))));
@@ -1176,8 +1177,9 @@ app.post('/stripe-webhook',async(req,res)=>{
     const shippingAddr = shipping.address || {};
     const customerAddr = customer.address || {};
     const addr       = shippingAddr.line1 ? shippingAddr : customerAddr;
-    const clientName = shipping.name      || customer.name || '';
-    addLog('info', `Client: ${clientName||'(sans nom)'} · ${addr.city||'(sans ville)'} · shipping.name=${shipping.name} customer.name=${customer.name}`);
+    // Le nom : customer_details.name est toujours rempli avec billing requis
+    // shipping_details.name l'est aussi mais peut être absent si pas de shipping séparé
+    const clientName = customer.name || shipping.name || '';
 
     let cartItems=[];
     try{cartItems=JSON.parse(meta.cartJson||'[]');}catch(e){}
