@@ -25,7 +25,7 @@ const PORT = process.env.PORT || 3000;
 app.use((req,res,next)=>{
   res.header('Access-Control-Allow-Origin','*');
   res.header('Access-Control-Allow-Headers','Content-Type, X-Secret');
-  res.header('Access-Control-Allow-Methods','GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods','GET, POST, PUT, DELETE, PATCH, OPTIONS');
   if(req.method==='OPTIONS') return res.sendStatus(200);
   next();
 });
@@ -93,7 +93,6 @@ let cfg = {
   commissionFlat: 1.00,
 };
 
-// stock admin + shopItems stockés en config
 let stock     = [];
 let shopItems = [];
 
@@ -107,7 +106,6 @@ async function loadConfig() {
       shopItems = saved.shopItems || [];
     }
   } catch(e) { addLog('warn','loadConfig: '+e.message); }
-  // Variables d'env ont priorité
   if(process.env.TELEGRAM_TOKEN)        cfg.telegramToken  = process.env.TELEGRAM_TOKEN;
   if(process.env.CLAUDE_KEY)            cfg.claudeKey      = process.env.CLAUDE_KEY;
   if(process.env.SECRET)                cfg.secret         = process.env.SECRET;
@@ -155,13 +153,22 @@ async function getOrders() {
   return r.rows.map(x=>x.data);
 }
 
+async function getOrder(id) {
+  const r = await db('SELECT data FROM orders WHERE id=$1',[id]);
+  return r.rows[0]?.data || null;
+}
+
 async function saveOrder(order) {
   await db('INSERT INTO orders(id,data) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET data=$2',
     [order.id, JSON.stringify(order)]);
 }
 
+async function deleteOrder(id) {
+  await db('DELETE FROM orders WHERE id=$1',[id]);
+}
+
 // ─────────────────────────────────────────
-//  LOGS (mémoire + DB)
+//  LOGS (mémoire)
 // ─────────────────────────────────────────
 let logs    = [];
 let history = [];
@@ -241,7 +248,7 @@ async function callClaude(userId, userName, userMessage) {
 }
 
 // ─────────────────────────────────────────
-//  BOT ADMIN (notifications retraits)
+//  BOT ADMIN
 // ─────────────────────────────────────────
 let adminBot = null;
 
@@ -250,7 +257,8 @@ function startAdminBot() {
   if(!token){ addLog('warn','ADMIN_BOT_TOKEN non configuré'); return; }
   try {
     adminBot = new TelegramBot(token, {polling:true});
-    adminBot.getMe().then(me=>addLog('ok','Bot admin démarré ✓ @'+me.username)).catch(()=>addLog('ok','Bot admin démarré ✓'));
+    adminBot.getMe().then(me=>addLog('ok','Administrateur du bot démarré ✓ @'+me.username)).catch(()=>addLog('ok','Bot admin démarré ✓'));
+
     adminBot.on('message', async(msg)=>{
       if(msg.text?.startsWith('/start')) {
         cfg.adminTelegramId = String(msg.from.id);
@@ -262,14 +270,14 @@ function startAdminBot() {
         addLog('ok','Admin Telegram ID configuré: '+msg.from.id);
       }
     });
+
     adminBot.on('polling_error', err=>addLog('err','AdminBot polling: '+(err.message||String(err))));
 
-    // Bouton de confirmation de paiement
+    // Bouton de confirmation de paiement retrait
     adminBot.on('callback_query', async(query)=>{
       const data = query.data;
       if(!data?.startsWith('confirm_wd_')) return;
 
-      // confirm_wd_[sellerId]_[wdId]_[amount]
       const parts    = data.split('_');
       const sellerId = parts[2];
       const wdId     = parseInt(parts[3]);
@@ -280,16 +288,13 @@ function startAdminBot() {
         const v = sellers.find(x=>String(x.id)===String(sellerId));
         if(!v) { adminBot.answerCallbackQuery(query.id,{text:'Vendeur introuvable'}); return; }
 
-        // Marquer le retrait comme payé
         const wd = (v.withdrawals||[]).find(w=>w.id===wdId);
         if(wd) wd.status='paid';
 
-        // Déduire du solde
         v.balance = parseFloat((parseFloat(v.balance||0) - amount).toFixed(2));
         if(v.balance < 0) v.balance = 0;
         await saveSeller(v);
 
-        // Notifier le vendeur
         if(v.telegramId && vendorBot) {
           vendorBot.sendMessage(v.telegramId,
             `✅ *Virement effectué !*\n\nMontant : *${amount.toFixed(2)}€*\n\nVotre paiement a bien été envoyé. Merci ! 🙏`,
@@ -297,7 +302,6 @@ function startAdminBot() {
           ).catch(()=>{});
         }
 
-        // Mettre à jour le message admin
         adminBot.editMessageReplyMarkup(
           {inline_keyboard:[[{text:`✅ Payé — ${amount.toFixed(2)}€ à ${v.name}`, callback_data:'done'}]]},
           {chat_id:query.message.chat.id, message_id:query.message.message_id}
@@ -314,6 +318,10 @@ function startAdminBot() {
     addLog('err','AdminBot démarrage: '+e.message);
   }
 }
+
+// ─────────────────────────────────────────
+//  BOT CLIENT
+// ─────────────────────────────────────────
 function startBot() {
   if(running)            return {ok:false,reason:'Déjà démarré'};
   if(!cfg.telegramToken) return {ok:false,reason:'Token manquant'};
@@ -362,7 +370,6 @@ function startVendorBot() {
   if(!token){ addLog('warn','VENDOR_BOT_TOKEN non configuré'); return; }
   try {
     vendorBot = new TelegramBot(token, {polling:true});
-    // Récupérer le username du bot vendeur
     vendorBot.getMe().then(me => {
       vendorBotUsername = me.username || '';
       addLog('ok','Bot vendeur démarré ✓ @'+vendorBotUsername);
@@ -373,11 +380,9 @@ function startVendorBot() {
       const text   = msg.text||'';
       if(!text) return;
 
-      // Identifier le vendeur par son telegramId
       const sellers = await getSellers();
       const seller  = sellers.find(v=>String(v.telegramId)===String(userId));
 
-      // ── /start — accueil
       if(text.startsWith('/start')) {
         if(!seller) {
           vendorBot.sendMessage(userId,
@@ -406,13 +411,11 @@ function startVendorBot() {
         return;
       }
 
-      // Vérification vendeur pour les autres commandes
       if(!seller){
         vendorBot.sendMessage(userId,'⚠️ Accès non autorisé. Contactez l\'administrateur.');
         return;
       }
 
-      // ── /commandes — dernières ventes
       if(text.startsWith('/commandes')) {
         const orders = await getOrders();
         const myOrders = orders.filter(o=>
@@ -439,7 +442,6 @@ function startVendorBot() {
         return;
       }
 
-      // ── /solde
       if(text.startsWith('/solde')) {
         vendorBot.sendMessage(userId,
           `💰 *Votre solde*\n\n`
@@ -452,7 +454,6 @@ function startVendorBot() {
         return;
       }
 
-      // ── /stock — état du stock
       if(text.startsWith('/stock')) {
         const sellerStock = seller.stock||[];
         if(!sellerStock.length){
@@ -468,7 +469,6 @@ function startVendorBot() {
         return;
       }
 
-      // ── /retrait — demande de virement
       if(text.startsWith('/retrait')) {
         const solde = parseFloat(seller.balance||0);
         if(solde<=0){
@@ -482,7 +482,6 @@ function startVendorBot() {
         return;
       }
 
-      // ── /virement — envoi effectif
       if(text.startsWith('/virement')) {
         const parts  = text.split(' ');
         const amount = parseFloat(parts[1]);
@@ -499,7 +498,6 @@ function startVendorBot() {
 
         const wdId = Date.now();
 
-        // Envoyer au bot admin avec bouton de confirmation
         if(adminBot && cfg.adminTelegramId) {
           adminBot.sendMessage(cfg.adminTelegramId,
             `💸 *Nouvelle demande de virement*\n\n`
@@ -530,7 +528,6 @@ function startVendorBot() {
         return;
       }
 
-      // ── /fonctions — liste toutes les commandes
       if(text.startsWith('/fonctions')||text.startsWith('/aide')||text.startsWith('/help')) {
         vendorBot.sendMessage(userId,
           `📋 *Toutes les commandes disponibles*\n\n`
@@ -554,7 +551,6 @@ function startVendorBot() {
         return;
       }
 
-      // ── Aide par défaut
       vendorBot.sendMessage(userId,
         `Commandes disponibles :\n\n`
         + `📦 /commandes\n💰 /solde\n📊 /stock\n💸 /retrait`
@@ -591,7 +587,7 @@ async function sellerAuth(req,res,next){
 }
 
 // ─────────────────────────────────────────
-//  ROUTES ADMIN
+//  ROUTES ADMIN — SYSTÈME
 // ─────────────────────────────────────────
 app.get('/health',(req,res)=>res.json({ok:true,uptime:Math.floor(process.uptime()),running}));
 app.get('/status',auth,(req,res)=>res.json({running,startedAt,model:cfg.claudeModel,msgs:stats.msgs,tokDay:stats.day,uptime:Math.floor(process.uptime()),users:Object.keys(conversations).length}));
@@ -612,7 +608,9 @@ app.delete('/conversation/:uid',auth,(req,res)=>{delete conversations[req.params
 app.delete('/conversations',auth,(req,res)=>{const c=Object.keys(conversations).length;conversations={};res.json({ok:true,cleared:c});});
 app.post('/stats/reset',auth,(req,res)=>{stats={day:0,month:0,msgs:0,input:0,output:0,lastReset:today()};history=[];res.json({ok:true});});
 
-// ── Stock admin
+// ─────────────────────────────────────────
+//  ROUTES ADMIN — STOCK
+// ─────────────────────────────────────────
 app.get('/stock', auth,(req,res)=>res.json(stock));
 app.post('/stock',auth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
@@ -626,10 +624,136 @@ app.post('/shop',auth,async(req,res)=>{
   addLog('ok',`Shop admin · ${shopItems.length} articles`);res.json({ok:true,count:shopItems.length});
 });
 
-app.get('/orders',auth,async(req,res)=>res.json(await getOrders()));
+// ─────────────────────────────────────────
+//  ROUTES ADMIN — COMMANDES
+// ─────────────────────────────────────────
+
+// Lister toutes les commandes (avec filtre optionnel)
+app.get('/orders', auth, async(req,res)=>{
+  try {
+    let orders = await getOrders();
+    // Filtrer les archivées si demandé
+    if(req.query.archived === 'false') orders = orders.filter(o=>!o.archived);
+    if(req.query.archived === 'true')  orders = orders.filter(o=> o.archived);
+    res.json(orders);
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Voir une commande
+app.get('/orders/:id', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+    res.json(order);
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Modifier une commande (note, statut, archivage...)
+app.patch('/orders/:id', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+
+    if(req.body.adminNote  !== undefined) order.adminNote  = req.body.adminNote;
+    if(req.body.archived   !== undefined) order.archived   = req.body.archived;
+    if(req.body.status     !== undefined) order.status     = req.body.status;
+    if(req.body.shipped    !== undefined) order.shipped    = req.body.shipped;
+
+    await saveOrder(order);
+    addLog('ok', `Commande #${order.id} modifiée`);
+    res.json({ok:true, order});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Supprimer une commande
+app.delete('/orders/:id', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+    await deleteOrder(req.params.id);
+    addLog('warn', `Commande supprimée: #${req.params.id}`);
+    res.json({ok:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Supprimer plusieurs commandes (bulk)
+app.delete('/orders', auth, async(req,res)=>{
+  const ids = req.body?.ids;
+  if(!Array.isArray(ids)||!ids.length) return res.status(400).json({error:'IDs manquants'});
+  try {
+    let deleted = 0;
+    for(const id of ids){
+      try { await deleteOrder(id); deleted++; } catch(e){}
+    }
+    addLog('warn', `Suppression bulk: ${deleted}/${ids.length} commandes`);
+    res.json({ok:true, deleted});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Archiver une commande (soft delete — reste en DB mais masquée)
+app.post('/orders/:id/archive', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+    order.archived = true;
+    await saveOrder(order);
+    addLog('info', `Commande archivée: #${req.params.id}`);
+    res.json({ok:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Désarchiver
+app.post('/orders/:id/unarchive', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+    order.archived = false;
+    await saveOrder(order);
+    addLog('info', `Commande désarchivée: #${req.params.id}`);
+    res.json({ok:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Marquer une commande expédiée (côté admin — sans vérification vendeur)
+app.post('/orders/:id/ship', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+
+    if(!order.shipped) order.shipped = {};
+    // Marquer tous les vendeurs de cette commande comme expédié
+    const sellerIds = [...new Set((order.cartItems||[]).map(ci=>String(ci.sellerId)).filter(Boolean))];
+    sellerIds.forEach(sid => order.shipped[sid] = 'shipped');
+
+    await saveOrder(order);
+    addLog('ok', `Commande #${order.id} marquée expédiée (admin)`);
+
+    // Notifier le client
+    if(order.userId && bot) {
+      const names = (order.cartItems||[]).map(ci=>`${ci.qty||1}x Article #${ci.id}`).join(', ');
+      bot.sendMessage(order.userId,
+        `📦 *Votre commande a été expédiée !*\n\n🛍 ${names}\n\nVous recevrez votre colis prochainement. Merci ! 🙏`,
+        {parse_mode:'Markdown'}
+      ).catch(()=>{});
+    }
+
+    res.json({ok:true, order});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// Ajouter/modifier une note admin sur une commande
+app.post('/orders/:id/note', auth, async(req,res)=>{
+  try {
+    const order = await getOrder(req.params.id);
+    if(!order) return res.status(404).json({error:'Commande introuvable'});
+    order.adminNote = req.body.note||'';
+    await saveOrder(order);
+    res.json({ok:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
 
 // ─────────────────────────────────────────
-//  ROUTES VENDEURS (admin)
+//  ROUTES ADMIN — VENDEURS
 // ─────────────────────────────────────────
 app.get('/sellers',auth,async(req,res)=>{
   const sellers=await getSellers();
@@ -669,15 +793,15 @@ app.post('/sellers',auth,async(req,res)=>{
 app.post('/sellers/:id/update',auth,async(req,res)=>{
   const v=await getSeller(req.params.id);
   if(!v) return res.status(404).json({error:'Introuvable'});
-  if(req.body.name)                 v.name         =req.body.name;
-  if(req.body.shopName)             v.shopName     =req.body.shopName;
-  if(req.body.telegramId!==undefined) v.telegramId =req.body.telegramId;
-  if(req.body.balance!==undefined)    v.balance    =parseFloat(req.body.balance)||0;
-  if(req.body.remuneration!==undefined) v.remuneration=parseFloat(req.body.remuneration)||0;
-  if(req.body.notes!==undefined)      v.notes        =req.body.notes;
-  if(req.body.commissionMode!==undefined) v.commissionMode=req.body.commissionMode;
-  if(req.body.commissionFlat!==null&&req.body.commissionFlat!==undefined) v.commissionFlat=parseFloat(req.body.commissionFlat)||0;
-  if(req.body.commissionRate!==null&&req.body.commissionRate!==undefined) v.commissionRate=parseFloat(req.body.commissionRate)||0;
+  if(req.body.name)                   v.name            = req.body.name;
+  if(req.body.shopName)               v.shopName        = req.body.shopName;
+  if(req.body.telegramId!==undefined) v.telegramId      = req.body.telegramId;
+  if(req.body.balance!==undefined)    v.balance         = parseFloat(req.body.balance)||0;
+  if(req.body.remuneration!==undefined) v.remuneration  = parseFloat(req.body.remuneration)||0;
+  if(req.body.notes!==undefined)      v.notes           = req.body.notes;
+  if(req.body.commissionMode!==undefined) v.commissionMode = req.body.commissionMode;
+  if(req.body.commissionFlat!=null&&req.body.commissionFlat!==undefined) v.commissionFlat = parseFloat(req.body.commissionFlat)||0;
+  if(req.body.commissionRate!=null&&req.body.commissionRate!==undefined) v.commissionRate = parseFloat(req.body.commissionRate)||0;
   await saveSeller(v);
   addLog('ok',`Vendeur mis à jour: ${v.name}`);
   res.json({ok:true});
@@ -718,7 +842,6 @@ app.post('/sellers/:id/add-stock',auth,async(req,res)=>{
 // ─────────────────────────────────────────
 //  ROUTES VENDEUR (auth secret vendeur)
 // ─────────────────────────────────────────
-// ── Auth Telegram Mini App (login automatique par Telegram ID)
 app.post('/seller/tg-auth', async(req,res)=>{
   const { telegramId } = req.body;
   if(!telegramId) return res.status(400).json({error:'Telegram ID manquant'});
@@ -734,7 +857,6 @@ app.post('/seller/stock',sellerAuth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
   req.seller.stock=req.body;await saveSeller(req.seller);
   addLog('ok',`Stock vendeur ${req.seller.name} · ${req.body.length} articles`);
-  // Vérifier alertes stock bas
   checkSellerStockAlerts(req.seller);
   res.json({ok:true,count:req.body.length});
 });
@@ -746,51 +868,45 @@ app.post('/seller/shop',sellerAuth,async(req,res)=>{
   res.json({ok:true,count:req.body.length});
 });
 
-// ── Commandes du vendeur
 app.get('/seller/orders', sellerAuth, async(req,res)=>{
   const orders = await getOrders();
   const sellerId = String(req.seller.id);
   const myOrders = orders
-    .filter(o => o.cartItems?.some(ci=>String(ci.sellerId)===sellerId))
+    .filter(o => !o.archived && o.cartItems?.some(ci=>String(ci.sellerId)===sellerId))
     .map(o => {
       const myItems = o.cartItems.filter(ci=>String(ci.sellerId)===sellerId);
       const myAmount = myItems.reduce((s,ci)=>s+parseFloat(ci.price||0)*parseInt(ci.qty||1),0);
       const myCom = myItems.reduce((s,ci)=>s+(cfg.commissionMode==='flat'?cfg.commissionFlat*parseInt(ci.qty||1):parseFloat(ci.price||0)*parseInt(ci.qty||1)*cfg.commissionRate),0);
       const myNet = myAmount - myCom;
-      // Trouver les noms depuis le stock vendeur
       const itemsWithNames = myItems.map(ci=>{
         const s = (req.seller.stock||[]).find(x=>x.id===ci.id);
         return { id:ci.id, name:s?s.name:`Article #${ci.id}`, qty:ci.qty||1 };
       });
       return {
-        id      : o.id,
-        date    : o.date,
-        amount  : myAmount.toFixed(2),
-        net     : myNet.toFixed(2),
+        id        : o.id,
+        date      : o.date,
+        amount    : myAmount.toFixed(2),
+        net       : myNet.toFixed(2),
         commission: myCom.toFixed(2),
-        items   : itemsWithNames,
-        client  : o.client || {},
-        status  : o.shipped?.[sellerId] || 'pending',
+        items     : itemsWithNames,
+        client    : o.client || {},
+        status    : o.shipped?.[sellerId] || 'pending',
       };
     });
   res.json(myOrders);
 });
 
-// ── Marquer une commande expédiée + notif client
 app.post('/seller/orders/:id/ship', sellerAuth, async(req,res)=>{
   const sellerId = String(req.seller.id);
   const orders   = await getOrders();
   const order    = orders.find(o=>String(o.id)===req.params.id);
   if(!order) return res.status(404).json({error:'Commande introuvable'});
 
-  // Marquer comme expédiée
   if(!order.shipped) order.shipped = {};
   order.shipped[sellerId] = 'shipped';
   await saveOrder(order);
+  addLog('ok',`Expédition · commande ${order.id} · vendeur ${req.seller.name}`);
 
-  addLog('ok',`📦 Expédition · commande ${order.id} · vendeur ${req.seller.name}`);
-
-  // Notifier le client sur Telegram
   if(order.userId && bot) {
     const itemNames = (order.cartItems||[])
       .filter(ci=>String(ci.sellerId)===sellerId)
@@ -806,11 +922,9 @@ app.post('/seller/orders/:id/ship', sellerAuth, async(req,res)=>{
       );
     } catch(e){ addLog('warn','Notif expédition: '+e.message); }
   }
-
   res.json({ok:true});
 });
 
-// ── Codes promo vendeur
 app.post('/seller/promos', sellerAuth, async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
   req.seller.promos = req.body;
@@ -818,22 +932,18 @@ app.post('/seller/promos', sellerAuth, async(req,res)=>{
   res.json({ok:true, count:req.body.length});
 });
 
-// ── Vérifier un code promo (appelé par le shop)
 app.post('/promo/check', async(req,res)=>{
   const { code, sellerId, cat, amount } = req.body;
   if(!code) return res.status(400).json({error:'Code manquant'});
   const userId = req.body.userId || 'guest';
 
-  // Chercher dans les promos admin et vendeurs
   let found = null;
   let foundSellerId = null;
 
-  // Admin promos (depuis config)
   const adminPromos = cfg.promos || [];
   const ap = adminPromos.find(p=>p.code===code.toUpperCase()&&p.active);
   if(ap) { found = ap; foundSellerId = 'admin'; }
 
-  // Vendeur promos
   if(!found) {
     const sellers = await getSellers();
     for(const v of sellers) {
@@ -843,26 +953,12 @@ app.post('/promo/check', async(req,res)=>{
   }
 
   if(!found) return res.status(404).json({error:'Code invalide ou expiré'});
+  if(found.expiry && new Date(found.expiry) < new Date()) return res.status(400).json({error:'Code expiré'});
+  if(found.limitType==='total' && found.usedCount >= found.limitVal) return res.status(400).json({error:'Code épuisé'});
+  if(found.limitType==='per_user' && (found.usedBy||[]).includes(userId)) return res.status(400).json({error:'Déjà utilisé'});
+  if(found.scope==='seller' && sellerId && foundSellerId!=='admin' && String(foundSellerId)!==String(sellerId)) return res.status(400).json({error:'Code non valide pour ce vendeur'});
+  if(found.scope==='category' && cat && found.cat && found.cat.toLowerCase()!==cat.toLowerCase()) return res.status(400).json({error:'Code non valide pour cette catégorie'});
 
-  // Vérifier expiration
-  if(found.expiry && new Date(found.expiry) < new Date())
-    return res.status(400).json({error:'Code expiré'});
-
-  // Vérifier limite d'utilisations
-  if(found.limitType==='total' && found.usedCount >= found.limitVal)
-    return res.status(400).json({error:'Code épuisé'});
-
-  if(found.limitType==='per_user' && (found.usedBy||[]).includes(userId))
-    return res.status(400).json({error:'Déjà utilisé'});
-
-  // Vérifier scope
-  if(found.scope==='seller' && sellerId && foundSellerId!=='admin' && String(foundSellerId)!==String(sellerId))
-    return res.status(400).json({error:'Code non valide pour ce vendeur'});
-
-  if(found.scope==='category' && cat && found.cat && found.cat.toLowerCase()!==cat.toLowerCase())
-    return res.status(400).json({error:'Code non valide pour cette catégorie'});
-
-  // Calculer la réduction
   const discount = found.type==='percent'
     ? parseFloat(amount) * found.value / 100
     : found.value;
@@ -870,31 +966,28 @@ app.post('/promo/check', async(req,res)=>{
   res.json({ ok:true, code:found.code, type:found.type, value:found.value, discount:discount.toFixed(2) });
 });
 
-// ── Demande de retrait vendeur
 app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   const { amount, coords, name, mode } = req.body;
   const v = req.seller;
-  if(!amount || amount <= 0)        return res.status(400).json({error:'Montant invalide'});
-  if(amount > (v.balance||0))       return res.status(400).json({error:'Solde insuffisant'});
-  if(!coords)                       return res.status(400).json({error:'Coordonnées requises'});
+  if(!amount || amount <= 0)  return res.status(400).json({error:'Montant invalide'});
+  if(amount > (v.balance||0)) return res.status(400).json({error:'Solde insuffisant'});
+  if(!coords)                 return res.status(400).json({error:'Coordonnées requises'});
 
   const wd = {
-    id     : Date.now(),
-    amount : parseFloat(amount).toFixed(2),
-    name   : name||'',
+    id    : Date.now(),
+    amount: parseFloat(amount).toFixed(2),
+    name  : name||'',
     coords,
-    mode   : mode||'iban',
-    date   : new Date().toLocaleString('fr-FR'),
-    status : 'pending',
+    mode  : mode||'iban',
+    date  : new Date().toLocaleString('fr-FR'),
+    status: 'pending',
   };
 
   if(!v.withdrawals) v.withdrawals = [];
   v.withdrawals.unshift(wd);
   await saveSeller(v);
+  addLog('ok', `Retrait demandé · ${v.name} · ${amount}€`);
 
-  addLog('ok', `💸 Retrait demandé · ${v.name} · ${amount}€`);
-
-  // Notifier admin via bot
   if(adminBot && cfg.adminTelegramId) {
     adminBot.sendMessage(cfg.adminTelegramId,
       `💸 *Nouvelle demande de retrait*\n\n`
@@ -905,7 +998,6 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
       {parse_mode:'Markdown'}
     ).catch(e=>addLog('warn','AdminBot notif: '+e.message));
   } else if(bot && cfg.adminTelegramId) {
-    // Fallback bot client si pas de bot admin
     bot.sendMessage(cfg.adminTelegramId,
       `💸 *Demande de retrait*\n\nVendeur : *${v.shopName||v.name}*\nMontant : *${parseFloat(amount).toFixed(2)}€*\nBénéficiaire : ${wd.name||'—'}\n${coords}`,
       {parse_mode:'Markdown'}
@@ -921,14 +1013,12 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   res.json({ok:true, seller:{...v, secret:undefined}});
 });
 
-// ── Sauvegarder les settings d'alertes côté serveur
 app.post('/seller/alert-settings', sellerAuth, async(req,res)=>{
   req.seller.alertSettings = req.body;
   await saveSeller(req.seller);
   res.json({ok:true});
 });
 
-// ── Test alerte stock bas
 app.post('/seller/stock-alert-test', sellerAuth, async(req,res)=>{
   const v = req.seller;
   if(!v.telegramId || !vendorBot)
@@ -944,15 +1034,13 @@ app.post('/seller/stock-alert-test', sellerAuth, async(req,res)=>{
   }
 });
 
-// ── Alertes stock bas — vérifiées à chaque push stock vendeur
 async function checkSellerStockAlerts(seller) {
   if(!seller.telegramId || !vendorBot) return;
-  // Utiliser les settings sauvegardés côté serveur
   const settings  = seller.alertSettings || {};
-  if(settings.alertsEnabled === false) return; // alertes désactivées
-  const threshold  = settings.globalThreshold || 5;
-  const lowItems   = (seller.stock||[]).filter(s => {
-    if(s.qty <= 0) return false; // rupture totale — pas d'alerte (déjà rupture)
+  if(settings.alertsEnabled === false) return;
+  const threshold = settings.globalThreshold || 5;
+  const lowItems  = (seller.stock||[]).filter(s => {
+    if(s.qty <= 0) return false;
     const itemThreshold = settings.perItem?.[s.id] || s.alert || threshold;
     return s.qty <= itemThreshold;
   });
@@ -963,7 +1051,9 @@ async function checkSellerStockAlerts(seller) {
   vendorBot.sendMessage(seller.telegramId, msg, {parse_mode:'Markdown'}).catch(()=>{});
 }
 
-
+// ─────────────────────────────────────────
+//  ROUTES PUBLIQUES — MARKETPLACE
+// ─────────────────────────────────────────
 app.get('/marketplace',async(req,res)=>{
   const sellers=await getSellers();
   const result=[];
@@ -972,7 +1062,8 @@ app.get('/marketplace',async(req,res)=>{
     if(!s||s.qty<=0) return null;
     return{id:item.stockId,sellerId:'admin',sellerName:'Boutique Officielle',sellerShop:'Boutique Officielle',
       title:item.title,image:item.image||s.image||'',description:item.description||'',price:parseFloat(item.price||0),
-      qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload};
+      qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload,
+      carton:s.carton||false,cartonQty:s.cartonQty||0,cartonPrice:s.cartonPrice||0};
   }).filter(Boolean);
   if(adminItems.length) result.push({sellerId:'admin',sellerName:'Boutique Officielle',items:adminItems});
 
@@ -982,7 +1073,8 @@ app.get('/marketplace',async(req,res)=>{
       if(!s||s.qty<=0) return null;
       return{id:item.stockId,sellerId:v.id,sellerName:v.name,sellerShop:v.shopName||v.name,
         title:item.title,image:item.image||s.image||'',description:item.description||'',price:parseFloat(item.price||0),
-        qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload};
+        qty:s.qty,puffs:s.puffs||0,cat:s.cat||'',alert:s.alert||5,payload:item.payload,
+        carton:s.carton||false,cartonQty:s.cartonQty||0,cartonPrice:s.cartonPrice||0};
     }).filter(Boolean);
     if(items.length) result.push({sellerId:v.id,sellerName:v.name,sellerShop:v.shopName||v.name,items});
   });
@@ -1052,22 +1144,17 @@ app.post('/stripe-webhook',async(req,res)=>{
     const userName  = meta.userName||'';
     const amount    = (event.data.object.amount_total/100).toFixed(2);
 
-    // Récupérer la session complète pour avoir shipping_details + customer_details
     let shipping = event.data.object.shipping_details || {};
     let customer = event.data.object.customer_details || {};
     try {
-      const fullRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`,{
-        headers:{'Authorization':`Bearer ${cfg.stripeKey}`}
-      });
+      const fullRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`,{headers:{'Authorization':`Bearer ${cfg.stripeKey}`}});
       const full = await fullRes.json();
       if(full.shipping_details) shipping = full.shipping_details;
       if(full.customer_details) customer = full.customer_details;
     } catch(e) { addLog('warn','Session fetch: '+e.message); }
 
-    // Adresse : shipping_details en priorité, sinon customer_details.address
     const shippingAddr = shipping.address || {};
     const customerAddr = customer.address || {};
-    // Prendre le champ le plus complet (celui qui a line1)
     const addr = shippingAddr.line1 ? shippingAddr : customerAddr;
     const clientName = shipping.name || customer.name || '';
 
@@ -1089,6 +1176,7 @@ app.post('/stripe-webhook',async(req,res)=>{
     const order={
       id:Date.now(),date:new Date().toLocaleString('fr-FR'),userId,userName,amount,commission,sellerAmount,
       stockName:productNames.join(', ')||'Commande',invoiceId:sessionId,provider:'stripe',cartItems,
+      archived:false,
       client:{
         name   : clientName,
         email  : customer.email||'',
@@ -1105,27 +1193,24 @@ app.post('/stripe-webhook',async(req,res)=>{
     for(const ci of cartItems){
       const qty=parseInt(ci.qty||1);
       const itemAmount=parseFloat(ci.price||0)*qty;
-      const itemCommission=cfg.commissionMode==='flat'?cfg.commissionFlat*qty:itemAmount*cfg.commissionRate;
-      const itemNet=itemAmount-itemCommission;
 
       if(ci.sellerId==='admin'||!ci.sellerId){
         const s=stock.find(x=>x.id===ci.id);
-        if(s&&s.qty>0){s.qty=Math.max(0,s.qty-qty);addLog('info',`📦 Admin ${s.name} → ${s.qty}`);}
+        if(s&&s.qty>0){s.qty=Math.max(0,s.qty-qty);addLog('info',`Admin ${s.name} → ${s.qty}`);}
         await saveConfig();
       } else {
         const v=sellers.find(x=>String(x.id)===String(ci.sellerId));
         if(v){
-          // Commission : utiliser celle du vendeur si définie, sinon globale
           const vCommMode = v.commissionMode || cfg.commissionMode || 'flat';
           const vCommFlat = v.commissionFlat !== undefined ? v.commissionFlat : cfg.commissionFlat;
           const vCommRate = v.commissionRate !== undefined ? v.commissionRate : cfg.commissionRate;
           const itemCommission = vCommMode==='flat' ? vCommFlat*qty : itemAmount*vCommRate;
           const itemNet = itemAmount - itemCommission;
-          v.balance        = parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
-          v.totalSales     = parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
-          v.totalCommission= parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
+          v.balance         = parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
+          v.totalSales      = parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
+          v.totalCommission = parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
           const s=(v.stock||[]).find(x=>x.id===ci.id);
-          if(s&&s.qty>0){s.qty=Math.max(0,s.qty-qty);addLog('info',`📦 ${v.name} ${s.name} → ${s.qty}`);}
+          if(s&&s.qty>0){s.qty=Math.max(0,s.qty-qty);addLog('info',`${v.name} ${s.name} → ${s.qty}`);}
           await saveSeller(v);
 
           if(v.telegramId&&vendorBot){
@@ -1151,7 +1236,7 @@ app.post('/stripe-webhook',async(req,res)=>{
         }
       }
     }
-    addLog('ok',`💳 Stripe · @${userName} · ${amount}€ · com:${commission}€`);
+    addLog('ok',`Stripe · @${userName} · ${amount}€ · com:${commission}€`);
     if(userId&&bot){
       try{await bot.sendMessage(userId,`✅ *Commande confirmée !*\n\n🛍 ${productNames.join(', ')||'Votre commande'}\n💶 ${amount}€ payés\n\nMerci ! 🙏`,{parse_mode:'Markdown'});}catch(e){}
     }
@@ -1163,11 +1248,9 @@ app.post('/stripe-webhook',async(req,res)=>{
 //  PAGES STATIQUES
 // ─────────────────────────────────────────
 app.get('/shop-app',(req,res)=>res.sendFile(path.join(__dirname,'shop.html')));
-
 app.get('/seller-dashboard',(req,res)=>res.sendFile(path.join(__dirname,'seller.html')));
-
 app.get('/payment-success',(req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>✅</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#4ade80;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">✅</div><h1>Paiement réussi !</h1><p>Retourne dans Telegram pour voir ta confirmation.</p></div></body></html>`));
-app.get('/payment-cancel', (req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>❌</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#f87171;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">❌</div><h1>Paiement annulé</h1><p>Retourne dans Telegram et réessaye.</p></div></body></html>`));
+app.get('/payment-cancel',(req,res)=>res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>❌</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1220;color:#e8edf5;}.box{text-align:center;padding:40px;border:1px solid rgba(255,255,255,.1);border-radius:16px;}.icon{font-size:64px;margin-bottom:16px;}h1{color:#f87171;}p{color:#8899b0;font-size:14px;}</style></head><body><div class="box"><div class="icon">❌</div><h1>Paiement annulé</h1><p>Retourne dans Telegram et réessaye.</p></div></body></html>`));
 
 // ─────────────────────────────────────────
 //  DÉMARRAGE
@@ -1175,21 +1258,16 @@ app.get('/payment-cancel', (req,res)=>res.send(`<!DOCTYPE html><html><head><meta
 async function main() {
   addLog('info','═══════════════════════════════');
   addLog('info',`AgentOS Marketplace · Port ${PORT}`);
-
   await initDB();
   await loadConfig();
-
   addLog('info',`Commission: ${cfg.commissionMode==='flat'?cfg.commissionFlat+'€/article':(cfg.commissionRate*100)+'%'}`);
   addLog('info','═══════════════════════════════');
-
   app.listen(PORT, ()=>addLog('info',`Serveur démarré sur le port ${PORT}`));
-
   if(cfg.telegramToken&&cfg.claudeKey) setTimeout(()=>startBot(),2000);
   setTimeout(()=>startVendorBot(), 2500);
   setTimeout(()=>startAdminBot(), 3000);
 }
 
 main().catch(e=>{ console.error('Startup error:', e); process.exit(1); });
-
 process.on('SIGTERM',()=>{stopBot();process.exit(0);});
 process.on('SIGINT', ()=>{stopBot();process.exit(0);});
