@@ -1144,19 +1144,40 @@ app.post('/stripe-webhook',async(req,res)=>{
     const userName  = meta.userName||'';
     const amount    = (event.data.object.amount_total/100).toFixed(2);
 
+    // Refetch la session complète avec expand pour avoir TOUTES les infos client
     let shipping = event.data.object.shipping_details || {};
     let customer = event.data.object.customer_details || {};
+    let productNames = [];
     try {
-      const fullRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`,{headers:{'Authorization':`Bearer ${cfg.stripeKey}`}});
+      const fullRes = await fetch(
+        `https://api.stripe.com/v1/checkout/sessions/${sessionId}`+
+        `?expand[]=shipping_details&expand[]=customer_details&expand[]=line_items`,
+        { headers:{'Authorization':`Bearer ${cfg.stripeKey}`} }
+      );
       const full = await fullRes.json();
       if(full.shipping_details) shipping = full.shipping_details;
       if(full.customer_details) customer = full.customer_details;
+      // Noms produits depuis line_items expand
+      if(full.line_items?.data?.length){
+        productNames = full.line_items.data.map(x=>x.description||x.price?.product?.name||'');
+      }
     } catch(e) { addLog('warn','Session fetch: '+e.message); }
 
+    // Fallback noms produits si expand n'a pas marché
+    if(!productNames.length){
+      try{
+        const li=await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items`,{headers:{'Authorization':`Bearer ${cfg.stripeKey}`}});
+        const ld=await li.json();
+        if(ld.data?.length) productNames=ld.data.map(x=>x.description||x.price?.product?.name||'');
+      }catch(e){}
+    }
+
+    // Construire l'adresse — shipping_details prioritaire sur customer_details
     const shippingAddr = shipping.address || {};
     const customerAddr = customer.address || {};
-    const addr = shippingAddr.line1 ? shippingAddr : customerAddr;
-    const clientName = shipping.name || customer.name || '';
+    const addr       = shippingAddr.line1 ? shippingAddr : customerAddr;
+    const clientName = shipping.name      || customer.name || '';
+    addLog('info', `Client: ${clientName||'(sans nom)'} · ${addr.city||'(sans ville)'} · shipping.name=${shipping.name} customer.name=${customer.name}`);
 
     let cartItems=[];
     try{cartItems=JSON.parse(meta.cartJson||'[]');}catch(e){}
@@ -1165,13 +1186,6 @@ app.post('/stripe-webhook',async(req,res)=>{
       ?(cfg.commissionFlat*nbItems).toFixed(2)
       :(parseFloat(amount)*cfg.commissionRate).toFixed(2);
     const sellerAmount=(parseFloat(amount)-parseFloat(commission)).toFixed(2);
-
-    let productNames=[];
-    try{
-      const li=await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items`,{headers:{'Authorization':`Bearer ${cfg.stripeKey}`}});
-      const ld=await li.json();
-      if(ld.data?.length) productNames=ld.data.map(x=>x.description||'');
-    }catch(e){}
 
     const order={
       id:Date.now(),date:new Date().toLocaleString('fr-FR'),userId,userName,amount,commission,sellerAmount,
