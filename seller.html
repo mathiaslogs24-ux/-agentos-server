@@ -245,6 +245,7 @@ input,textarea,select{font-family:inherit;}
     </div>
     <div class="login-err" id="loginErr"></div>
   </div>
+  </div>
 </div>
 
 <!-- DASHBOARD -->
@@ -298,6 +299,7 @@ input,textarea,select{font-family:inherit;}
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <span class="bulk-title" id="vBulkCount">0 sélectionné(s)</span>
             <div style="display:flex;gap:6px;">
+              <button class="btn xs" onclick="vBulkDuplicate()" style="background:var(--bdim);color:var(--blue);border-color:var(--bbdr);" title="Dupliquer la selection">📋</button>
               <button class="btn xs danger" onclick="vBulkDelete()">🗑</button>
               <button class="btn xs" onclick="vDeselectAll()">✕</button>
             </div>
@@ -322,7 +324,7 @@ input,textarea,select{font-family:inherit;}
 
       <!-- ═══ WIZARD AJOUT/EDITION ═══ -->
       <div id="wizardOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;backdrop-filter:blur(4px);" onclick="closeWizard()"></div>
-      <div id="wizardSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:101;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--gb);max-height:85dvh;overflow-y:auto;padding-bottom:calc(var(--nav-h) + var(--safe-b) + 24px);">
+      <div id="wizardSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:101;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--gb);max-height:92dvh;overflow-y:auto;padding-bottom:calc(20px + var(--safe-b,0px));">
         <div style="width:36px;height:4px;background:var(--bg3);border-radius:2px;margin:12px auto 0;"></div>
         <div style="padding:16px 18px 0;">
 
@@ -374,9 +376,17 @@ input,textarea,select{font-family:inherit;}
               </div>
             </div>
             <div id="wizCartonBox" style="display:none;margin-bottom:12px;">
-              <label class="fld-label">Unités par carton</label>
-              <input class="fld-input" id="wizCartonQty" type="number" min="1" placeholder="ex: 10" style="font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--blue);">
-              <div style="font-size:11px;color:var(--t3);margin-top:-8px;">Ex: 10 = carton de 10 puffs</div>
+              <div class="form-row" style="margin-bottom:8px;">
+                <div>
+                  <label class="fld-label">Unités par carton</label>
+                  <input class="fld-input" id="wizCartonQty" type="number" min="1" placeholder="ex: 10" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--blue);">
+                </div>
+                <div>
+                  <label class="fld-label">Prix du carton (€)</label>
+                  <input class="fld-input" id="wizCartonPrice" type="number" min="0" step="0.01" placeholder="ex: 120" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--blue);">
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--t3);">Le prix carton est indépendant du prix à l'unité</div>
             </div>
           </div>
 
@@ -437,18 +447,6 @@ input,textarea,select{font-family:inherit;}
         </div>
         <div style="font-size:12px;color:var(--t2);margin-bottom:8px;" id="catActiveBadge"></div>
         <div class="cat-grid" id="catGrid"></div>
-
-        <!-- SECTION CARTONS -->
-        <div id="cartonSection" style="margin-top:4px;display:none;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);">
-            <span style="font-size:18px;">📦</span>
-            <div>
-              <div style="font-size:12px;font-weight:700;color:var(--blue);">Vente par carton</div>
-              <div style="font-size:10px;color:var(--t3);margin-top:1px;">Articles disponibles en carton complet</div>
-            </div>
-          </div>
-          <div class="cat-grid" id="cartonGrid"></div>
-        </div>
       </div>
 
       <!-- COMMANDES -->
@@ -477,7 +475,6 @@ input,textarea,select{font-family:inherit;}
           <div class="card" style="margin-bottom:0;"><div class="card-head"><div class="card-title">📦 Commandes</div></div><div class="card-body"><div class="chart-wrap"><canvas id="chartOrders2"></canvas></div></div></div>
         </div>
         <div class="card"><div class="card-head"><div class="card-title">🏆 Top goûts</div></div><div id="topProductsTable"></div></div>
-        <div class="card" style="margin-top:11px;"><div class="card-head"><div class="card-title">📈 Comparaison périodes</div></div><div class="card-body" id="comparisonSection"></div></div>
       </div>
 
       <!-- PROMOS -->
@@ -546,11 +543,6 @@ input,textarea,select{font-family:inherit;}
           </div>
         </div>
 
-        <!-- Historique retraits -->
-        <div id="withdrawalsList"></div>
-
-      </div><!-- /panel-withdrawals -->
-
       <!-- SETTINGS -->
       <div class="panel" id="panel-settings">
         <div class="ph"><div class="ph-title">⚙️ Paramètres</div></div>
@@ -567,11 +559,9 @@ input,textarea,select{font-family:inherit;}
                 style="width:62px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:16px;font-weight:800;padding:6px 9px;border-radius:var(--rs);outline:none;text-align:center;"
                 onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
             </div>
-            <div style="margin-top:12px;margin-bottom:12px;">
+            <div style="margin-top:12px;">
               <button class="btn sm" onclick="sendTestAlert()" style="background:var(--bdim);color:var(--blue);border-color:var(--bbdr);">📩 Test d'alerte</button>
             </div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;">Seuils par article</div>
-            <div id="perItemThresholds"></div>
           </div>
         </div>
         <div class="card">
@@ -611,9 +601,6 @@ input,textarea,select{font-family:inherit;}
     </button>
     <button class="bnav" id="nav-promos" onclick="switchTab('promos',this)">
       <span class="bnav-icon">🏷</span><span class="bnav-label">Promos</span>
-    </button>
-    <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)">
-      <span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span>
     </button>
     <button class="bnav" id="nav-settings" onclick="switchTab('settings',this)">
       <span class="bnav-icon">⚙️</span><span class="bnav-label">Config</span>
@@ -845,7 +832,6 @@ function bootDashboard(){
   document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
   document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
   updateGlobalStats(); renderStockPanel(); renderCatalogue();
-  switchTab('stock');
 }
 
 function doLogout(){
@@ -940,6 +926,7 @@ function openAddWizard(editIdx=-1){
   document.getElementById('wizEnVente').checked=s?.enVente||false;
   document.getElementById('wizCarton').checked=s?.carton||false;
   document.getElementById('wizCartonQty').value=s?.cartonQty||'';
+  document.getElementById('wizCartonPrice').value=s?.cartonPrice||'';
   document.getElementById('wizCartonBox').style.display=s?.carton?'block':'none';
   const prev=document.getElementById('wizPhotoPreview');
   if(s?.image) prev.innerHTML='<img src="'+s.image+'" style="width:100%;height:100%;object-fit:cover;">';
@@ -985,8 +972,11 @@ function wizNext(){
       qty   :parseInt(document.getElementById('wizQty').value)||0,
       alert :parseInt(document.getElementById('wizAlert').value)||5,
       enVente:document.getElementById('wizEnVente').checked,
-      carton :document.getElementById('wizCarton').checked,
-      cartonQty:parseInt(document.getElementById('wizCartonQty').value)||0,
+      carton     :document.getElementById('wizCarton').checked,
+      cartonQty  :parseInt(document.getElementById('wizCartonQty').value)||0,
+      cartonPrice:parseFloat(document.getElementById('wizCartonPrice').value)||0,
+      enVenteUnite:true,
+      enVenteCarton:document.getElementById('wizCarton').checked&&(parseInt(document.getElementById('wizCartonQty').value)||0)>0,
       image :img?img.src:(wizEditIdx>=0?stock[wizEditIdx].image||'':''),
     };
     if(wizEditIdx>=0) stock[wizEditIdx]=entry;
@@ -1060,13 +1050,19 @@ function renderStock(){
         +'</div>'
       +'</div>'
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">'
-        +'<div style="font-size:15px;font-weight:800;color:var(--gold);">'+(s.price||0)+'€</div>'
+        +'<div style="display:flex;align-items:center;gap:6px;">'
+          +'<div style="font-size:15px;font-weight:800;color:var(--gold);">'+(s.price||0)+'€</div>'
+          +'<button onclick="event.stopPropagation();openAddWizard('+idx+')" style="width:26px;height:26px;border-radius:7px;background:var(--gdim);border:1px solid var(--gborder);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gold);" title="Modifier">✏️</button>'
+        +'</div>'
         +'<div style="display:flex;align-items:center;gap:7px;">'
           +'<button onclick="event.stopPropagation();chQty('+idx+',-1)" style="width:28px;height:28px;border-radius:8px;background:var(--bg2);border:1px solid var(--gb);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);">−</button>'
           +'<span style="font-family:\'DM Mono\';font-size:15px;font-weight:800;color:'+qtyColor+';min-width:24px;text-align:center;">'+s.qty+'</span>'
           +'<button onclick="event.stopPropagation();chQty('+idx+',1)" style="width:28px;height:28px;border-radius:8px;background:var(--bg2);border:1px solid var(--gb);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);">+</button>'
         +'</div>'
-        +'<button onclick="event.stopPropagation();delStock('+idx+')" style="padding:4px 10px;border-radius:6px;background:var(--rdim);border:1px solid var(--rbdr);color:var(--red);font-size:11px;cursor:pointer;">✕</button>'
+        +'<div style="display:flex;gap:5px;">'
+          +'<button onclick="event.stopPropagation();duplicateStock('+idx+')" style="padding:4px 8px;border-radius:6px;background:var(--bdim);border:1px solid var(--bbdr);color:var(--blue);font-size:11px;cursor:pointer;" title="Dupliquer">📋</button>'
+          +'<button onclick="event.stopPropagation();delStock('+idx+')" style="padding:4px 10px;border-radius:6px;background:var(--rdim);border:1px solid var(--rbdr);color:var(--red);font-size:11px;cursor:pointer;">✕</button>'
+        +'</div>'
       +'</div>'
     +'</div>';
   }).join('');
@@ -1084,6 +1080,23 @@ function chQty(idx, d){ stock[idx].qty = Math.max(0,(stock[idx].qty||0)+d); rend
 
 function delStock(idx){ stock.splice(idx,1); renderStock(); renderCatalogue(); }
 
+function duplicateStock(idx){
+  const s = stock[idx];
+  if(!s) return;
+  const copy = {
+    ...s,
+    id   : nid++,
+    name : s.name+' (copie)',
+    enVente: false,
+    enVenteUnite: false,
+    enVenteCarton: false,
+  };
+  stock.splice(idx+1, 0, copy);
+  renderStock();
+  renderCatalogue();
+  showToast('📋 '+s.name+' dupliqué');
+}
+
 function vSaveLocal(){ showToast('✓ Modifications sauvegardées localement'); }
 
 // ── Bulk edit
@@ -1097,24 +1110,20 @@ function vToggleRow(id, checked){
 function vSelectAll(checked){
   stock.forEach(s=>{ if(checked) vBulkSelected.add(s.id); else vBulkSelected.delete(s.id); });
   renderStock();
-  const chk = document.getElementById('vChkAll'); if(chk) chk.checked = checked;
+  document.getElementById('vChkAll').checked = checked;
   vUpdateBulkBar();
 }
 
 function vDeselectAll(){
   vBulkSelected.clear();
   renderStock();
-  const chk = document.getElementById('vChkAll'); if(chk) chk.checked = false;
+  document.getElementById('vChkAll').checked = false;
   vUpdateBulkBar();
 }
 
 function vUpdateBulkBar(){
   const n = vBulkSelected.size;
-  const bar = document.getElementById('vBulkBar');
-  bar.style.display = n>0?'block':'none';
-  // Also add padding to content so last item isn't hidden behind bulk bar
-  const content = document.getElementById('mainContent');
-  if(content) content.style.paddingBottom = n>0 ? '120px' : '10px';
+  document.getElementById('vBulkBar').style.display = n>0?'block':'none';
   document.getElementById('vBulkCount').textContent = n+' sélectionné(s)';
 }
 
@@ -1154,12 +1163,30 @@ function vBulkApply(field){
 }
 
 function vBulkDelete(){
-  if(!confirm(`Supprimer ${vBulkSelected.size} article(s) ?`)) return;
+  if(!confirm('Supprimer '+vBulkSelected.size+' article(s) ?')) return;
   stock = stock.filter(s=>!vBulkSelected.has(s.id));
   vBulkSelected.clear();
   renderStock();
   renderCatalogue();
   vUpdateBulkBar();
+}
+
+function vBulkDuplicate(){
+  const ids = [...vBulkSelected];
+  if(!ids.length) return;
+  const copies = [];
+  ids.forEach(id=>{
+    const s = stock.find(x=>x.id===id);
+    if(s) copies.push({...s, id:nid++, name:s.name+' (copie)', enVente:false, enVenteUnite:false, enVenteCarton:false});
+  });
+  // Insert copies after last selected
+  const lastIdx = stock.findIndex(s=>s.id===ids[ids.length-1]);
+  stock.splice(lastIdx+1, 0, ...copies);
+  vBulkSelected.clear();
+  renderStock();
+  renderCatalogue();
+  vUpdateBulkBar();
+  showToast('📋 '+copies.length+' article(s) dupliqué(s)');
 }
 
 // ── Push stock
@@ -1239,80 +1266,111 @@ function renderCatalogue(){
   }
 
   grid.innerHTML = items.map(s=>{
-    const idx   = stock.indexOf(s);
-    const brand = extractBrand(s.cat);
-    const pf    = s.puffs ? fmtPuffs(s.puffs)+' puffs' : '';
-    return `<div class="cat-card ${s.enVente?'on':''}">
+    const idx       = stock.indexOf(s);
+    const brand     = extractBrand(s.cat);
+    const pf        = s.puffs ? fmtPuffs(s.puffs)+' puffs' : '';
+    const hasCarton = s.carton && s.cartonQty > 0 && parseFloat(s.cartonPrice||0) > 0;
+    const enVenteU  = s.enVenteUnite !== false ? (s.enVente||false) : false;
+    const enVenteC  = s.enVenteCarton || false;
+
+    return `<div class="cat-card ${enVenteU||enVenteC?'on':''}">
       <div class="cat-card-img">
         ${s.image?`<img src="${s.image}" alt="${s.name}">`:`<span style="font-size:32px;">${emoji(s.name)}</span>`}
       </div>
       <div class="cat-card-brand">${brand}${s.taux?' · '+s.taux:''}</div>
       <div class="cat-card-name">${s.name||'Sans nom'}</div>
       <div class="cat-card-meta">${[pf, s.qty+' en stock'].filter(Boolean).join(' · ')}</div>
-      <div class="cat-card-price">${parseFloat(s.price||0).toFixed(2)}€</div>
-      <div class="cat-card-toggle">
-        <label class="sw">
-          <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
-          <span class="sw-t"></span><span class="sw-k"></span>
-        </label>
-        <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'En vente ✓':'Désactivé'}</span>
+
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <!-- Toggle UNITE -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:${enVenteU?'rgba(74,222,128,.07)':'rgba(255,255,255,.03)'};border:1px solid ${enVenteU?'var(--grbdr)':'var(--gb)'};border-radius:var(--rs);">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text);">A l'unité</div>
+            <div style="font-size:10px;color:var(--t3);">${parseFloat(s.price||0).toFixed(2)}€/pcs</div>
+          </div>
+          <label class="sw">
+            <input type="checkbox" ${enVenteU?'checked':''} onchange="toggleCatUnite(${idx},this.checked)">
+            <span class="sw-t"></span><span class="sw-k"></span>
+          </label>
+        </div>
+        ${hasCarton ? `
+        <!-- Toggle CARTON -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:${enVenteC?'rgba(79,195,247,.07)':'rgba(255,255,255,.03)'};border:1px solid ${enVenteC?'var(--bbdr)':'var(--gb)'};border-radius:var(--rs);">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--blue);">📦 Carton ×${s.cartonQty}</div>
+            <div style="font-size:10px;color:var(--t3);">${parseFloat(s.cartonPrice||0).toFixed(2)}€/carton</div>
+          </div>
+          <label class="sw">
+            <input type="checkbox" ${enVenteC?'checked':''} onchange="toggleCatCarton(${idx},this.checked)">
+            <span class="sw-t"></span><span class="sw-k"></span>
+          </label>
+        </div>` : ''}
       </div>
     </div>`;
   }).join('');
-
-  // ── Section Cartons
-  const cartonItems = stock.filter(s=>s.carton&&s.cartonQty>0&&s.qty>0);
-  const cartonSection = document.getElementById('cartonSection');
-  const cartonGrid    = document.getElementById('cartonGrid');
-  if(cartonItems.length){
-    cartonSection.style.display='block';
-    cartonGrid.innerHTML = cartonItems.map(s=>{
-      const idx         = stock.indexOf(s);
-      const brand       = extractBrand(s.cat);
-      const cartonPrice = (parseFloat(s.price||0)*s.cartonQty).toFixed(2);
-      const cartonsLeft = Math.floor(s.qty/s.cartonQty);
-      return `<div class="cat-card ${s.enVente?'on':''}">
-        <div class="cat-card-img" style="position:relative;">
-          ${s.image?`<img src="${s.image}" alt="${s.name}">`:`<span style="font-size:32px;">📦</span>`}
-          <span style="position:absolute;top:4px;left:4px;background:rgba(79,195,247,.2);border:1px solid rgba(79,195,247,.4);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--blue);">×${s.cartonQty}</span>
-        </div>
-        <div class="cat-card-brand">${brand}${s.taux?' · '+s.taux:''}</div>
-        <div class="cat-card-name">${s.name||'Sans nom'}</div>
-        <div class="cat-card-meta">Carton de ${s.cartonQty} · ${cartonsLeft} carton(s) dispo</div>
-        <div class="cat-card-price" style="color:var(--blue);">${cartonPrice}€</div>
-        <div class="cat-card-toggle">
-          <label class="sw">
-            <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
-            <span class="sw-t"></span><span class="sw-k"></span>
-          </label>
-          <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'En vente ✓':'Désactivé'}</span>
-        </div>
-      </div>`;
-    }).join('');
-  } else {
-    cartonSection.style.display='none';
-  }
 }
 
-function catSelectAll(state){ stock.forEach(s=>{if(s.qty>0)s.enVente=state;}); renderCatalogue(); }
+function catSelectAll(state){
+  stock.forEach(s=>{
+    if(s.qty>0){
+      s.enVente = state;
+      s.enVenteUnite = state;
+    }
+  });
+  renderCatalogue();
+}
+
+function toggleCatUnite(idx, checked){
+  stock[idx].enVenteUnite = checked;
+  stock[idx].enVente      = checked; // compatibilite
+  renderCatalogue();
+}
+
+function toggleCatCarton(idx, checked){
+  stock[idx].enVenteCarton = checked;
+  renderCatalogue();
+}
 
 async function pushCatalogue(){
-  const items = stock.filter(s=>s.enVente&&s.qty>0).map(s=>({
-    title      : s.name,
-    image      : s.image||'',
-    description: s.puffs ? fmtPuffs(s.puffs)+' puffs'+(s.cat?' · '+s.cat:'') : (s.cat||''),
-    price      : String(s.price||0),
-    asset      : 'EUR',
-    payload    : 'stock_'+s.id,
-    stockId    : s.id,
-    cat        : (s.cat||'')+(s.taux?' '+s.taux:''),
-    carton     : s.carton||false,
-    cartonQty  : s.cartonQty||0,
-    cartonPrice: s.carton&&s.cartonQty ? String((parseFloat(s.price||0)*s.cartonQty).toFixed(2)) : '0',
-  }));
+  const items = [];
+
+  // Articles a l'unite
+  stock.filter(s=>(s.enVenteUnite||s.enVente)&&s.qty>0).forEach(s=>{
+    items.push({
+      title      : s.name,
+      image      : s.image||'',
+      description: s.puffs ? fmtPuffs(s.puffs)+' puffs'+(s.cat?' · '+s.cat:'') : (s.cat||''),
+      price      : String(parseFloat(s.price||0).toFixed(2)),
+      asset      : 'EUR',
+      payload    : 'stock_'+s.id,
+      stockId    : s.id,
+      cat        : (s.cat||'')+(s.taux?' '+s.taux:''),
+      isCarton   : false,
+      carton     : false,
+    });
+  });
+
+  // Articles au carton (prix et toggle INDEPENDANTS)
+  stock.filter(s=>s.enVenteCarton&&s.carton&&s.cartonQty>0&&parseFloat(s.cartonPrice||0)>0&&s.qty>=s.cartonQty).forEach(s=>{
+    items.push({
+      title      : s.name+' (Carton x'+s.cartonQty+')',
+      image      : s.image||'',
+      description: 'Carton de '+s.cartonQty+(s.puffs?' · '+fmtPuffs(s.puffs)+' puffs':'')+(s.cat?' · '+s.cat:''),
+      price      : String(parseFloat(s.cartonPrice||0).toFixed(2)),
+      asset      : 'EUR',
+      payload    : 'carton_'+s.id,
+      stockId    : s.id,
+      cat        : (s.cat||'')+(s.taux?' '+s.taux:''),
+      isCarton   : true,
+      carton     : true,
+      cartonQty  : s.cartonQty,
+      cartonPrice: String(parseFloat(s.cartonPrice||0).toFixed(2)),
+    });
+  });
+
   try {
     await api('POST','/seller/shop', items);
-    showToast('✓ Catalogue poussé · '+items.length+' goût(s) en vente');
+    showToast('✓ Catalogue poussé · '+items.length+' article(s) en vente');
   } catch(e){ showToast('⚠ '+e.message,'err'); }
 }
 
@@ -1464,7 +1522,7 @@ function buildCharts(){
                 y:{grid:{color:'rgba(255,255,255,.04)'}, ticks:{color:'#5A5752',font:{size:10}}} } }
   });
 
-  const ordersCtx = document.getElementById('chartOrders2').getContext('2d');
+  const ordersCtx = document.getElementById('chartOrders').getContext('2d');
   chartOrders2 = new Chart(ordersCtx,{
     type:'line',
     data:{ labels:data.labels, datasets:[{ label:'Ventes', data:data.count,
@@ -1534,10 +1592,6 @@ function buildComparison(){
 // ═══════════════════════════════════════════════════
 //  PANEL PROMOS
 // ═══════════════════════════════════════════════════
-function togglePromoType(){
-  const v = document.getElementById('promoType').value;
-  document.getElementById('promoTypeLabel').textContent = v==='percent'?'(%)':'(€)';
-}
 function togglePromoLimit(){
   const v = document.getElementById('promoLimitType').value;
   document.getElementById('promoLimitValBox').style.display = v==='total'?'block':'none';
@@ -1580,8 +1634,8 @@ function createPromo(){
 }
 
 function renderPromos(){
-  document.getElementById('promoCount').textContent = promos.filter(p=>p.active).length;
-  const el = document.getElementById('promoList');
+  document.getElementById('promosCount').textContent = promos.filter(p=>p.active).length;
+  const el = document.getElementById('promosList');
   if(!promos.length){
     el.innerHTML=`<div class="empty-state"><div class="empty-icon">🏷</div><div class="empty-title">Aucun code promo</div><div class="empty-sub">Créez votre premier code</div></div>`;
     return;
@@ -1621,30 +1675,23 @@ async function pushPromos(){
 //  PANEL RETRAITS
 // ═══════════════════════════════════════════════════
 function renderWithdrawals(){
-  document.getElementById('wdBalance').textContent = parseFloat(seller.balance||0).toFixed(2)+'\u20ac';
+  document.getElementById('wdBalance').textContent = parseFloat(seller.balance||0).toFixed(2)+'€';
   document.getElementById('wdAmount').max = seller.balance||0;
+
   const withdrawals = seller.withdrawals||[];
-  const totalPaid = withdrawals.filter(w=>w.status==='paid').reduce((s,w)=>s+parseFloat(w.amount||0),0);
-  document.getElementById('wdTotal').textContent = totalPaid.toFixed(2)+'\u20ac';
   const el = document.getElementById('withdrawalsList');
   if(!withdrawals.length){
-    el.innerHTML='<div class="empty-state"><div class="empty-icon">\ud83d\udcb8</div><div class="empty-title">Aucun retrait</div><div class="empty-sub">Vos demandes apparaîtront ici</div></div>';
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">💸</div><div class="empty-title">Aucun retrait</div><div class="empty-sub">Vos demandes apparaîtront ici</div></div>`;
     return;
   }
-  el.innerHTML = withdrawals.map(wd=>{
-    const amt = parseFloat(wd.amount||0).toFixed(2);
-    const coords = (wd.coords||'\u2014').slice(0,45);
-    const date = wd.date||'\u2014';
-    const isPaid = wd.status==='paid';
-    return '<div style="display:flex;align-items:center;gap:12px;padding:13px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:8px;">'
-      +'<div style="flex:1;min-width:0;">'
-      +'<div style="font-size:18px;font-weight:800;color:var(--gold);">'+amt+'\u20ac</div>'
-      +'<div style="font-size:11px;color:var(--t2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+coords+'</div>'
-      +'<div style="font-size:10px;color:var(--t3);margin-top:2px;">\ud83d\udcc5 '+date+'</div>'
-      +'</div>'
-      +'<span class="tag '+(isPaid?'tg':'ta')+'">'+(isPaid?'\u2713 Pay\xe9':'\u23f3 En attente')+'</span>'
-      +'</div>';
-  }).join('');
+  el.innerHTML = withdrawals.map(wd=>`<div class="wd-card">
+    <div class="wd-amount">${wd.amount}€</div>
+    <div class="wd-info">
+      <div>${wd.coords?.slice(0,40)||'—'}…</div>
+      <div class="wd-date">📅 ${wd.date}</div>
+    </div>
+    <span class="tag ${wd.status==='paid'?'ok':'pending'}">${wd.status==='paid'?'✓ Payé':'⏳ En attente'}</span>
+  </div>`).join('');
 }
 
 function toggleWdMode(){
