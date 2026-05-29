@@ -245,7 +245,6 @@ input,textarea,select{font-family:inherit;}
     </div>
     <div class="login-err" id="loginErr"></div>
   </div>
-  </div>
 </div>
 
 <!-- DASHBOARD -->
@@ -536,6 +535,8 @@ input,textarea,select{font-family:inherit;}
             <button class="btn primary full" onclick="requestWithdrawal()" style="margin-top:4px;">Envoyer la demande</button>
           </div>
         </div>
+
+      </div><!-- /panel-withdrawals -->
 
       <!-- SETTINGS -->
       <div class="panel" id="panel-settings">
@@ -1112,16 +1113,12 @@ function vToggleRow(id, checked){
 
 function vSelectAll(checked){
   stock.forEach(s=>{ if(checked) vBulkSelected.add(s.id); else vBulkSelected.delete(s.id); });
-  renderStock();
-  document.getElementById('vChkAll').checked = checked;
-  vUpdateBulkBar();
+  renderStock(); vUpdateBulkBar();
 }
 
 function vDeselectAll(){
   vBulkSelected.clear();
-  renderStock();
-  document.getElementById('vChkAll').checked = false;
-  vUpdateBulkBar();
+  renderStock(); vUpdateBulkBar();
 }
 
 function vUpdateBulkBar(){
@@ -1405,7 +1402,7 @@ async function loadStats(){
     if(!orders.length) orders = await api('GET','/seller/orders');
     buildCharts();
     buildTopProducts();
-    buildComparison();
+    if(document.getElementById('comparisonSection')) buildComparison();
   } catch(e){ showToast('⚠ '+e.message,'err'); }
 }
 
@@ -1452,7 +1449,7 @@ function buildCharts(){
                 y:{grid:{color:'rgba(255,255,255,.04)'}, ticks:{color:'#5A5752',font:{size:10}}} } }
   });
 
-  const ordersCtx = document.getElementById('chartOrders').getContext('2d');
+  const ordersCtx = document.getElementById('chartOrders2').getContext('2d');
   chartOrders2 = new Chart(ordersCtx,{
     type:'line',
     data:{ labels:data.labels, datasets:[{ label:'Ventes', data:data.count,
@@ -1564,8 +1561,8 @@ function createPromo(){
 }
 
 function renderPromos(){
-  document.getElementById('promosCount').textContent = promos.filter(p=>p.active).length;
-  const el = document.getElementById('promosList');
+  document.getElementById('promoCount').textContent = promos.filter(p=>p.active).length;
+  const el = document.getElementById('promoList');
   if(!promos.length){
     el.innerHTML=`<div class="empty-state"><div class="empty-icon">🏷</div><div class="empty-title">Aucun code promo</div><div class="empty-sub">Créez votre premier code</div></div>`;
     return;
