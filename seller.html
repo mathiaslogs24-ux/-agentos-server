@@ -831,7 +831,8 @@ function bootDashboard(){
   dv.style.display='flex';
   document.getElementById('sellerAv').textContent=(seller.shopName||seller.name||'?')[0].toUpperCase();
   document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
-  updateGlobalStats(); renderStockPanel(); renderCatalogue();
+  updateGlobalStats();
+  switchTab('stock');
 }
 
 function doLogout(){
