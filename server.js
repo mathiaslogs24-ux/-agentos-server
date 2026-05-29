@@ -932,39 +932,79 @@ app.post('/seller/promos', sellerAuth, async(req,res)=>{
   res.json({ok:true, count:req.body.length});
 });
 
-app.post('/promo/check', async(req,res)=>{
-  const { code, sellerId, cat, amount } = req.body;
-  if(!code) return res.status(400).json({error:'Code manquant'});
-  const userId = req.body.userId || 'guest';
+// ── Vérification code promo (interne — non exposée publiquement)
+async function applyPromoCode(code, sellerId, cat, amount, userId){
+  if(!code) return { ok:false, error:'Code manquant' };
+  const codeUp = code.trim().toUpperCase();
 
   let found = null;
   let foundSellerId = null;
+  let foundSeller = null;
 
+  // Chercher dans les promos admin
   const adminPromos = cfg.promos || [];
-  const ap = adminPromos.find(p=>p.code===code.toUpperCase()&&p.active);
-  if(ap) { found = ap; foundSellerId = 'admin'; }
+  const ap = adminPromos.find(p=>p.code===codeUp&&p.active);
+  if(ap){ found=ap; foundSellerId='admin'; }
 
-  if(!found) {
+  // Chercher dans les promos vendeurs
+  if(!found){
     const sellers = await getSellers();
-    for(const v of sellers) {
-      const vp = (v.promos||[]).find(p=>p.code===code.toUpperCase()&&p.active);
-      if(vp) { found = vp; foundSellerId = String(v.id); break; }
+    for(const v of sellers){
+      const vp=(v.promos||[]).find(p=>p.code===codeUp&&p.active);
+      if(vp){ found=vp; foundSellerId=String(v.id); foundSeller=v; break; }
     }
   }
 
-  if(!found) return res.status(404).json({error:'Code invalide ou expiré'});
-  if(found.expiry && new Date(found.expiry) < new Date()) return res.status(400).json({error:'Code expiré'});
-  if(found.limitType==='total' && found.usedCount >= found.limitVal) return res.status(400).json({error:'Code épuisé'});
-  if(found.limitType==='per_user' && (found.usedBy||[]).includes(userId)) return res.status(400).json({error:'Déjà utilisé'});
-  if(found.scope==='seller' && sellerId && foundSellerId!=='admin' && String(foundSellerId)!==String(sellerId)) return res.status(400).json({error:'Code non valide pour ce vendeur'});
-  if(found.scope==='category' && cat && found.cat && found.cat.toLowerCase()!==cat.toLowerCase()) return res.status(400).json({error:'Code non valide pour cette catégorie'});
+  if(!found)                                                                 return { ok:false, error:'Code invalide' };
+  if(found.expiry && new Date(found.expiry) < new Date())                   return { ok:false, error:'Code expiré' };
+  if(found.limitType==='total' && (found.usedCount||0) >= found.limitVal)   return { ok:false, error:'Code épuisé' };
+  if(found.limitType==='per_user' && (found.usedBy||[]).includes(userId))   return { ok:false, error:'Déjà utilisé par ce client' };
+  if(found.scope==='seller' && sellerId && foundSellerId!=='admin' && String(foundSellerId)!==String(sellerId))
+    return { ok:false, error:'Code non valide pour ce vendeur' };
+  if(found.scope==='category' && cat && found.cat && found.cat.toLowerCase()!==cat.toLowerCase())
+    return { ok:false, error:'Code non valide pour cette catégorie' };
 
   const discount = found.type==='percent'
     ? parseFloat(amount) * found.value / 100
-    : found.value;
+    : Math.min(found.value, parseFloat(amount)); // ne pas dépasser le total
 
-  res.json({ ok:true, code:found.code, type:found.type, value:found.value, discount:discount.toFixed(2) });
-});
+  return {
+    ok: true,
+    code: found.code,
+    type: found.type,
+    value: found.value,
+    discount: parseFloat(discount.toFixed(2)),
+    foundSellerId,
+    foundSeller,
+    promoObj: found,
+  };
+}
+
+// ── Incrémenter le usedCount après paiement réussi
+async function markPromoUsed(code, userId){
+  const codeUp = (code||'').toUpperCase();
+
+  // Admin promos
+  const ap = (cfg.promos||[]).find(p=>p.code===codeUp);
+  if(ap){
+    ap.usedCount=(ap.usedCount||0)+1;
+    if(userId && ap.limitType==='per_user') ap.usedBy=[...(ap.usedBy||[]),userId];
+    await saveConfig();
+    return;
+  }
+
+  // Vendeur promos
+  const sellers = await getSellers();
+  for(const v of sellers){
+    const vp=(v.promos||[]).find(p=>p.code===codeUp);
+    if(vp){
+      vp.usedCount=(vp.usedCount||0)+1;
+      if(userId && vp.limitType==='per_user') vp.usedBy=[...(vp.usedBy||[]),userId];
+      await saveSeller(v);
+      return;
+    }
+  }
+}
 
 app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   const { amount, coords, name, mode } = req.body;
@@ -1093,10 +1133,24 @@ app.get('/stock-public',async(req,res)=>{
 //  CHECKOUT STRIPE
 // ─────────────────────────────────────────
 app.post('/shop-checkout',async(req,res)=>{
-  const{cart,userId,userName}=req.body;
+  const{cart,userId,userName,promoCode}=req.body;
   if(!cart||!cart.length) return res.status(400).json({error:'Panier vide'});
   if(!cfg.stripeKey)       return res.status(400).json({error:'Stripe non configuré'});
   try{
+    // Calculer le sous-total
+    const subtotal = cart.reduce((s,i)=>s+parseFloat(i.price)*parseInt(i.qty||1),0);
+
+    // Vérifier le code promo côté serveur (jamais côté client)
+    let promoResult = null;
+    if(promoCode){
+      const firstSellerId = cart.find(i=>i.sellerId&&i.sellerId!=='admin')?.sellerId || 'admin';
+      promoResult = await applyPromoCode(promoCode, firstSellerId, null, subtotal, userId||'guest');
+      if(!promoResult.ok){
+        return res.status(400).json({error:'Code promo : '+promoResult.error});
+      }
+      addLog('info',`Promo "${promoCode}" appliquée · -${promoResult.discount}€`);
+    }
+
     const serverUrl=`https://agentos-server-production-a5b4.up.railway.app`;
     const params=new URLSearchParams();
     params.append('payment_method_types[]','card');
@@ -1112,6 +1166,9 @@ app.post('/shop-checkout',async(req,res)=>{
     params.append('metadata[userId]',userId||'');
     params.append('metadata[userName]',userName||'');
     params.append('metadata[cartJson]',JSON.stringify(cart.map(i=>({sellerId:i.sellerId,id:i.id,price:i.price,qty:i.qty}))));
+    if(promoResult) params.append('metadata[promoCode]',promoResult.code);
+
+    // Appliquer la réduction : ajouter une ligne négative si promo
     cart.forEach((item,idx)=>{
       const cents=Math.round(parseFloat(item.price)*100);
       params.append(`line_items[${idx}][price_data][currency]`,'eur');
@@ -1120,13 +1177,26 @@ app.post('/shop-checkout',async(req,res)=>{
       params.append(`line_items[${idx}][price_data][unit_amount]`,cents);
       params.append(`line_items[${idx}][quantity]`,'1');
     });
+
+    // Ligne de réduction Stripe (montant négatif)
+    if(promoResult && promoResult.discount > 0){
+      const discountCents = -Math.round(promoResult.discount * 100);
+      const nextIdx = cart.length;
+      params.append(`line_items[${nextIdx}][price_data][currency]`,'eur');
+      params.append(`line_items[${nextIdx}][price_data][product_data][name]`,`Code promo : ${promoResult.code}`);
+      params.append(`line_items[${nextIdx}][price_data][product_data][description]`,
+        promoResult.type==='percent'?`-${promoResult.value}%`:`-${promoResult.value}€`);
+      params.append(`line_items[${nextIdx}][price_data][unit_amount]`,discountCents);
+      params.append(`line_items[${nextIdx}][quantity]`,'1');
+    }
+
     const sr=await fetch('https://api.stripe.com/v1/checkout/sessions',{
       method:'POST',headers:{'Authorization':`Bearer ${cfg.stripeKey}`,'Content-Type':'application/x-www-form-urlencoded'},body:params,
     });
     const session=await sr.json();
     if(session.error) throw new Error(session.error.message);
-    addLog('info',`Checkout · @${userName} · ${cart.length} article(s)`);
-    res.json({url:session.url});
+    addLog('info',`Checkout · @${userName} · ${cart.length} article(s)`+(promoResult?` · promo ${promoResult.code} -${promoResult.discount}€`:''));
+    res.json({url:session.url, promoApplied:promoResult?{code:promoResult.code,discount:promoResult.discount,type:promoResult.type}:null});
   }catch(e){addLog('err','Checkout: '+e.message);res.status(500).json({error:e.message});}
 });
 
@@ -1253,6 +1323,12 @@ app.post('/stripe-webhook',async(req,res)=>{
       }
     }
     addLog('ok',`Stripe · @${userName} · ${amount}€ · com:${commission}€`);
+
+    // Incrémenter usedCount du code promo si utilisé
+    if(meta.promoCode){
+      try{ await markPromoUsed(meta.promoCode, userId); }
+      catch(e){ addLog('warn','markPromoUsed: '+e.message); }
+    }
     if(userId&&bot){
       try{await bot.sendMessage(userId,`✅ *Commande confirmée !*\n\n🛍 ${productNames.join(', ')||'Votre commande'}\n💶 ${amount}€ payés\n\nMerci ! 🙏`,{parse_mode:'Markdown'});}catch(e){}
     }
