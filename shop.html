@@ -40,25 +40,18 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .chip.ab{background:rgba(79,195,247,.12);color:var(--blue);border-color:rgba(79,195,247,.3);}
 .chip:active{transform:scale(.95);}
 .main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-
-/* ── MODEL CARDS (1 carte = 1 modèle) */
 .seller-section{padding:12px 12px 0;}
 .seller-hd{display:flex;align-items:center;gap:9px;margin-bottom:9px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
 .seller-av{width:36px;height:36px;border-radius:10px;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#000;flex-shrink:0;}
 .seller-info{flex:1;}.seller-name{font-size:13px;font-weight:800;}.seller-sub{font-size:10px;color:var(--t3);margin-top:1px;}
 .vbadge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.2);}
-
 .models-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:0 12px 12px;}
-
-/* Carte modèle */
 .model-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:transform .15s;position:relative;}
 .model-card:active{transform:scale(.97);}
 .model-card.all-oos{opacity:.45;pointer-events:none;}
-
 .model-top{height:110px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:48px;position:relative;overflow:hidden;}
 .model-top img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
 .model-top .model-emoji{position:relative;z-index:1;}
-
 .puffs-badge{position:absolute;top:6px;left:6px;background:rgba(192,132,252,.18);border:1px solid rgba(192,132,252,.35);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--purple);font-family:'DM Mono';}
 .flavors-badge{position:absolute;top:6px;right:6px;background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.3);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--gold);font-family:'DM Mono';}
 .stock-badge{position:absolute;bottom:6px;right:6px;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;font-family:'DM Mono';}
@@ -66,35 +59,26 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .stock-badge.low{background:rgba(251,146,60,.15);color:#FB923C;}
 .fav-btn{position:absolute;bottom:6px;left:6px;width:24px;height:24px;border-radius:7px;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:13px;backdrop-filter:blur(4px);}
 .rating-mini{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.5);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--gold);font-family:'DM Mono';backdrop-filter:blur(4px);}
-
 .model-body{padding:8px 10px 10px;}
 .model-brand{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:2px;}
 .model-name{font-size:12px;font-weight:700;line-height:1.3;margin-bottom:4px;}
-
-/* Mini chips de goûts dans la carte */
 .model-flavors-row{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:6px;}
 .model-flavors-row::-webkit-scrollbar{display:none;}
 .mfchip{flex-shrink:0;padding:3px 7px;border-radius:10px;font-size:9px;font-weight:700;background:var(--bg3);border:1px solid var(--border);color:var(--t2);white-space:nowrap;cursor:pointer;transition:all .12s;}
 .mfchip.oos{opacity:.35;}
 .mfchip:active{transform:scale(.92);}
-
 .model-footer{display:flex;align-items:center;justify-content:space-between;}
 .model-price{font-size:14px;font-weight:800;}
 .add-btn{width:26px;height:26px;border-radius:7px;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#000;}
 .add-btn:active{transform:scale(.88);}
 .add-btn.in-cart{background:rgba(240,180,41,.15);color:var(--gold);border:1.5px solid rgba(240,180,41,.4);font-size:11px;}
-
 .empty{text-align:center;padding:50px 20px;display:flex;flex-direction:column;align-items:center;gap:12px;}
 .empty-icon{font-size:42px;opacity:.35;}.empty-title{font-size:15px;font-weight:700;color:var(--t2);}.empty-sub{font-size:12px;color:var(--t3);}
-
-/* ── OVERLAYS & SHEETS */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;opacity:0;pointer-events:none;transition:opacity .25s;backdrop-filter:blur(5px);}
 .overlay.open{opacity:1;pointer-events:all;}
 .sheet{position:fixed;bottom:0;left:0;right:0;z-index:51;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--border);transform:translateY(100%);transition:transform .32s cubic-bezier(.32,.72,0,1);max-height:92dvh;overflow-y:auto;padding-bottom:20px;}
 .sheet.open{transform:translateY(0);}
 .drag-handle{width:36px;height:4px;background:var(--bg3);border-radius:2px;margin:11px auto 16px;}
-
-/* ── DETAIL SHEET (avec sélection goût) */
 .det-img{height:160px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:64px;margin:0 16px;border-radius:var(--r);border:1px solid var(--border);position:relative;overflow:hidden;}
 .det-img img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:var(--r);}
 .det-img .det-emoji{position:relative;z-index:1;}
@@ -108,8 +92,6 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .dtag.green{color:var(--green);border-color:rgba(74,222,128,.3);}
 .dtag.gold{color:var(--gold);border-color:rgba(240,180,41,.3);}
 .dtag.blue{color:var(--blue);border-color:rgba(79,195,247,.3);}
-
-/* ── SÉLECTION GOÛT (cœur du changement) */
 .flavor-section{margin-bottom:16px;}
 .flavor-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
 .flavor-grid{display:flex;flex-wrap:wrap;gap:7px;}
@@ -120,8 +102,6 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .flavor-chip .fchip-emj{font-size:14px;}
 .flavor-chip .fchip-stock{font-size:9px;color:var(--t3);font-family:'DM Mono';}
 .flavor-chip.selected .fchip-stock{color:var(--gold);}
-
-/* Reviews */
 .ratings-section{margin-bottom:14px;}
 .ratings-title{font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;gap:8px;}
 .avg-rating{font-size:18px;font-weight:800;color:var(--gold);}
@@ -133,7 +113,6 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .star-select span{opacity:.3;transition:opacity .1s;}.star-select span.sel{opacity:1;}
 .review-input{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'Syne',sans-serif;font-size:12px;padding:8px 11px;border-radius:var(--rs);outline:none;resize:none;}
 .review-input:focus{border-color:var(--gold);}
-
 .price-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;margin-top:14px;}
 .big-price{font-size:26px;font-weight:800;}.big-price small{font-size:13px;color:var(--t3);}
 .qty-ctrl{display:flex;align-items:center;gap:12px;}
@@ -142,9 +121,6 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .qty-num{font-size:17px;font-weight:800;min-width:22px;text-align:center;}
 .add-main{width:100%;padding:14px;border-radius:13px;background:var(--gold);color:#000;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;border:none;cursor:pointer;transition:all .15s;}
 .add-main:active{transform:scale(.98);}.add-main:disabled{background:var(--bg3);color:var(--t3);cursor:not-allowed;transform:none;}
-.no-flavor-hint{font-size:12px;color:var(--t3);text-align:center;padding:8px 0;}
-
-/* ── CART */
 .sheet-title-row{display:flex;align-items:center;justify-content:space-between;padding:0 16px 12px;}
 .sheet-title{font-size:18px;font-weight:800;}.sheet-clear{font-size:12px;color:var(--red);cursor:pointer;font-weight:600;}
 .ci{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);}
@@ -160,10 +136,10 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .csep{height:1px;background:var(--border);margin:8px 0;}
 .cr{display:flex;justify-content:space-between;padding:4px 0;}.cr .l{font-size:12px;color:var(--t2);}.cr .v{font-size:12px;font-weight:700;}
 .cr.tot .l{font-size:15px;font-weight:800;}.cr.tot .v{font-size:19px;font-weight:800;color:var(--gold);}
+.cr.discount .v{color:var(--green);}
 .pay-btn{width:100%;padding:15px;border-radius:13px;background:var(--gold);color:#000;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
 .pay-btn:active{transform:scale(.98);}.pay-btn:disabled{background:var(--bg3);color:var(--t3);cursor:not-allowed;transform:none;}
-
-/* ── PROMO */
+/* PROMO */
 .promo-section{margin:4px 0 10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);}
 .promo-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:7px;}
 .promo-row{display:flex;gap:7px;}
@@ -179,9 +155,6 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .promo-feedback.ok{display:flex;background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.2);}
 .promo-feedback.err{display:flex;background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.2);}
 .promo-remove{margin-left:auto;font-size:10px;cursor:pointer;opacity:.7;font-weight:700;}
-.cr.discount .v{color:var(--green);}
-
-/* ── FAVORIS */
 .fav-empty{text-align:center;padding:40px 20px;color:var(--t3);font-size:13px;}
 .fav-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;}
 .fav-item:active{background:rgba(255,255,255,.03);}
@@ -189,12 +162,9 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 .fav-item-inf{flex:1;}.fav-item-name{font-size:13px;font-weight:700;}.fav-item-sub{font-size:11px;color:var(--t3);margin-top:2px;}
 .fav-item-price{font-size:14px;font-weight:800;color:var(--gold);flex-shrink:0;}
 .fav-remove{font-size:16px;color:var(--t3);padding:4px;cursor:pointer;}
-
-/* ── HISTORIQUE */
 .order-item-h{padding:12px 14px;border-bottom:1px solid var(--border);}
 .order-date{font-size:10px;color:var(--t3);margin-bottom:4px;}.order-products{font-size:13px;font-weight:700;margin-bottom:4px;}
 .order-total{font-size:14px;font-weight:800;color:var(--gold);}.order-status{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;background:rgba(74,222,128,.12);color:var(--green);margin-top:4px;}
-
 .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;}
 .spinner{width:38px;height:38px;border:3px solid var(--bg3);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -228,14 +198,11 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
     <div class="filter-row" id="brandRow"></div>
     <div class="filter-row" id="puffsRow"></div>
   </div>
-
   <div class="main" id="mainArea">
     <div class="loading" id="loadingEl"><div class="spinner"></div><div style="font-size:13px;color:var(--t2);font-weight:600;">Chargement…</div></div>
     <div id="marketContent" style="display:none;"></div>
     <div class="empty" id="emptyEl" style="display:none;">
-      <div class="empty-icon">🔍</div>
-      <div class="empty-title">Aucun produit</div>
-      <div class="empty-sub">Essayez d'autres filtres</div>
+      <div class="empty-icon">🔍</div><div class="empty-title">Aucun produit</div><div class="empty-sub">Essayez d'autres filtres</div>
     </div>
   </div>
 </div>
@@ -249,9 +216,7 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
     <div class="det-brand" id="dBrand"></div>
     <div class="det-name" id="dName"></div>
     <div class="det-tags" id="dTags"></div>
-    <!-- Sélection goût -->
     <div class="flavor-section" id="flavorSection"></div>
-    <!-- Avis -->
     <div class="ratings-section" id="ratingsSection"></div>
     <div class="price-row">
       <div class="big-price" id="dPrice"></div>
@@ -299,16 +264,15 @@ const tg = window.Telegram?.WebApp;
 if(tg){ tg.ready(); tg.expand(); tg.setHeaderColor('#111113'); tg.setBackgroundColor('#0A0A0B'); }
 const USER_ID = tg?.initDataUnsafe?.user?.id || 'guest';
 
-// ── STATE
-let sellersData = [], allProducts = [], allCartons = [];
-let cart = {};
-let filterSeller = 'all', filterBrand = 'all', filterPuffs = 'all', searchQ = '';
-// Detail : on travaille sur un "groupe" (modèle) et un goût sélectionné
-let detailGroup = null;   // { cat, puffs, price, items: [produit, ...], isCarton }
-let detailFlavor = null;  // le produit sélectionné dans le groupe
-let detailQty = 1;
-// Promo
-let promoState = { code:'', discount:0, type:'', value:0, applied:false };
+let sellersData=[], allProducts=[], allCartons=[];
+let cart={};
+let filterSeller='all', filterBrand='all', filterPuffs='all', searchQ='';
+let detailGroup=null, detailFlavor=null, detailQty=1;
+
+// ── PROMO STATE
+// Le code est stocké localement pour l'affichage
+// La validation REELLE se fait côté serveur au moment du paiement
+let promoState = { code:'', applied:false, discount:0, type:'', value:0 };
 
 // ── PERSISTANCE
 function loadLocal(){ try{ cart=JSON.parse(localStorage.getItem('cart_'+USER_ID)||'{}'); }catch(e){ cart={}; } }
@@ -324,7 +288,6 @@ function saveHistory(order){
   try{ localStorage.setItem('orders_'+USER_ID,JSON.stringify(h)); }catch(e){}
 }
 
-// ── UTILS
 function emoji(n){
   n=(n||'').toLowerCase();
   if(n.includes('blue')||n.includes('myrt')||n.includes('blueberry')) return '🫐';
@@ -346,377 +309,199 @@ function fmtPuffs(p){ return p>=1000?(p/1000).toFixed(0)+'K':String(p); }
 function pKey(p){ return p.sellerId+'_'+p.id+(p.isCarton?'_carton':''); }
 function extractBrand(cat){ return (cat||'').split(' ')[0]||''; }
 function puffsK(p){ return p?fmtPuffs(p):'other'; }
-// Clé de groupe : sellerId + cat (modèle = même cat/marque/nicotine)
 function groupKey(p){ return p.sellerId+'__'+p.cat+'__'+(p.isCarton?'carton':'unite'); }
 function getAvgRating(k){ const r=getReviews(k); if(!r.length) return null; return (r.reduce((s,x)=>s+x.stars,0)/r.length).toFixed(1); }
 
-// ── GROUPEMENT : construire les groupes modèles depuis les produits
 function buildGroups(products){
-  // products filtrés (unité ou carton, seller ok, etc.)
-  const map = {};
-  products.forEach(p => {
-    const k = groupKey(p);
-    if(!map[k]){
-      map[k] = {
-        gKey    : k,
-        sellerId: p.sellerId,
-        sellerName: p.sellerName,
-        sellerShop: p.sellerShop,
-        cat     : p.cat,
-        puffs   : p.puffs,
-        price   : p.price,   // tous les produits d'un même cat ont le même prix
-        image   : p.image,
-        isCarton: p.isCarton,
-        cartonQty: p.cartonQty,
-        items   : []
-      };
-    }
+  const map={};
+  products.forEach(p=>{
+    const k=groupKey(p);
+    if(!map[k]){ map[k]={gKey:k,sellerId:p.sellerId,sellerName:p.sellerName,sellerShop:p.sellerShop,cat:p.cat,puffs:p.puffs,price:p.price,image:p.image,isCarton:p.isCarton,cartonQty:p.cartonQty,items:[]}; }
     map[k].items.push(p);
   });
   return Object.values(map);
 }
 
-// ── INIT
 async function init(){
-  loadLocal();
-  updateBadges();
+  loadLocal(); updateBadges();
   try{
-    const res = await fetch(SERVER+'/marketplace');
+    const res=await fetch(SERVER+'/marketplace');
     if(!res.ok) throw new Error();
-    sellersData = await res.json();
+    sellersData=await res.json();
   }catch(e){
-    sellersData = [{sellerId:'admin',sellerName:'Boutique Officielle',sellerShop:'Boutique Officielle',items:[
+    sellersData=[{sellerId:'admin',sellerName:'Boutique Officielle',sellerShop:'Boutique Officielle',items:[
       {id:1,sellerId:'admin',title:'Blue Razz Ice',cat:'JNR 16K 2%',price:15,qty:20,puffs:16000,alert:5},
       {id:2,sellerId:'admin',title:'Cherry Berry',cat:'JNR 16K 2%',price:15,qty:15,puffs:16000,alert:5},
-      {id:3,sellerId:'admin',title:'Watermelon Ice',cat:'JNR 16K 2%',price:15,qty:30,puffs:16000,alert:5},
-      {id:4,sellerId:'admin',title:'Strawberry Kiwi',cat:'JNR 16K 2%',price:15,qty:0,puffs:16000,alert:5},
-      {id:5,sellerId:'admin',title:'Mango Ice',cat:'JNR 8K 2%',price:12,qty:10,puffs:8000,alert:5},
-      {id:6,sellerId:'admin',title:'Peach Ice',cat:'JNR 8K 2%',price:12,qty:8,puffs:8000,alert:5},
     ]}];
   }
-
-  allProducts = sellersData.flatMap(s =>
-    s.items.map(p => ({...p, sellerName:s.sellerName||s.name, sellerShop:s.sellerShop||s.sellerName, emj:emoji(p.title), isCarton:false}))
-  );
-  allCartons = sellersData.flatMap(s =>
-    s.items
-      .filter(p => p.carton && p.cartonQty>0 && parseFloat(p.cartonPrice||0)>0 && p.qty>=p.cartonQty)
-      .map(p => ({
-        ...p,
-        sellerName:s.sellerName||s.name, sellerShop:s.sellerShop||s.sellerName,
-        isCarton:true,
-        price:parseFloat(p.cartonPrice),
-        qty:Math.floor(p.qty/p.cartonQty),
-        emj:emoji(p.title),
-        title:p.title+' (Carton ×'+p.cartonQty+')',
-      }))
-  );
-
-  buildFilters();
-  renderMarket();
-}
-
-// ── FILTERS
-function buildFilters(){
-  const sellerOpts = [{id:'all',label:'🛍 Tous'}, ...sellersData.map(s=>({id:String(s.sellerId),label:s.sellerShop||s.sellerName}))];
-  document.getElementById('sellerRow').innerHTML = sellerOpts.map(o=>
-    '<div class="chip '+(filterSeller===o.id?'active':'')+'" onclick="setF(\'seller\',\''+o.id+'\')">'+o.label+'</div>'
-  ).join('');
-
-  const brands = ['all', ...new Set(allProducts.map(p=>extractBrand(p.cat)).filter(Boolean))];
-  document.getElementById('brandRow').innerHTML = '<span class="filter-label">Marque</span>'
-    +brands.map(b=>'<div class="chip '+(filterBrand===b?(b==='all'?'active':'ap'):'')+'" onclick="setF(\'brand\',\''+b+'\')">'+(b==='all'?'Toutes':b)+'</div>').join('');
-
-  const puffsVals = [...new Set(allProducts.map(p=>puffsK(p.puffs)).filter(v=>v!=='other'))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
-  document.getElementById('puffsRow').innerHTML = '<span class="filter-label">Puffs</span>'
-    +'<div class="chip '+(filterPuffs==='all'?'active':'')+'" onclick="setF(\'puffs\',\'all\')">Tous</div>'
-    +puffsVals.map(v=>'<div class="chip '+(filterPuffs===v?'ab':'')+'" onclick="setF(\'puffs\',\''+v+'\')">💨 '+v+'</div>').join('');
-}
-
-function setF(t,v){
-  if(t==='seller') filterSeller=v;
-  if(t==='brand')  filterBrand=v;
-  if(t==='puffs')  filterPuffs=v;
+  allProducts=sellersData.flatMap(s=>s.items.map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,emj:emoji(p.title),isCarton:false})));
+  allCartons=sellersData.flatMap(s=>s.items.filter(p=>p.carton&&p.cartonQty>0&&parseFloat(p.cartonPrice||0)>0&&p.qty>=p.cartonQty).map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,isCarton:true,price:parseFloat(p.cartonPrice),qty:Math.floor(p.qty/p.cartonQty),emj:emoji(p.title),title:p.title+' (Carton ×'+p.cartonQty+')'})));
   buildFilters(); renderMarket();
 }
+
+function buildFilters(){
+  const sellerOpts=[{id:'all',label:'🛍 Tous'},...sellersData.map(s=>({id:String(s.sellerId),label:s.sellerShop||s.sellerName}))];
+  document.getElementById('sellerRow').innerHTML=sellerOpts.map(o=>'<div class="chip '+(filterSeller===o.id?'active':'')+'" onclick="setF(\'seller\',\''+o.id+'\')">'+o.label+'</div>').join('');
+  const brands=['all',...new Set(allProducts.map(p=>extractBrand(p.cat)).filter(Boolean))];
+  document.getElementById('brandRow').innerHTML='<span class="filter-label">Marque</span>'+brands.map(b=>'<div class="chip '+(filterBrand===b?(b==='all'?'active':'ap'):'')+'" onclick="setF(\'brand\',\''+b+'\')">'+(b==='all'?'Toutes':b)+'</div>').join('');
+  const puffsVals=[...new Set(allProducts.map(p=>puffsK(p.puffs)).filter(v=>v!=='other'))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
+  document.getElementById('puffsRow').innerHTML='<span class="filter-label">Puffs</span>'+'<div class="chip '+(filterPuffs==='all'?'active':'')+'" onclick="setF(\'puffs\',\'all\')">Tous</div>'+puffsVals.map(v=>'<div class="chip '+(filterPuffs===v?'ab':'')+'" onclick="setF(\'puffs\',\''+v+'\')">💨 '+v+'</div>').join('');
+}
+function setF(t,v){ if(t==='seller')filterSeller=v; if(t==='brand')filterBrand=v; if(t==='puffs')filterPuffs=v; buildFilters(); renderMarket(); }
 function onSearch(v){ searchQ=v.toLowerCase(); renderMarket(); }
 function clearPrice(){ document.getElementById('priceMin').value=''; document.getElementById('priceMax').value=''; renderMarket(); }
 
-// ── RENDER MARKET (groupé par modèle)
 function getFilteredProducts(){
-  const minP = parseFloat(document.getElementById('priceMin')?.value)||0;
-  const maxP = parseFloat(document.getElementById('priceMax')?.value)||Infinity;
-  const pool = [...allProducts, ...allCartons];
-  return pool.filter(p => {
-    if(filterSeller!=='all' && String(p.sellerId)!==filterSeller) return false;
-    if(filterBrand!=='all'  && extractBrand(p.cat)!==filterBrand) return false;
-    if(filterPuffs!=='all'  && puffsK(p.puffs)!==filterPuffs)     return false;
-    if(p.price<minP || p.price>maxP) return false;
-    const t = (p.title||'').toLowerCase();
-    const c = (p.cat||'').toLowerCase();
-    if(searchQ && !t.includes(searchQ) && !c.includes(searchQ)) return false;
+  const minP=parseFloat(document.getElementById('priceMin')?.value)||0;
+  const maxP=parseFloat(document.getElementById('priceMax')?.value)||Infinity;
+  return [...allProducts,...allCartons].filter(p=>{
+    if(filterSeller!=='all'&&String(p.sellerId)!==filterSeller) return false;
+    if(filterBrand!=='all'&&extractBrand(p.cat)!==filterBrand) return false;
+    if(filterPuffs!=='all'&&puffsK(p.puffs)!==filterPuffs) return false;
+    if(p.price<minP||p.price>maxP) return false;
+    const t=(p.title||'').toLowerCase(), c=(p.cat||'').toLowerCase();
+    if(searchQ&&!t.includes(searchQ)&&!c.includes(searchQ)) return false;
     return true;
   });
 }
 
 function renderMarket(){
   document.getElementById('loadingEl').style.display='none';
-  const filtered = getFilteredProducts();
-  const content  = document.getElementById('marketContent');
-  const empty    = document.getElementById('emptyEl');
-
+  const filtered=getFilteredProducts();
+  const content=document.getElementById('marketContent'), empty=document.getElementById('emptyEl');
   if(!filtered.length){ content.style.display='none'; empty.style.display='flex'; return; }
   empty.style.display='none'; content.style.display='block';
-
-  // Grouper par vendeur
-  const bySeller = {};
-  filtered.forEach(p=>{
-    const sid=String(p.sellerId);
-    if(!bySeller[sid]) bySeller[sid]={shop:p.sellerShop||p.sellerName, prods:[]};
-    bySeller[sid].prods.push(p);
-  });
-
-  const multiSeller = Object.keys(bySeller).length>1;
-  const favs = getFavs();
+  const bySeller={};
+  filtered.forEach(p=>{ const sid=String(p.sellerId); if(!bySeller[sid]) bySeller[sid]={shop:p.sellerShop||p.sellerName,prods:[]}; bySeller[sid].prods.push(p); });
+  const multiSeller=Object.keys(bySeller).length>1;
+  const favs=getFavs();
   let html='';
-
   Object.values(bySeller).forEach(s=>{
     html+='<div class="seller-section">';
     if(multiSeller){
-      const groups = buildGroups(s.prods);
-      html+='<div class="seller-hd"><div class="seller-av">'+(s.shop?.[0]||'?')+'</div>'
-        +'<div class="seller-info"><div class="seller-name">'+s.shop+'</div>'
-        +'<div class="seller-sub">'+groups.length+' modèle(s)</div></div>'
-        +'<div class="vbadge">✓ Vérifié</div></div>';
+      const groups=buildGroups(s.prods);
+      html+='<div class="seller-hd"><div class="seller-av">'+(s.shop?.[0]||'?')+'</div><div class="seller-info"><div class="seller-name">'+s.shop+'</div><div class="seller-sub">'+groups.length+' modèle(s)</div></div><div class="vbadge">✓ Vérifié</div></div>';
     }
-
-    // Séparer unité / carton
-    const units   = buildGroups(s.prods.filter(p=>!p.isCarton));
-    const cartons = buildGroups(s.prods.filter(p=>p.isCarton));
-
-    if(units.length){
-      html+='<div class="models-grid">';
-      units.forEach(g=>{ html+=buildModelCard(g,favs); });
-      html+='</div>';
-    }
+    const units=buildGroups(s.prods.filter(p=>!p.isCarton));
+    const cartons=buildGroups(s.prods.filter(p=>p.isCarton));
+    if(units.length){ html+='<div class="models-grid">'; units.forEach(g=>{ html+=buildModelCard(g,favs); }); html+='</div>'; }
     if(cartons.length){
-      html+='<div style="display:flex;align-items:center;gap:10px;margin:4px 12px 8px;padding:10px 12px;background:rgba(79,195,247,.07);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);">'
-        +'<span style="font-size:18px;">📦</span>'
-        +'<div><div style="font-size:12px;font-weight:800;color:var(--blue);">Vente par carton</div>'
-        +'<div style="font-size:10px;color:var(--t3);margin-top:1px;">'+cartons.length+' modèle(s) en carton</div></div></div>';
-      html+='<div class="models-grid">';
-      cartons.forEach(g=>{ html+=buildModelCard(g,favs); });
-      html+='</div>';
+      html+='<div style="display:flex;align-items:center;gap:10px;margin:4px 12px 8px;padding:10px 12px;background:rgba(79,195,247,.07);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);"><span style="font-size:18px;">📦</span><div><div style="font-size:12px;font-weight:800;color:var(--blue);">Vente par carton</div><div style="font-size:10px;color:var(--t3);margin-top:1px;">'+cartons.length+' modèle(s)</div></div></div>';
+      html+='<div class="models-grid">'; cartons.forEach(g=>{ html+=buildModelCard(g,favs); }); html+='</div>';
     }
-
     html+='</div>';
   });
-
-  content.innerHTML = html;
+  content.innerHTML=html;
 }
 
-function buildModelCard(g, favs){
-  const k = g.gKey;
-  const availItems  = g.items.filter(p=>p.qty>0);
-  const totalStock  = g.items.reduce((s,p)=>s+(p.qty||0),0);
-  const allOos      = availItems.length===0;
-  const hasLow      = availItems.some(p=>p.qty<=(p.alert||5));
-  const ssClass     = allOos?'':hasLow?'low':'ok';
-  const ssLabel     = allOos?'Rupture':hasLow?availItems.length+' goûts (stock bas)':availItems.length+'/'+g.items.length+' goûts';
-  const isFavModel  = favs.includes(k);
-  const avg         = getAvgRating(k);
-
-  // Emoji représentatif = premier item dispo, sinon premier item
-  const repItem = availItems[0] || g.items[0];
-  const repEmj  = repItem?.emj || '💨';
-
-  // Compter items in cart pour ce groupe
-  const inCartCount = g.items.filter(p=>cart[pKey(p)]?.qty>0).length;
-
-  return '<div class="model-card'+(allOos?' all-oos':'')+'" onclick="openDetail(\''+k+'\','+JSON.stringify(g.items.map(p=>pKey(p))).replace(/"/g,'&quot;')+')">'
-    +'<div class="model-top">'
-    +(g.image?'<img src="'+g.image+'" onerror="this.style.display=\'none\'">':'')
+function buildModelCard(g,favs){
+  const k=g.gKey;
+  const availItems=g.items.filter(p=>p.qty>0);
+  const allOos=availItems.length===0;
+  const hasLow=availItems.some(p=>p.qty<=(p.alert||5));
+  const ssClass=allOos?'':hasLow?'low':'ok';
+  const ssLabel=allOos?'Rupture':hasLow?availItems.length+' goûts (stock bas)':availItems.length+'/'+g.items.length+' goûts';
+  const isFavModel=favs.includes(k);
+  const avg=getAvgRating(k);
+  const repItem=availItems[0]||g.items[0];
+  const repEmj=repItem?.emj||'💨';
+  const inCartCount=g.items.filter(p=>cart[pKey(p)]?.qty>0).length;
+  return '<div class="model-card'+(allOos?' all-oos':'')+'" onclick="openDetail(\''+k+'\')">'
+    +'<div class="model-top">'+(g.image?'<img src="'+g.image+'" onerror="this.style.display=\'none\'">':'')
     +'<span class="model-emoji">'+repEmj+'</span>'
     +(g.puffs?'<div class="puffs-badge">'+fmtPuffs(g.puffs)+' puffs</div>':'')
     +'<div class="flavors-badge">'+g.items.length+' goût'+(g.items.length>1?'s':'')+'</div>'
     +(ssClass?'<div class="stock-badge '+ssClass+'">'+ssLabel+'</div>':'')
     +'<div class="fav-btn" onclick="event.stopPropagation();toggleFav(\''+k+'\')">'+( isFavModel?'❤️':'🤍')+'</div>'
     +(avg?'<div class="rating-mini">★ '+avg+'</div>':'')
-    +'</div>'
-    +'<div class="model-body">'
+    +'</div><div class="model-body">'
     +'<div class="model-brand">'+g.cat+(g.isCarton?' · Carton':'')+'</div>'
-    // Mini chips de goûts
-    +'<div class="model-flavors-row">'
-    +g.items.map(p=>'<div class="mfchip'+(p.qty<=0?' oos':'')+'" onclick="event.stopPropagation();openDetailFlavor(\''+k+'\',\''+pKey(p)+'\')">'+(p.emj||'💨')+'</div>').join('')
-    +'</div>'
-    +'<div class="model-footer">'
-    +'<div class="model-price">'+parseFloat(g.price).toFixed(2)+'€</div>'
-    +'<div class="add-btn'+(inCartCount?'  in-cart':'')+'" onclick="event.stopPropagation();openDetail(\''+k+'\')">'+( inCartCount||'+')+'</div>'
+    +'<div class="model-flavors-row">'+g.items.map(p=>'<div class="mfchip'+(p.qty<=0?' oos':'')+'" onclick="event.stopPropagation();openDetailFlavor(\''+k+'\',\''+pKey(p)+'\')">'+( p.emj||'💨')+'</div>').join('')+'</div>'
+    +'<div class="model-footer"><div class="model-price">'+parseFloat(g.price).toFixed(2)+'€</div>'
+    +'<div class="add-btn'+(inCartCount?' in-cart':'')+'" onclick="event.stopPropagation();openDetail(\''+k+'\')">'+( inCartCount||'+')+'</div>'
     +'</div></div></div>';
 }
 
-// ── FAVORIS (sur le groupe)
-function toggleFav(k){
-  const favs=getFavs(), idx=favs.indexOf(k);
-  if(idx>-1) favs.splice(idx,1); else favs.push(k);
-  saveFavs(favs); updateBadges(); renderMarket();
-  showToast(idx>-1?'Retiré des favoris':'❤️ Ajouté aux favoris');
-}
+function toggleFav(k){ const favs=getFavs(),idx=favs.indexOf(k); if(idx>-1)favs.splice(idx,1);else favs.push(k); saveFavs(favs); updateBadges(); renderMarket(); showToast(idx>-1?'Retiré des favoris':'❤️ Ajouté aux favoris'); }
 function openFavs(){
-  const favs=getFavs(), el=document.getElementById('favItems');
-  if(!favs.length){ el.innerHTML='<div class="fav-empty">❤️<br><br>Aucun favori pour le moment</div>'; }
-  else {
-    const allGroups = buildGroups([...allProducts,...allCartons]);
-    el.innerHTML = favs.map(k=>{
-      const g=allGroups.find(x=>x.gKey===k); if(!g) return '';
-      return '<div class="fav-item" onclick="closeFavs();setTimeout(()=>openDetail(\''+k+'\'),300)">'
-        +'<div class="fav-item-ic">'+(g.items[0]?.emj||'💨')+'</div>'
-        +'<div class="fav-item-inf"><div class="fav-item-name">'+g.cat+'</div>'
-        +'<div class="fav-item-sub">'+g.items.length+' goût(s)'+(g.puffs?' · '+fmtPuffs(g.puffs)+' puffs':'')+'</div></div>'
-        +'<div class="fav-item-price">'+parseFloat(g.price).toFixed(2)+'€</div>'
-        +'<div class="fav-remove" onclick="event.stopPropagation();removeFav(\''+k+'\')">✕</div></div>';
-    }).join('');
+  const favs=getFavs(),el=document.getElementById('favItems');
+  if(!favs.length){el.innerHTML='<div class="fav-empty">❤️<br><br>Aucun favori</div>';}
+  else{
+    const allGroups=buildGroups([...allProducts,...allCartons]);
+    el.innerHTML=favs.map(k=>{const g=allGroups.find(x=>x.gKey===k);if(!g)return '';return '<div class="fav-item" onclick="closeFavs();setTimeout(()=>openDetail(\''+k+'\'),300)"><div class="fav-item-ic">'+(g.items[0]?.emj||'💨')+'</div><div class="fav-item-inf"><div class="fav-item-name">'+g.cat+'</div><div class="fav-item-sub">'+g.items.length+' goût(s)'+(g.puffs?' · '+fmtPuffs(g.puffs)+' puffs':'')+'</div></div><div class="fav-item-price">'+parseFloat(g.price).toFixed(2)+'€</div><div class="fav-remove" onclick="event.stopPropagation();removeFav(\''+k+'\')">✕</div></div>';}).join('');
   }
   document.getElementById('favOv').classList.add('open');
   document.getElementById('favSh').classList.add('open');
 }
-function closeFavs(){ document.getElementById('favOv').classList.remove('open'); document.getElementById('favSh').classList.remove('open'); }
-function removeFav(k){ saveFavs(getFavs().filter(x=>x!==k)); updateBadges(); openFavs(); renderMarket(); }
-function clearFavs(){ saveFavs([]); updateBadges(); openFavs(); renderMarket(); }
+function closeFavs(){document.getElementById('favOv').classList.remove('open');document.getElementById('favSh').classList.remove('open');}
+function removeFav(k){saveFavs(getFavs().filter(x=>x!==k));updateBadges();openFavs();renderMarket();}
+function clearFavs(){saveFavs([]);updateBadges();openFavs();renderMarket();}
 
-// ── HISTORIQUE
 function openHistory(){
-  const h=getHistory(), el=document.getElementById('histItems');
-  if(!h.length){ el.innerHTML='<div class="fav-empty">📋<br><br>Aucune commande pour le moment</div>'; }
-  else{ el.innerHTML=h.map(o=>'<div class="order-item-h"><div class="order-date">'+o.date+'</div><div class="order-products">'+o.products+'</div><div class="order-total">'+o.total+'€</div><div class="order-status">✓ Confirmée</div></div>').join(''); }
+  const h=getHistory(),el=document.getElementById('histItems');
+  if(!h.length){el.innerHTML='<div class="fav-empty">📋<br><br>Aucune commande</div>';}
+  else{el.innerHTML=h.map(o=>'<div class="order-item-h"><div class="order-date">'+o.date+'</div><div class="order-products">'+o.products+'</div><div class="order-total">'+o.total+'€</div>'+(o.promo?'<div style="font-size:10px;color:var(--green);margin-top:2px;">Code promo : '+o.promo+'</div>':'')+'<div class="order-status">✓ Confirmée</div></div>').join('');}
   document.getElementById('histOv').classList.add('open');
   document.getElementById('histSh').classList.add('open');
 }
-function closeHistory(){ document.getElementById('histOv').classList.remove('open'); document.getElementById('histSh').classList.remove('open'); }
-function clearHistory(){ localStorage.removeItem('orders_'+USER_ID); openHistory(); }
+function closeHistory(){document.getElementById('histOv').classList.remove('open');document.getElementById('histSh').classList.remove('open');}
+function clearHistory(){localStorage.removeItem('orders_'+USER_ID);openHistory();}
 
-// ── DETAIL (groupe modèle)
-// Ouvrir depuis la carte : on cherche le groupe par gKey
-function openDetail(gKeyOrStr, itemKeys){
-  const allGroups = buildGroups([...allProducts,...allCartons]);
-  const g = allGroups.find(x=>x.gKey===gKeyOrStr);
-  if(!g) return;
-  detailGroup  = g;
-  detailFlavor = null;
-  detailQty    = 1;
-
-  // Image : prendre celle du groupe ou du 1er item dispo
-  const repItem = g.items.find(p=>p.qty>0) || g.items[0];
-  const isFav   = getFavs().includes(g.gKey);
-
-  document.getElementById('dImg').innerHTML =
-    (g.image?'<img src="'+g.image+'" onerror="this.style.display=\'none\'">'
-     :repItem?.image?'<img src="'+repItem.image+'" onerror="this.style.display=\'none\'">':'')
-    +'<span class="det-emoji" style="font-size:64px;">'+(repItem?.emj||'💨')+'</span>'
-    +'<div class="det-fav" id="dFavBtn" onclick="toggleFavFromDetail()">'+(isFav?'❤️':'🤍')+'</div>';
-
-  document.getElementById('dBrand').textContent = g.cat+(g.isCarton?' — Carton':'');
-  document.getElementById('dName').textContent  = g.cat; // nom = cat/modèle
-
+function openDetail(gKey){
+  const allGroups=buildGroups([...allProducts,...allCartons]);
+  const g=allGroups.find(x=>x.gKey===gKey); if(!g) return;
+  detailGroup=g; detailFlavor=null; detailQty=1;
+  const repItem=g.items.find(p=>p.qty>0)||g.items[0];
+  const isFav=getFavs().includes(g.gKey);
+  document.getElementById('dImg').innerHTML=(g.image?'<img src="'+g.image+'" onerror="this.style.display=\'none\'">':repItem?.image?'<img src="'+repItem.image+'" onerror="this.style.display=\'none\'">':'')+'<span class="det-emoji" style="font-size:64px;">'+(repItem?.emj||'💨')+'</span><div class="det-fav" id="dFavBtn" onclick="toggleFavFromDetail()">'+(isFav?'❤️':'🤍')+'</div>';
+  document.getElementById('dBrand').textContent=g.cat+(g.isCarton?' — Carton':'');
+  document.getElementById('dName').textContent=g.cat;
   let tags='';
   if(g.puffs) tags+='<div class="dtag purple">💨 '+fmtPuffs(g.puffs)+' puffs</div>';
   const avail=g.items.filter(p=>p.qty>0).length;
   tags+='<div class="dtag '+(avail>0?'green':'')+'">'+avail+'/'+g.items.length+' goûts dispo</div>';
   if(g.isCarton) tags+='<div class="dtag blue">📦 Carton ×'+g.cartonQty+'</div>';
   document.getElementById('dTags').innerHTML=tags;
-
-  renderFlavorPicker();
-  renderReviews(g.gKey);
-  updateDetDisplay();
-
+  renderFlavorPicker(); renderReviews(g.gKey); updateDetDisplay();
   document.getElementById('detOv').classList.add('open');
   document.getElementById('detSh').classList.add('open');
 }
-
-// Ouvrir depuis un mini-chip goût de la carte (pré-sélection du goût)
-function openDetailFlavor(gKey, pk){
+function openDetailFlavor(gKey,pk){
   openDetail(gKey);
-  // Chercher le produit et le sélectionner
-  setTimeout(()=>{
-    const p = [...allProducts,...allCartons].find(x=>pKey(x)===pk);
-    if(p) selectFlavor(p);
-  },50);
+  setTimeout(()=>{ const p=[...allProducts,...allCartons].find(x=>pKey(x)===pk); if(p) selectFlavor(p); },50);
 }
-
-// ── FLAVOR PICKER
 function renderFlavorPicker(){
-  const g = detailGroup;
-  if(!g){ document.getElementById('flavorSection').innerHTML=''; return; }
-
-  let html = '<div class="flavor-label">🎨 Choisissez un goût</div><div class="flavor-grid">';
+  const g=detailGroup; if(!g){document.getElementById('flavorSection').innerHTML='';return;}
+  let html='<div class="flavor-label">🎨 Choisissez un goût</div><div class="flavor-grid">';
   g.items.forEach(p=>{
-    const oos   = p.qty<=0;
-    const isSel = detailFlavor && pKey(detailFlavor)===pKey(p);
-    const stockLabel = oos?'Rupture':(p.qty<=(p.alert||5)?p.qty+' restants':p.qty+' dispo');
-    html+='<div class="flavor-chip'+(oos?' oos':'')+(isSel?' selected':'')+'" onclick="selectFlavor(\''+pKey(p)+'\')">'
-      +'<span class="fchip-emj">'+(p.emj||'💨')+'</span>'
-      +'<span>'+(p.title||'?')+'</span>'
-      +'<span class="fchip-stock">'+stockLabel+'</span>'
-      +'</div>';
+    const oos=p.qty<=0, isSel=detailFlavor&&pKey(detailFlavor)===pKey(p);
+    const stockLabel=oos?'Rupture':(p.qty<=(p.alert||5)?p.qty+' restants':p.qty+' dispo');
+    html+='<div class="flavor-chip'+(oos?' oos':'')+(isSel?' selected':'')+'" onclick="selectFlavor(\''+pKey(p)+'\')">'+'<span class="fchip-emj">'+(p.emj||'💨')+'</span><span>'+(p.title||'?')+'</span><span class="fchip-stock">'+stockLabel+'</span></div>';
   });
   html+='</div>';
   document.getElementById('flavorSection').innerHTML=html;
 }
-
 function selectFlavor(pkOrProd){
-  const p = typeof pkOrProd==='string'
-    ? [...allProducts,...allCartons].find(x=>pKey(x)===pkOrProd)
-    : pkOrProd;
+  const p=typeof pkOrProd==='string'?[...allProducts,...allCartons].find(x=>pKey(x)===pkOrProd):pkOrProd;
   if(!p||p.qty<=0) return;
-  detailFlavor = p;
-  detailQty    = 1;
-  // Mettre à jour l'image si le produit en a une
-  if(p.image){
-    const imgEl = document.getElementById('dImg').querySelector('img');
-    if(imgEl) imgEl.src=p.image;
-  }
-  // Mettre à jour l'emoji principal
-  const emojiEl = document.getElementById('dImg').querySelector('.det-emoji');
-  if(emojiEl) emojiEl.textContent = p.emj||'💨';
-  renderFlavorPicker();
-  updateDetDisplay();
+  detailFlavor=p; detailQty=1;
+  if(p.image){const imgEl=document.getElementById('dImg').querySelector('img');if(imgEl)imgEl.src=p.image;}
+  const emojiEl=document.getElementById('dImg').querySelector('.det-emoji');
+  if(emojiEl) emojiEl.textContent=p.emj||'💨';
+  renderFlavorPicker(); updateDetDisplay();
   if(tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
 }
-
-function toggleFavFromDetail(){
-  if(!detailGroup) return;
-  const k=detailGroup.gKey; toggleFav(k);
-  document.getElementById('dFavBtn').textContent=getFavs().includes(k)?'❤️':'🤍';
-}
-
+function toggleFavFromDetail(){if(!detailGroup)return;const k=detailGroup.gKey;toggleFav(k);document.getElementById('dFavBtn').textContent=getFavs().includes(k)?'❤️':'🤍';}
 function updateDetDisplay(){
-  const price = detailFlavor
-    ? detailFlavor.price * detailQty
-    : detailGroup?.price * detailQty || 0;
+  const price=detailFlavor?detailFlavor.price*detailQty:(detailGroup?.price*detailQty||0);
   document.getElementById('dQty').textContent=detailQty;
   document.getElementById('dPrice').innerHTML=price.toFixed(2)+'<small>€</small>';
-
   const btn=document.getElementById('dAddBtn');
-  if(!detailFlavor){
-    btn.disabled=true;
-    btn.textContent='👆 Choisissez un goût';
-  } else if(detailFlavor.qty<=0){
-    btn.disabled=true;
-    btn.textContent='Rupture de stock';
-  } else {
-    btn.disabled=false;
-    btn.textContent=(detailGroup?.isCarton?'Ajouter le carton':'Ajouter au panier')
-      +' · '+detailFlavor.title;
-  }
+  if(!detailFlavor){btn.disabled=true;btn.textContent='👆 Choisissez un goût';}
+  else if(detailFlavor.qty<=0){btn.disabled=true;btn.textContent='Rupture de stock';}
+  else{btn.disabled=false;btn.textContent=(detailGroup?.isCarton?'Ajouter le carton':'Ajouter au panier')+' · '+detailFlavor.title;}
 }
-
-function changeQty(d){
-  if(!detailFlavor) return;
-  detailQty=Math.max(1,Math.min(detailFlavor.qty,detailQty+d));
-  updateDetDisplay();
-  if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-}
-
+function changeQty(d){ if(!detailFlavor)return; detailQty=Math.max(1,Math.min(detailFlavor.qty,detailQty+d)); updateDetDisplay(); if(tg?.HapticFeedback)tg.HapticFeedback.impactOccurred('light'); }
 function addFromDetail(){
   if(!detailFlavor||detailFlavor.qty<=0) return;
   const k=pKey(detailFlavor);
@@ -725,13 +510,8 @@ function addFromDetail(){
   showToast('✓ '+detailFlavor.title+' ajouté');
   if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 }
+function closeDetail(){document.getElementById('detOv').classList.remove('open');document.getElementById('detSh').classList.remove('open');}
 
-function closeDetail(){
-  document.getElementById('detOv').classList.remove('open');
-  document.getElementById('detSh').classList.remove('open');
-}
-
-// ── AVIS (clé = gKey du groupe)
 let selectedStars=0;
 function renderReviews(k){
   const reviews=getReviews(k);
@@ -742,31 +522,15 @@ function renderReviews(k){
   html+='</div>';
   if(reviews.length) html+='<div class="reviews-list">'+reviews.map(r=>'<div class="review-item"><div class="review-stars">'+'★'.repeat(r.stars)+'☆'.repeat(5-r.stars)+'</div>'+(r.text?'<div class="review-text">'+r.text+'</div>':'')+'<div class="review-date">'+r.date+'</div></div>').join('')+'</div>';
   selectedStars=0;
-  html+='<div class="add-review" style="margin-top:10px;">'
-    +'<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Laisser un avis</div>'
-    +'<div class="star-select" id="starSelect">'+[1,2,3,4,5].map(i=>'<span onclick="selectStar('+i+')" data-s="'+i+'">★</span>').join('')+'</div>'
-    +'<textarea class="review-input" id="reviewText" rows="2" placeholder="Votre avis (optionnel)…"></textarea>'
-    +'<button style="margin-top:6px;width:100%;padding:9px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:Syne,sans-serif;font-size:12px;font-weight:700;cursor:pointer;" onclick="submitReview(\''+k+'\')">Publier</button>'
-    +'</div>';
+  html+='<div class="add-review" style="margin-top:10px;"><div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Laisser un avis</div><div class="star-select" id="starSelect">'+[1,2,3,4,5].map(i=>'<span onclick="selectStar('+i+')" data-s="'+i+'">★</span>').join('')+'</div><textarea class="review-input" id="reviewText" rows="2" placeholder="Votre avis (optionnel)…"></textarea><button style="margin-top:6px;width:100%;padding:9px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:Syne,sans-serif;font-size:12px;font-weight:700;cursor:pointer;" onclick="submitReview(\''+k+'\')">Publier</button></div>';
   document.getElementById('ratingsSection').innerHTML=html;
 }
 function selectStar(n){ selectedStars=n; document.querySelectorAll('#starSelect span').forEach((s,i)=>s.classList.toggle('sel',i<n)); }
-function submitReview(k){
-  if(!selectedStars){ showToast('⚠ Choisissez une note'); return; }
-  const text=document.getElementById('reviewText').value.trim();
-  const reviews=getReviews(k);
-  reviews.unshift({stars:selectedStars,text,date:new Date().toLocaleDateString('fr-FR'),ts:Date.now()});
-  saveReviews(k,reviews); showToast('✓ Avis publié !'); renderReviews(k); renderMarket();
-}
+function submitReview(k){ if(!selectedStars){showToast('⚠ Choisissez une note');return;} const text=document.getElementById('reviewText').value.trim(); const reviews=getReviews(k); reviews.unshift({stars:selectedStars,text,date:new Date().toLocaleDateString('fr-FR'),ts:Date.now()}); saveReviews(k,reviews); showToast('✓ Avis publié !'); renderReviews(k); renderMarket(); }
 
 // ── CART
-function openCart(){
-  if(!Object.values(cart).length) resetPromo();
-  renderCart();
-  document.getElementById('cartOv').classList.add('open');
-  document.getElementById('cartSh').classList.add('open');
-}
-function closeCart(){ document.getElementById('cartOv').classList.remove('open'); document.getElementById('cartSh').classList.remove('open'); }
+function openCart(){ if(!Object.values(cart).length) resetPromo(); renderCart(); document.getElementById('cartOv').classList.add('open'); document.getElementById('cartSh').classList.add('open'); }
+function closeCart(){document.getElementById('cartOv').classList.remove('open');document.getElementById('cartSh').classList.remove('open');}
 function clearCart(){ cart={}; resetPromo(); saveCart(); renderCart(); renderMarket(); updateBadges(); }
 function updateBadges(){
   const n=Object.values(cart).reduce((s,i)=>s+i.qty,0);
@@ -775,50 +539,34 @@ function updateBadges(){
   const fb=document.getElementById('favBadge'); fb.style.display=f>0?'flex':'none'; fb.textContent=f;
 }
 
-// ── PROMO
-function resetPromo(){ promoState={code:'',discount:0,type:'',value:0,applied:false}; }
+// ── PROMO — tout se passe côté serveur, ici on stocke juste le code saisi
+function resetPromo(){ promoState={code:'',applied:false,discount:0,type:'',value:0}; }
 function getSubtotal(){ return Object.values(cart).reduce((s,{product:p,qty})=>s+p.price*qty,0); }
-function calcPromoDiscount(sub){
-  if(!promoState.applied) return 0;
-  if(promoState.type==='percent') return Math.min(sub,sub*promoState.value/100);
-  if(promoState.type==='fixed') return Math.min(sub,promoState.value);
-  return promoState.discount||0;
-}
-function getCartSellerId(){
-  const first=Object.values(cart)[0];
-  return first?String(first.product.sellerId):'';
-}
-async function applyPromo(){
-  const input=document.getElementById('promoCodeInput');
-  const btn=document.getElementById('promoApplyBtn');
-  const code=(input?.value||'').trim().toUpperCase();
+function getCartSellerId(){ const first=Object.values(cart)[0]; return first?String(first.product.sellerId):''; }
+
+// applyPromo : on ne vérifie PLUS côté client via /promo/check (route supprimée)
+// On stocke juste le code, la validation se fait côté serveur au checkout
+function applyPromo(){
+  const input = document.getElementById('promoCodeInput');
+  const code  = (input?.value||'').trim().toUpperCase();
   if(!code){ showFeedback('err','Entrez un code promo'); return; }
-  const sub=getSubtotal();
-  if(sub<=0){ showFeedback('err','Votre panier est vide'); return; }
-  btn.disabled=true; btn.textContent='⏳';
-  try{
-    const res=await fetch(SERVER+'/promo/check',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({code,sellerId:getCartSellerId(),amount:sub,userId:USER_ID})});
-    const data=await res.json();
-    if(data.ok){
-      promoState={code,discount:parseFloat(data.discount)||0,type:data.type||'',value:parseFloat(data.value)||0,applied:true};
-      input.classList.remove('invalid'); input.classList.add('valid'); input.disabled=true; btn.style.display='none';
-      const disc=calcPromoDiscount(sub);
-      const label=promoState.type==='percent'?'−'+promoState.value+'%':'−'+disc.toFixed(2)+'€';
-      showFeedback('ok','🎉 Code "'+code+'" · '+label,true);
-      if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    } else {
-      promoState={code:'',discount:0,type:'',value:0,applied:false};
-      input.classList.remove('valid'); input.classList.add('invalid');
-      showFeedback('err','✕ '+(data.error||'Code invalide ou expiré'));
-      btn.disabled=false; btn.textContent='Appliquer';
-    }
-  }catch(e){
-    showFeedback('err','⚠ Impossible de vérifier le code');
-    btn.disabled=false; btn.textContent='Appliquer';
-  }
+  if(getSubtotal()<=0){ showFeedback('err','Votre panier est vide'); return; }
+
+  // Stocker le code — il sera validé par le serveur au moment du paiement
+  promoState.code    = code;
+  promoState.applied = true;
+  promoState.discount= 0;   // on ne connait pas encore la reduction exacte
+  promoState.type    = '';
+  promoState.value   = 0;
+
+  input.classList.remove('invalid'); input.classList.add('valid');
+  input.disabled=true;
+  document.getElementById('promoApplyBtn').style.display='none';
+  showFeedback('ok','Code "'+code+'" enregistré — réduction appliquée au paiement', true);
+  if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
   renderCartSummary();
 }
+
 function removePromo(){
   resetPromo();
   const input=document.getElementById('promoCodeInput');
@@ -829,9 +577,9 @@ function removePromo(){
   if(fb){fb.className='promo-feedback';fb.innerHTML='';}
   renderCartSummary();
 }
-function showFeedback(type,msg,withRemove=false){
-  const fb=document.getElementById('promoFeedback');
-  if(!fb) return;
+
+function showFeedback(type,msg,withRemove){
+  const fb=document.getElementById('promoFeedback'); if(!fb) return;
   fb.className='promo-feedback '+type;
   fb.innerHTML=msg+(withRemove?'<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>':'');
 }
@@ -839,25 +587,14 @@ function showFeedback(type,msg,withRemove=false){
 function renderCart(){
   const items=Object.values(cart);
   const iEl=document.getElementById('cartItems'), sEl=document.getElementById('cartSum');
-  if(!items.length){
-    iEl.innerHTML='<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">Panier vide</div></div>';
-    sEl.innerHTML=''; return;
-  }
+  if(!items.length){ iEl.innerHTML='<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">Panier vide</div></div>'; sEl.innerHTML=''; return; }
   const bySeller={};
-  items.forEach(({product:p,qty})=>{
-    const sid=String(p.sellerId);
-    if(!bySeller[sid]) bySeller[sid]={name:p.sellerName||'Boutique',items:[]};
-    bySeller[sid].items.push({p,qty});
-  });
+  items.forEach(({product:p,qty})=>{ const sid=String(p.sellerId); if(!bySeller[sid]) bySeller[sid]={name:p.sellerName||'Boutique',items:[]}; bySeller[sid].items.push({p,qty}); });
   let html='';
   Object.values(bySeller).forEach(s=>{
     if(Object.keys(bySeller).length>1) html+='<div style="padding:7px 14px 2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);">'+s.name+'</div>';
     s.items.forEach(({p,qty})=>{
-      html+='<div class="ci"><div class="ci-ic">'+(p.emj||'💨')+'</div>'
-        +'<div class="ci-inf"><div class="ci-name">'+p.title+'</div>'
-        +'<div class="ci-sub">'+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':'')+(p.isCarton?' · Carton ×'+p.cartonQty:'')+'</div></div>'
-        +'<div class="ci-r"><div class="ci-price">'+(p.price*qty).toFixed(2)+'€</div>'
-        +'<div class="ci-qty"><div class="cqb" onclick="cqty(\''+pKey(p)+'\',-1)">−</div><div class="cqn">'+qty+'</div><div class="cqb" onclick="cqty(\''+pKey(p)+'\',1)">+</div></div></div></div>';
+      html+='<div class="ci"><div class="ci-ic">'+(p.emj||'💨')+'</div><div class="ci-inf"><div class="ci-name">'+p.title+'</div><div class="ci-sub">'+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':'')+(p.isCarton?' · Carton ×'+p.cartonQty:'')+'</div></div><div class="ci-r"><div class="ci-price">'+(p.price*qty).toFixed(2)+'€</div><div class="ci-qty"><div class="cqb" onclick="cqty(\''+pKey(p)+'\',-1)">−</div><div class="cqn">'+qty+'</div><div class="cqb" onclick="cqty(\''+pKey(p)+'\',1)">+</div></div></div></div>';
     });
   });
   iEl.innerHTML=html;
@@ -868,28 +605,33 @@ function renderCartSummary(){
   const items=Object.values(cart);
   const sEl=document.getElementById('cartSum');
   if(!items.length||!sEl) return;
-  const sub=getSubtotal(), disc=calcPromoDiscount(sub), total=Math.max(0,sub-disc);
+  const sub=getSubtotal();
   const nb=items.reduce((s,i)=>s+i.qty,0);
   const promoApplied=promoState.applied;
-  const promoHTML=`<div class="promo-section">
-    <div class="promo-label">🏷 Code promo</div>
-    <div class="promo-row">
-      <input class="promo-input${promoApplied?' valid':''}" id="promoCodeInput" type="text" placeholder="Ex: SUMMER10" maxlength="32"
-        value="${promoState.code||''}" ${promoApplied?'disabled':''}
-        onkeydown="if(event.key==='Enter') applyPromo()">
-      <button class="promo-apply-btn" id="promoApplyBtn" onclick="applyPromo()" ${promoApplied?'style="display:none"':''}>Appliquer</button>
-    </div>
-    <div class="promo-feedback${promoApplied?' ok':''}" id="promoFeedback">
-      ${promoApplied?'🎉 Code "'+promoState.code+'" · '+(promoState.type==='percent'?'−'+promoState.value+'%':'−'+disc.toFixed(2)+'€')+'<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>':''}
-    </div></div>`;
-  const discRow=disc>0?`<div class="cr discount"><span class="l">🏷 Réduction (${promoState.code})</span><span class="v">−${disc.toFixed(2)}€</span></div>`:'';
-  sEl.innerHTML=`<div class="csep"></div>${promoHTML}
-    <div class="cr"><span class="l">${nb} article(s)</span><span class="v">${sub.toFixed(2)}€</span></div>
-    ${discRow}<div class="csep"></div>
-    <div class="cr tot"><span class="l">Total</span><span class="v">${total.toFixed(2)}€</span></div>
-    <div style="height:10px;"></div>
-    <button class="pay-btn" id="payBtn" onclick="placeOrder()">💳 Payer ${total.toFixed(2)}€</button>
-    <div style="height:6px;"></div>`;
+
+  const promoHTML='<div class="promo-section">'
+    +'<div class="promo-label">🏷 Code promo</div>'
+    +'<div class="promo-row">'
+      +'<input class="promo-input'+(promoApplied?' valid':'')+'" id="promoCodeInput" type="text" placeholder="Ex: SUMMER10" maxlength="32" value="'+(promoState.code||'')+'" '+(promoApplied?'disabled':'')+' onkeydown="if(event.key===\'Enter\') applyPromo()">'
+      +'<button class="promo-apply-btn" id="promoApplyBtn" onclick="applyPromo()" '+(promoApplied?'style="display:none"':'')+'>Appliquer</button>'
+    +'</div>'
+    +'<div class="promo-feedback'+(promoApplied?' ok':'')+'" id="promoFeedback">'
+      +(promoApplied?'Code "'+promoState.code+'" enregistre — reduction au paiement<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>':'')
+    +'</div>'
+    +'</div>';
+
+  const promoRow = promoApplied
+    ? '<div class="cr discount"><span class="l">🏷 Code '+promoState.code+'</span><span class="v">Reduction appliquee au paiement</span></div>'
+    : '';
+
+  sEl.innerHTML='<div class="csep"></div>'+promoHTML
+    +'<div class="cr"><span class="l">'+nb+' article(s)</span><span class="v">'+sub.toFixed(2)+'€</span></div>'
+    +promoRow
+    +'<div class="csep"></div>'
+    +'<div class="cr tot"><span class="l">Total</span><span class="v">'+sub.toFixed(2)+'€</span></div>'
+    +'<div style="height:10px;"></div>'
+    +'<button class="pay-btn" id="payBtn" onclick="placeOrder()">💳 Payer '+sub.toFixed(2)+'€'+(promoApplied?' + code promo':'')+'</button>'
+    +'<div style="height:6px;"></div>';
 }
 
 function cqty(k,d){
@@ -901,11 +643,11 @@ function cqty(k,d){
 }
 
 // ── CHECKOUT
+// Le code promo est envoyé au serveur qui le valide et applique la vraie réduction
 async function placeOrder(){
   const items=Object.values(cart); if(!items.length) return;
   const btn=document.getElementById('payBtn'); btn.disabled=true; btn.textContent='⏳ Création…';
   const user=tg?.initDataUnsafe?.user;
-  const sub=getSubtotal(), disc=calcPromoDiscount(sub), total=Math.max(0,sub-disc);
   const cartPayload=items.map(({product:p,qty})=>({
     sellerId:p.sellerId, id:p.id, title:p.title,
     description:(p.isCarton?'Carton ×'+p.cartonQty+' · ':'')+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':''),
@@ -913,16 +655,32 @@ async function placeOrder(){
     payload:(p.isCarton?'carton_':'stock_')+p.id,
     isCarton:p.isCarton||false, cartonQty:p.cartonQty||1,
   }));
-  const promoPayload=promoState.applied?{promoCode:promoState.code,promoDiscount:disc.toFixed(2),promoType:promoState.type,promoValue:promoState.value,totalAfterPromo:total.toFixed(2)}:{};
+
+  const body = {
+    cart    : cartPayload,
+    userId  : user?.id||'',
+    userName: user?.username||user?.first_name||'',
+  };
+  // Ajouter le code promo si présent — le serveur le validera
+  if(promoState.applied && promoState.code){
+    body.promoCode = promoState.code;
+  }
+
   try{
-    const res=await fetch(SERVER+'/shop-checkout',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({cart:cartPayload,userId:user?.id||'',userName:user?.username||user?.first_name||'',...promoPayload})});
+    const res=await fetch(SERVER+'/shop-checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const data=await res.json();
     if(!data.url) throw new Error(data.error||'Erreur');
+
+    // Si le serveur indique que le code était invalide il renvoie une erreur
+    // sinon on continue normalement
+
+    const sub=getSubtotal();
     saveHistory({
-      date:new Date().toLocaleDateString('fr-FR')+' '+new Date().toLocaleTimeString('fr-FR'),
-      products:items.map(({product:p,qty})=>qty+'x '+p.title).join(', '),
-      total:total.toFixed(2), promo:promoState.applied?promoState.code:null, ts:Date.now(),
+      date    : new Date().toLocaleDateString('fr-FR')+' '+new Date().toLocaleTimeString('fr-FR'),
+      products: items.map(({product:p,qty})=>qty+'x '+p.title).join(', '),
+      total   : sub.toFixed(2),
+      promo   : promoState.applied?promoState.code:null,
+      ts      : Date.now(),
     });
     if(tg) tg.openLink(data.url); else window.open(data.url,'_blank');
     cart={}; resetPromo(); saveCart(); updateBadges(); closeCart();
@@ -930,11 +688,15 @@ async function placeOrder(){
     if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
   }catch(e){
     showToast('⚠ '+e.message);
+    // Si erreur code promo invalide, on le signale
+    if(e.message && e.message.toLowerCase().includes('promo')){
+      removePromo();
+      showFeedback('err','Code promo invalide ou expiré');
+    }
     if(btn){btn.disabled=false; btn.textContent='💳 Réessayer';}
   }
 }
 
-// ── TOAST
 let tt;
 function showToast(m){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),2200); }
 
