@@ -396,11 +396,23 @@ input,textarea,select{font-family:inherit;}
             <input class="fld-input" id="wizAlert" type="number" min="1" value="5" placeholder="5"
               style="font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--t2);">
             <div style="font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:12px;">Tu recevras une alerte quand le stock passe sous ce nombre</div>
-            <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;">Mettre en vente</div>
+
+            <!-- Toggle UNITE -->
+            <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;margin-bottom:8px;">
               <label class="sw"><input type="checkbox" id="wizEnVente"><span class="sw-t"></span><span class="sw-k"></span></label>
               <div>
-                <div style="font-size:13px;font-weight:700;">Mettre en vente immédiatement</div>
-                <div style="font-size:11px;color:var(--t3);">L'article apparaîtra dans le catalogue</div>
+                <div style="font-size:13px;font-weight:700;">A l'unite</div>
+                <div style="font-size:11px;color:var(--t3);">Vente piece par piece au prix unitaire</div>
+              </div>
+            </div>
+
+            <!-- Toggle CARTON — visible seulement si carton activé -->
+            <div id="wizEnVenteCartonBox" style="display:none;display:flex;align-items:center;gap:12px;background:rgba(79,195,247,.06);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);padding:13px 14px;">
+              <label class="sw"><input type="checkbox" id="wizEnVenteCarton"><span class="sw-t"></span><span class="sw-k"></span></label>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:var(--blue);">📦 En carton</div>
+                <div style="font-size:11px;color:var(--t3);">Vente par carton entier au prix carton</div>
               </div>
             </div>
           </div>
@@ -440,6 +452,18 @@ input,textarea,select{font-family:inherit;}
         </div>
         <div style="font-size:12px;color:var(--t2);margin-bottom:8px;" id="catActiveBadge"></div>
         <div class="cat-grid" id="catGrid"></div>
+
+        <!-- SECTION CARTONS -->
+        <div id="cartonSection" style="display:none;margin-top:12px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);">
+            <span style="font-size:18px;">📦</span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--blue);">Vente par carton — toggle independant</div>
+              <div style="font-size:10px;color:var(--t3);margin-top:1px;">Cocher carton ne coche PAS unite</div>
+            </div>
+          </div>
+          <div class="cat-grid" id="cartonGrid"></div>
+        </div>
       </div>
 
       <!-- COMMANDES -->
@@ -905,6 +929,8 @@ let wizStep=1, wizEditIdx=-1;
 function wizToggleCarton(){
   const on = document.getElementById('wizCarton').checked;
   document.getElementById('wizCartonBox').style.display = on ? 'block' : 'none';
+  document.getElementById('wizEnVenteCartonBox').style.display = on ? 'flex' : 'none';
+  if(!on) document.getElementById('wizEnVenteCarton').checked = false;
 }
 
 function openAddWizard(editIdx=-1){
@@ -920,10 +946,12 @@ function openAddWizard(editIdx=-1){
   document.getElementById('wizQty').value=s?.qty||0;
   document.getElementById('wizAlert').value=s?.alert||5;
   document.getElementById('wizEnVente').checked=s?.enVente||false;
+  document.getElementById('wizEnVenteCarton').checked=s?.enVenteCarton||false;
   document.getElementById('wizCarton').checked=s?.carton||false;
   document.getElementById('wizCartonQty').value=s?.cartonQty||'';
   document.getElementById('wizCartonPrice').value=s?.cartonPrice||'';
   document.getElementById('wizCartonBox').style.display=s?.carton?'block':'none';
+  document.getElementById('wizEnVenteCartonBox').style.display=s?.carton?'flex':'none';
   const prev=document.getElementById('wizPhotoPreview');
   if(s?.image) prev.innerHTML='<img src="'+s.image+'" style="width:100%;height:100%;object-fit:cover;">';
   else prev.innerHTML='<span style="font-size:40px;">📷</span>';
@@ -967,8 +995,9 @@ function wizNext(){
       puffs :(parseFloat(document.getElementById('wizPuffs').value)||0)*1000,
       qty   :parseInt(document.getElementById('wizQty').value)||0,
       alert :parseInt(document.getElementById('wizAlert').value)||5,
-      enVente:document.getElementById('wizEnVente').checked,
-      carton     :document.getElementById('wizCarton').checked,
+      enVente      :document.getElementById('wizEnVente').checked,
+      enVenteCarton:document.getElementById('wizEnVenteCarton').checked,
+      carton       :document.getElementById('wizCarton').checked,
       cartonQty  :parseInt(document.getElementById('wizCartonQty').value)||0,
       cartonPrice:parseFloat(document.getElementById('wizCartonPrice').value)||0,
       enVenteCarton:false,
@@ -1264,10 +1293,43 @@ function renderCatalogue(){
           <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
           <span class="sw-t"></span><span class="sw-k"></span>
         </label>
-        <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'En vente ✓':'Désactivé'}</span>
+        <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'A l\'unite ✓':'Unite off'}</span>
       </div>
     </div>`;
   }).join('');
+
+  // ── Section Cartons (toggle INDEPENDANT)
+  const cartonItems = stock.filter(s=>s.carton&&s.cartonQty>0&&s.qty>0);
+  const cartonSection = document.getElementById('cartonSection');
+  const cartonGrid    = document.getElementById('cartonGrid');
+  if(cartonItems.length){
+    cartonSection.style.display='block';
+    cartonGrid.innerHTML = cartonItems.map(s=>{
+      const idx2        = stock.indexOf(s);
+      const brand2      = extractBrand(s.cat);
+      const cp          = s.cartonPrice ? parseFloat(s.cartonPrice).toFixed(2) : (parseFloat(s.price||0)*s.cartonQty).toFixed(2);
+      const cartonsLeft = Math.floor(s.qty/s.cartonQty);
+      return `<div class="cat-card ${s.enVenteCarton?'on':''}">
+        <div class="cat-card-img" style="position:relative;">
+          ${s.image?`<img src="${s.image}" alt="${s.name}">`:`<span style="font-size:32px;">📦</span>`}
+          <span style="position:absolute;top:4px;left:4px;background:rgba(79,195,247,.25);border:1px solid rgba(79,195,247,.5);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--blue);">x${s.cartonQty}</span>
+        </div>
+        <div class="cat-card-brand" style="color:var(--blue);">${brand2}${s.taux?' · '+s.taux:''}</div>
+        <div class="cat-card-name">${s.name||'Sans nom'}</div>
+        <div class="cat-card-meta">Carton de ${s.cartonQty} · ${cartonsLeft} dispo</div>
+        <div class="cat-card-price" style="color:var(--blue);">${cp}€</div>
+        <div class="cat-card-toggle">
+          <label class="sw">
+            <input type="checkbox" ${s.enVenteCarton?'checked':''} onchange="stock[${idx2}].enVenteCarton=this.checked;renderCatalogue()">
+            <span class="sw-t"></span><span class="sw-k"></span>
+          </label>
+          <span style="color:${s.enVenteCarton?'var(--blue)':'var(--t2)'};">${s.enVenteCarton?'Carton en vente ✓':'Carton off'}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    cartonSection.style.display='none';
+  }
 }
 
 function catSelectAll(state){ stock.forEach(s=>{if(s.qty>0)s.enVente=state;}); renderCatalogue(); }
