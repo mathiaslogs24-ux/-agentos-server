@@ -1090,7 +1090,8 @@ Format exact:
   }
 ]
 
-Génère entre 3 et 6 variantes par goût de base. Sois créatif mais réaliste.`;
+Génère entre 3 et 6 variantes par goût de base. Sois créatif mais réaliste.
+IMPORTANT: Commence DIRECTEMENT par [ sans aucun texte avant ou apres.`;
 
   try {
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1109,8 +1110,15 @@ Génère entre 3 et 6 variantes par goût de base. Sois créatif mais réaliste.
     if(!aiRes.ok){ const e=await aiRes.json().catch(()=>{}); throw new Error(e?.error?.message||'Erreur Claude '+aiRes.status); }
     const data = await aiRes.json();
     const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g,'').trim();
-    const items = JSON.parse(clean);
+    // Extraction robuste du JSON — Claude peut mettre du texte avant/après
+    let items;
+    const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if(jsonMatch){
+      items = JSON.parse(jsonMatch[0]);
+    } else {
+      const clean = text.replace(/```json|```/g,'').trim();
+      items = JSON.parse(clean);
+    }
     addLog('ok', `IA stock · ${items.length} articles générés pour ${cat}`);
     res.json({ok:true, items});
   } catch(e) {
