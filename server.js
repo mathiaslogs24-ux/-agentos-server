@@ -1062,6 +1062,64 @@ app.post('/reviews', async(req,res)=>{
 });
 
 // ─────────────────────────────────────────
+//  ROUTE IA — GÉNÉRATION STOCK
+// ─────────────────────────────────────────
+app.post('/ai/generate-stock', auth, async(req,res)=>{
+  const { flavors, cat, puffs, price, taux } = req.body;
+  if(!flavors||!flavors.length) return res.status(400).json({error:'Liste de goûts vide'});
+  if(!cfg.claudeKey) return res.status(400).json({error:'Clé Claude non configurée'});
+
+  const prompt = `Tu es un expert en produits de vapotage.
+Pour chaque goût de base de cette liste, génère TOUTES les variantes logiques possibles (Ice, Menthol, Double Ice, Fresh, Frozen, Tropical, etc.) selon ce qui a du sens pour ce goût.
+
+Marque: ${cat}
+Puffs: ${puffs}K
+Taux nicotine: ${taux||'2%'}
+Prix unitaire: ${price}€
+
+Liste de goûts de base:
+${flavors.map((f,i)=>`${i+1}. ${f}`).join('\n')}
+
+Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, sans backticks.
+Format exact:
+[
+  {
+    "name": "Blue Razz Ice",
+    "description": "Framboise bleue glacée avec une touche mentholée rafraîchissante",
+    "price": ${price}
+  }
+]
+
+Génère entre 3 et 6 variantes par goût de base. Sois créatif mais réaliste.`;
+
+  try {
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': cfg.claudeKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: cfg.claudeModel || 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{role:'user', content: prompt}]
+      })
+    });
+    if(!aiRes.ok){ const e=await aiRes.json().catch(()=>{}); throw new Error(e?.error?.message||'Erreur Claude '+aiRes.status); }
+    const data = await aiRes.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g,'').trim();
+    const items = JSON.parse(clean);
+    addLog('ok', `IA stock · ${items.length} articles générés pour ${cat}`);
+    res.json({ok:true, items});
+  } catch(e) {
+    addLog('err', 'IA generate-stock: '+e.message);
+    res.status(500).json({error:e.message});
+  }
+});
+
+// ─────────────────────────────────────────
 //  ROUTES PUBLIQUES — MARKETPLACE
 // ─────────────────────────────────────────
 
