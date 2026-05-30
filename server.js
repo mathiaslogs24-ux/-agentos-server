@@ -62,6 +62,11 @@ async function initDB() {
     data JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
+  await db(`CREATE TABLE IF NOT EXISTS reviews (
+    id BIGINT PRIMARY KEY,
+    data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
   await db(`CREATE TABLE IF NOT EXISTS logs (
     id SERIAL PRIMARY KEY,
     type TEXT,
@@ -159,6 +164,25 @@ async function saveOrder(order) {
 }
 async function deleteOrder(id) {
   await db('DELETE FROM orders WHERE id=$1',[id]);
+}
+
+// ─────────────────────────────────────────
+//  REVIEWS
+// ─────────────────────────────────────────
+async function getReviews() {
+  const r = await db('SELECT data FROM reviews ORDER BY created_at DESC LIMIT 500');
+  return r.rows.map(x=>x.data);
+}
+async function getReview(id) {
+  const r = await db('SELECT data FROM reviews WHERE id=$1',[id]);
+  return r.rows[0]?.data || null;
+}
+async function saveReview(review) {
+  await db('INSERT INTO reviews(id,data) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET data=$2',
+    [review.id, JSON.stringify(review)]);
+}
+async function deleteReview(id) {
+  await db('DELETE FROM reviews WHERE id=$1',[id]);
 }
 
 // ─────────────────────────────────────────
@@ -830,7 +854,12 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   if(adminBot&&cfg.adminTelegramId){
     adminBot.sendMessage(cfg.adminTelegramId,
       `💸 *Nouvelle demande de retrait*\n\n👤 *${v.shopName||v.name}*\n💰 *${parseFloat(amount).toFixed(2)}€*\n🧾 ${wd.name||'—'}\n💳 ${coords}`,
-      {parse_mode:'Markdown'}).catch(e=>addLog('warn','AdminBot notif: '+e.message));
+      {
+        parse_mode:'Markdown',
+        reply_markup:{inline_keyboard:[[
+          {text:'✅ Confirmer le paiement', callback_data:`confirm_wd_${v.id}_${wd.id}_${parseFloat(amount).toFixed(2)}`}
+        ]]}
+      }).catch(e=>addLog('warn','AdminBot notif: '+e.message));
   }
   if(v.telegramId&&vendorBot){
     vendorBot.sendMessage(v.telegramId,
@@ -873,6 +902,82 @@ async function checkSellerStockAlerts(seller) {
     +`\n\nPensez à réapprovisionner.`;
   vendorBot.sendMessage(seller.telegramId,msg,{parse_mode:'Markdown'}).catch(()=>{});
 }
+
+// ─────────────────────────────────────────
+//  ROUTES ADMIN — AVIS
+// ─────────────────────────────────────────
+
+// Lister tous les avis
+app.get('/reviews', auth, async(req,res)=>{
+  try {
+    let reviews = await getReviews();
+    if(req.query.status) reviews = reviews.filter(r=>r.status===req.query.status);
+    res.json(reviews);
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// Approuver un avis
+app.post('/reviews/:id/approve', auth, async(req,res)=>{
+  try {
+    const r = await getReview(req.params.id);
+    if(!r) return res.status(404).json({error:'Avis introuvable'});
+    r.status = 'approved';
+    await saveReview(r);
+    addLog('ok', `Avis approuvé: #${r.id}`);
+    res.json({ok:true});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// Refuser un avis
+app.post('/reviews/:id/reject', auth, async(req,res)=>{
+  try {
+    const r = await getReview(req.params.id);
+    if(!r) return res.status(404).json({error:'Avis introuvable'});
+    r.status = 'rejected';
+    await saveReview(r);
+    addLog('info', `Avis refusé: #${r.id}`);
+    res.json({ok:true});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// Supprimer un avis
+app.delete('/reviews/:id', auth, async(req,res)=>{
+  try {
+    await deleteReview(req.params.id);
+    res.json({ok:true});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// Route PUBLIQUE — avis approuvés pour un produit (shop.html)
+app.get('/reviews/public/:productId', async(req,res)=>{
+  try {
+    const reviews = await getReviews();
+    const approved = reviews.filter(r=>r.status==='approved' && String(r.productId)===req.params.productId);
+    res.json(approved);
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// Route PUBLIQUE — soumettre un avis (shop.html)
+app.post('/reviews', async(req,res)=>{
+  const{productId, productTitle, sellerId, sellerName, stars, text, userId}=req.body;
+  if(!productId||!stars||stars<1||stars>5) return res.status(400).json({error:'Données invalides'});
+  const review = {
+    id         : Date.now(),
+    productId  : String(productId),
+    productTitle: productTitle||'',
+    sellerId   : String(sellerId||''),
+    sellerName : sellerName||'',
+    stars      : parseInt(stars),
+    text       : (text||'').slice(0,500),
+    userId     : String(userId||'guest'),
+    date       : new Date().toLocaleString('fr-FR'),
+    status     : 'pending',
+    createdAt  : new Date().toISOString(),
+  };
+  await saveReview(review);
+  addLog('info', `Nouvel avis · ${productTitle} · ${stars}★`);
+  res.json({ok:true, review});
+});
 
 // ─────────────────────────────────────────
 //  ROUTES PUBLIQUES — MARKETPLACE
