@@ -103,12 +103,12 @@ input,textarea,select{font-family:inherit;}
 .sc-field label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);display:block;margin-bottom:4px;}
 .sc-field input{width:100%;background:var(--bg2);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:8px 10px;border-radius:var(--rs);outline:none;transition:border-color .15s;}
 .sc-field input:focus{border-color:var(--gold);}
-.sc-field input.mono{font-family:'DM Mono';font-size:15px;font-weight:800;color:var(--gold);text-align:center;}
+.sc-field input.mono{font-family:monospace;font-size:15px;font-weight:800;color:var(--gold);text-align:center;}
 .sc-qty-row{display:flex;align-items:center;justify-content:space-between;}
 .sc-qty{display:flex;align-items:center;gap:10px;}
 .sc-qty-btn{width:36px;height:36px;border-radius:10px;background:var(--bg2);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;}
 .sc-qty-btn:active{transform:scale(.88);}
-.sc-qty-val{font-family:'DM Mono';font-size:20px;font-weight:800;color:var(--gold);min-width:32px;text-align:center;}
+.sc-qty-val{font-family:monospace;font-size:20px;font-weight:800;color:var(--gold);min-width:32px;text-align:center;}
 .sc-status{display:flex;align-items:center;gap:8px;}
 .sc-check{position:absolute;top:10px;right:10px;}
 .sc-check input{width:20px;height:20px;accent-color:var(--gold);cursor:pointer;}
@@ -117,6 +117,8 @@ input,textarea,select{font-family:inherit;}
 .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
 .cat-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:11px;transition:border-color .2s;}
 .cat-card.on{border-color:var(--gborder);background:var(--gdim);}
+.cat-card.selected{border-color:var(--gborder);box-shadow:0 0 0 2px rgba(240,180,41,.2);}
+.cat-card{position:relative;}
 .cat-card-img{height:68px;background:var(--bg2);border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:8px;overflow:hidden;}
 .cat-card-img img{width:100%;height:100%;object-fit:cover;}
 .cat-card-brand{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:2px;}
@@ -136,7 +138,7 @@ input,textarea,select{font-family:inherit;}
 .sort-select{background:var(--bg3);border:1px solid var(--gb);color:var(--t2);font-family:'Bricolage Grotesque';font-size:12px;font-weight:700;padding:6px 10px;border-radius:16px;outline:none;cursor:pointer;}
 .price-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .price-filter label{font-size:10px;font-weight:700;color:var(--t3);}
-.pf-inp{width:72px;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'DM Mono';font-size:12px;padding:6px 8px;border-radius:var(--rs);outline:none;text-align:center;}
+.pf-inp{width:72px;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:monospace;font-size:12px;padding:6px 8px;border-radius:var(--rs);outline:none;text-align:center;}
 .pf-inp:focus{border-color:var(--gold);}
 
 /* ── BULK BAR */
@@ -171,7 +173,7 @@ input,textarea,select{font-family:inherit;}
 
 /* ── PROMOS */
 .promo-card{background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:12px;margin-bottom:8px;display:flex;gap:11px;align-items:flex-start;}
-.promo-code{font-family:'DM Mono';font-size:14px;font-weight:800;color:var(--gold);letter-spacing:.06em;}
+.promo-code{font-family:monospace;font-size:14px;font-weight:800;color:var(--gold);letter-spacing:.06em;}
 .promo-discount{font-size:18px;font-weight:800;margin-top:2px;}
 .promo-info{flex:1;min-width:0;}
 .promo-desc{font-size:12px;color:var(--t2);margin-top:3px;}
@@ -198,7 +200,7 @@ input,textarea,select{font-family:inherit;}
 .sw input:checked~.sw-k{transform:translateX(18px);}
 
 /* ── BADGES */
-.bx{display:inline-block;padding:2px 8px;border-radius:var(--rxs);font-size:10px;font-weight:700;font-family:'DM Mono';}
+.bx{display:inline-block;padding:2px 8px;border-radius:var(--rxs);font-size:10px;font-weight:700;font-family:monospace;}
 .bx.bl{background:var(--bdim);color:var(--blue);}.bx.gr{background:var(--grdim);color:var(--green);}.bx.gd{background:var(--gdim);color:var(--gold);}.bx.rd{background:var(--rdim);color:var(--red);}
 .tag{display:inline-block;padding:3px 9px;border-radius:var(--rxs);font-size:11px;font-weight:700;}
 .tg{background:var(--grdim);color:var(--green);border:1px solid var(--grbdr);}
@@ -284,10 +286,17 @@ input,textarea,select{font-family:inherit;}
         </div>
 
         <!-- STATS -->
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
           <span class="bx bl" id="vStCount">0</span>
           <span class="bx rd" id="vStAlerts">0 alertes</span>
           <span class="bx gd" id="vStVal"></span>
+        </div>
+
+        <!-- FILTRES STOCK -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;" id="stockBrandChips"></div>
+          <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;margin-top:5px;" id="stockPuffsChips"></div>
+          <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-top:5px;" id="stockStatusChips"></div>
         </div>
 
         <!-- LISTE COMPACTE -->
@@ -360,11 +369,20 @@ input,textarea,select{font-family:inherit;}
           <div id="wizStep2" style="display:none;">
             <div class="form-row" style="margin-bottom:12px;">
               <div><label class="fld-label">Marque *</label><input class="fld-input" id="wizCat" type="text" placeholder="ex: JNR" style="margin-bottom:0;"></div>
-              <div><label class="fld-label">Taux de nicotine</label><input class="fld-input" id="wizTaux" type="text" placeholder="ex: 2%" style="margin-bottom:0;"></div>
+              <div>
+                <label class="fld-label">Taux de nicotine</label>
+                <div style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;">
+                  <button type="button" class="btn xs" onclick="setWizTaux('2%')" style="font-family:monospace;">2%</button>
+                  <button type="button" class="btn xs" onclick="setWizTaux('3%')" style="font-family:monospace;">3%</button>
+                  <button type="button" class="btn xs" onclick="setWizTaux('5%')" style="font-family:monospace;">5%</button>
+                  <button type="button" class="btn xs" onclick="setWizTaux('0%')" style="font-family:monospace;">0%</button>
+                </div>
+                <input class="fld-input" id="wizTaux" type="text" placeholder="ex: 2%" style="margin-bottom:0;">
+              </div>
             </div>
             <div class="form-row" style="margin-bottom:12px;">
-              <div><label class="fld-label">Prix (€) *</label><input class="fld-input" id="wizPrice" type="number" min="0" step="0.01" placeholder="15.00" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--gold);"></div>
-              <div><label class="fld-label">Puffs (K)</label><input class="fld-input" id="wizPuffs" type="number" min="0" placeholder="18" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;color:var(--purple);"><span style="font-size:10px;color:var(--t3);">milliers</span></div>
+              <div><label class="fld-label">Prix (€) *</label><input class="fld-input" id="wizPrice" type="number" min="0" step="0.01" placeholder="15.00" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);"></div>
+              <div><label class="fld-label">Puffs (K)</label><input class="fld-input" id="wizPuffs" type="number" min="0" placeholder="18" style="margin-bottom:0;font-family:monospace;font-size:16px;color:var(--purple);"><span style="font-size:10px;color:var(--t3);">milliers</span></div>
             </div>
             <!-- Carton complet -->
             <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;margin-bottom:12px;" onclick="document.getElementById('wizCarton').click()" style="cursor:pointer;">
@@ -376,8 +394,8 @@ input,textarea,select{font-family:inherit;}
             </div>
             <div id="wizCartonBox" style="display:none;margin-bottom:12px;">
               <div class="form-row" style="margin-bottom:8px;">
-                <div><label class="fld-label">Unites par carton</label><input class="fld-input" id="wizCartonQty" type="number" min="1" placeholder="10" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--blue);"></div>
-                <div><label class="fld-label">Prix carton (€)</label><input class="fld-input" id="wizCartonPrice" type="number" min="0" step="0.01" placeholder="120" style="margin-bottom:0;font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--blue);"></div>
+                <div><label class="fld-label">Unites par carton</label><input class="fld-input" id="wizCartonQty" type="number" min="1" placeholder="10" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--blue);"></div>
+                <div><label class="fld-label">Prix carton (€)</label><input class="fld-input" id="wizCartonPrice" type="number" min="0" step="0.01" placeholder="120" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--blue);"></div>
               </div>
               <div style="font-size:11px;color:var(--t3);">Prix carton independant du prix unitaire</div>
             </div>
@@ -389,12 +407,12 @@ input,textarea,select{font-family:inherit;}
             <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
               <button onclick="wizChQty(-1)" style="width:52px;height:52px;border-radius:14px;background:var(--bg3);border:1px solid var(--gb);font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
               <input type="number" id="wizQty" min="0" value="0"
-                style="flex:1;font-family:'DM Mono';font-size:32px;font-weight:800;color:var(--gold);text-align:center;background:transparent;border:none;border-bottom:2px solid var(--gborder);outline:none;padding:8px 0;">
+                style="flex:1;font-family:monospace;font-size:32px;font-weight:800;color:var(--gold);text-align:center;background:transparent;border:none;border-bottom:2px solid var(--gborder);outline:none;padding:8px 0;">
               <button onclick="wizChQty(1)" style="width:52px;height:52px;border-radius:14px;background:var(--bg3);border:1px solid var(--gb);font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
             </div>
             <label class="fld-label">Seuil d'alerte stock bas</label>
             <input class="fld-input" id="wizAlert" type="number" min="1" value="5" placeholder="5"
-              style="font-family:'DM Mono';font-size:16px;font-weight:700;color:var(--t2);">
+              style="font-family:monospace;font-size:16px;font-weight:700;color:var(--t2);">
             <div style="font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:12px;">Tu recevras une alerte quand le stock passe sous ce nombre</div>
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;">Mettre en vente</div>
 
@@ -450,7 +468,17 @@ input,textarea,select{font-family:inherit;}
             </div>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--t2);margin-bottom:8px;" id="catActiveBadge"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:12px;color:var(--t2);" id="catActiveBadge"></div>
+          <div style="display:flex;gap:6px;" id="catBulkActions" style="display:none;">
+            <span style="font-size:12px;font-weight:700;color:var(--gold);" id="catBulkCount"></span>
+            <button class="btn xs primary" onclick="catBulkToggle(true)">✓ Vente</button>
+            <button class="btn xs" onclick="catBulkToggle(false)">✗ Vente</button>
+            <button class="btn xs" onclick="catBulkPricePrompt()">Prix</button>
+            <button class="btn xs danger" onclick="catBulkDelete()">🗑</button>
+            <button class="btn xs" onclick="catDeselectAll()">✕</button>
+          </div>
+        </div>
         <div class="cat-grid" id="catGrid"></div>
 
         <!-- SECTION CARTONS -->
@@ -548,7 +576,7 @@ input,textarea,select{font-family:inherit;}
 
             <div id="wdIbanBox">
               <label class="fld-label">IBAN</label>
-              <input class="fld-input" id="wdIban" type="text" placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX" style="font-family:'DM Mono';letter-spacing:.04em;">
+              <input class="fld-input" id="wdIban" type="text" placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX" style="font-family:monospace;letter-spacing:.04em;">
             </div>
 
             <div id="wdPaypalBox" style="display:none;">
@@ -575,7 +603,7 @@ input,textarea,select{font-family:inherit;}
             <div class="setting-row">
               <div><div class="setting-label">Seuil par défaut</div><div class="setting-sub">Alerte si stock ≤ ce nombre</div></div>
               <input type="number" id="settThreshold" min="1" value="5"
-                style="width:62px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:16px;font-weight:800;padding:6px 9px;border-radius:var(--rs);outline:none;text-align:center;"
+                style="width:62px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:monospace;font-size:16px;font-weight:800;padding:6px 9px;border-radius:var(--rs);outline:none;text-align:center;"
                 onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
             </div>
             <div style="margin-top:12px;">
@@ -592,7 +620,7 @@ input,textarea,select{font-family:inherit;}
             <div>
               <div class="setting-sub" style="margin-bottom:8px;">Clé secrète (tapez pour révéler)</div>
               <div style="display:flex;gap:8px;align-items:center;">
-                <code id="settSecretKey" style="flex:1;font-family:'DM Mono';font-size:12px;color:var(--t2);background:rgba(0,0,0,.3);padding:9px 12px;border-radius:var(--rs);filter:blur(4px);cursor:pointer;word-break:break-all;" onclick="this.style.filter='none'">••••••</code>
+                <code id="settSecretKey" style="flex:1;font-family:monospace;font-size:12px;color:var(--t2);background:rgba(0,0,0,.3);padding:9px 12px;border-radius:var(--rs);filter:blur(4px);cursor:pointer;word-break:break-all;" onclick="this.style.filter='none'">••••••</code>
                 <button class="btn xs" onclick="copyKey()">📋</button>
               </div>
             </div>
@@ -755,7 +783,7 @@ function renderPerItemThresholds(perItem={}){
         </label>
         <input type="number" class="per-item-input" data-id="${s.id}" min="1" max="100" placeholder="seuil"
           value="${perItem[s.id]||''}"
-          style="width:65px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:'DM Mono';font-size:13px;font-weight:700;padding:5px 8px;border-radius:var(--rs);outline:none;text-align:center;"
+          style="width:65px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:monospace;font-size:13px;font-weight:700;padding:5px 8px;border-radius:var(--rs);outline:none;text-align:center;"
           onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
       </div>
     </div>`).join('');
@@ -852,6 +880,22 @@ function bootDashboard(){
   document.getElementById('sellerNm').textContent=seller.shopName||seller.name;
   updateGlobalStats();
   switchTab('stock');
+  // Refresh stock depuis le serveur pour s'assurer d'avoir les données à jour
+  refreshSellerData();
+}
+
+async function refreshSellerData(){
+  try {
+    const fresh = await api('GET','/seller/me');
+    seller = fresh;
+    stock  = fresh.stock  || [];
+    promos = fresh.promos || [];
+    nid    = stock.length ? Math.max(...stock.map(x=>x.id||0))+1 : 1;
+    updateGlobalStats();
+    renderStock();
+  } catch(e){
+    // Silencieux — on garde le stock local si le refresh échoue
+  }
 }
 
 function doLogout(){
@@ -879,6 +923,7 @@ function switchTab(tab, el){
   document.querySelectorAll('.bnav').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+tab).classList.add('active');
   (el || document.getElementById('nav-'+tab))?.classList.add('active');
+  if(tab==='stock')     { renderStock(); }
   if(tab==='catalogue') renderCatalogue();
   if(tab==='orders')    loadOrders();
   if(tab==='stats')     loadStats();
@@ -925,6 +970,10 @@ function stockSt(q,a){
 
 // ═══ WIZARD ═══
 let wizStep=1, wizEditIdx=-1;
+
+function setWizTaux(val){
+  document.getElementById('wizTaux').value = val;
+}
 
 function wizToggleCarton(){
   const on = document.getElementById('wizCarton').checked;
@@ -1039,57 +1088,131 @@ function wizLoadPhoto(input){
   reader.readAsDataURL(file);
 }
 
-// ═══ RENDER STOCK (liste compacte mobile) ═══
-function renderStock(){
-  updateStockStats();
-  const q    =(document.getElementById('vStockSearch')?.value||'').toLowerCase();
-  const list =document.getElementById('stockList');
-  const items=q?stock.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.cat||'').toLowerCase().includes(q)||(s.taux||'').toLowerCase().includes(q)):stock;
+// ═══ RENDER STOCK ═══
+let stockFilterBrand = 'all';
+let stockFilterPuffs = 'all';
+let stockFilterStatus = 'all';
 
-  if(!items.length){
-    list.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Aucun goût</div><div class="empty-sub">Cliquez sur "+ Ajouter"</div></div>';
-    return;
-  }
-
-  list.innerHTML=items.map(s=>{
-    const idx     =stock.indexOf(s);
-    const isChk   =vBulkSelected.has(s.id);
-    const [lbl,tc]=stockSt(s.qty,s.alert||5);
-    const brand   =(s.cat||'')+(s.taux?' · '+s.taux:'');
-    const puffsLbl=s.puffs?fmtPuffs(s.puffs)+' puffs':'';
-    const qtyColor=s.qty<=0?'var(--red)':s.qty<=(s.alert||5)?'var(--amber)':'var(--green)';
-    const photoEl=s.image
-      ? '<img src="'+s.image+'" onclick="openAddWizard('+idx+')" onerror="this.style.display=\'none\'" style="width:48px;height:48px;border-radius:11px;object-fit:cover;flex-shrink:0;cursor:pointer;">'
-      : '<div onclick="openAddWizard('+idx+')" style="width:48px;height:48px;border-radius:11px;background:var(--bg2);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;cursor:pointer;">'+emoji(s.name)+'</div>';
-
-    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--bg3);border:1px solid '+(isChk?'rgba(240,180,41,.4)':'var(--gb)')+';border-radius:var(--r);margin-bottom:8px;">'
-      +'<input type="checkbox" '+(isChk?'checked':'')+' onchange="vToggleRow('+s.id+',this.checked)" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;">'
-      +photoEl
-      +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="openAddWizard('+idx+')">'
-        +'<div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(s.name||'Sans nom')+'</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin-top:2px;">'+(brand?brand+' · ':'')+puffsLbl+'</div>'
-        +'<div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;">'
-          +'<span class="tag '+tc+'" style="font-size:9px;padding:2px 7px;">'+lbl+'</span>'
-          +(s.carton?'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(79,195,247,.12);color:var(--blue);border:1px solid rgba(79,195,247,.25);">📦 Carton'+(s.cartonQty?' ×'+s.cartonQty:'')+'</span>':'')
-        +'</div>'
-      +'</div>'
-      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">'
-        +'<div style="font-size:15px;font-weight:800;color:var(--gold);">'+(s.price||0)+'€</div>'
-        +'<div style="display:flex;align-items:center;gap:7px;">'
-          +'<button onclick="event.stopPropagation();chQty('+idx+',-1)" style="width:28px;height:28px;border-radius:8px;background:var(--bg2);border:1px solid var(--gb);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);">−</button>'
-          +'<span style="font-family:\'DM Mono\';font-size:15px;font-weight:800;color:'+qtyColor+';min-width:24px;text-align:center;">'+s.qty+'</span>'
-          +'<button onclick="event.stopPropagation();chQty('+idx+',1)" style="width:28px;height:28px;border-radius:8px;background:var(--bg2);border:1px solid var(--gb);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);">+</button>'
-        +'</div>'
-        +'<div style="display:flex;gap:5px;">'
-          +'<button onclick="event.stopPropagation();openAddWizard('+idx+')" style="padding:4px 8px;border-radius:6px;background:var(--gdim);border:1px solid var(--gborder);color:var(--gold);font-size:11px;cursor:pointer;">✏️</button>'
-          +'<button onclick="event.stopPropagation();duplicateStock('+idx+')" style="padding:4px 8px;border-radius:6px;background:var(--bdim);border:1px solid var(--bbdr);color:var(--blue);font-size:11px;cursor:pointer;">📋</button>'
-          +'<button onclick="event.stopPropagation();delStock('+idx+')" style="padding:4px 10px;border-radius:6px;background:var(--rdim);border:1px solid var(--rbdr);color:var(--red);font-size:11px;cursor:pointer;">✕</button>'
-        +'</div>'
-      +'</div>'
-    +'</div>';
-  }).join('');
+function buildStockFilters(){
+  const brands = [...new Set(stock.map(s=>extractBrand(s.cat)).filter(Boolean))];
+  const puffsVals = [...new Set(stock.filter(s=>s.puffs).map(s=>puffsKey(s.puffs)))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
+  document.getElementById('stockBrandChips').innerHTML =
+    `<div class="fchip ${stockFilterBrand==='all'?'active':''}" onclick="setStockFilter('brand','all')">Toutes</div>`
+    + brands.map(b=>`<div class="fchip ${stockFilterBrand===b?'ap':''}" onclick="setStockFilter('brand','${b}')">${b}</div>`).join('');
+  document.getElementById('stockPuffsChips').innerHTML =
+    `<div class="fchip ${stockFilterPuffs==='all'?'active':''}" onclick="setStockFilter('puffs','all')">Tous</div>`
+    + puffsVals.map(v=>`<div class="fchip ${stockFilterPuffs===v?'ab':''}" onclick="setStockFilter('puffs','${v}')">${v}</div>`).join('');
+  const statuses = [{v:'all',l:'Tous'},{v:'vente',l:'En vente'},{v:'rupture',l:'Rupture'},{v:'bas',l:'Stock bas'}];
+  document.getElementById('stockStatusChips').innerHTML =
+    statuses.map(st=>`<div class="fchip ${stockFilterStatus===st.v?'active':''}" onclick="setStockFilter('status','${st.v}')">${st.l}</div>`).join('');
 }
 
+function setStockFilter(type, val){
+  if(type==='brand') stockFilterBrand=val;
+  if(type==='puffs') stockFilterPuffs=val;
+  if(type==='status') stockFilterStatus=val;
+  renderStock();
+}
+
+function getFilteredStock(){
+  const q = (document.getElementById('vStockSearch')?.value||'').toLowerCase();
+  return stock.filter(function(s){
+    if(stockFilterBrand!=='all' && extractBrand(s.cat)!==stockFilterBrand) return false;
+    if(stockFilterPuffs!=='all' && puffsKey(s.puffs)!==stockFilterPuffs) return false;
+    if(stockFilterStatus==='vente' && !s.enVente && !s.enVenteCarton) return false;
+    if(stockFilterStatus==='rupture' && s.qty>0) return false;
+    if(stockFilterStatus==='bas' && !(s.qty>0 && s.qty<=(s.alert||5))) return false;
+    if(q && !(s.name||'').toLowerCase().includes(q) && !(s.cat||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function makeStockRowUnite(s, idx){
+  var isChk = vBulkSelected.has(s.id);
+  var st = stockSt(s.qty, s.alert||5);
+  var lbl = st[0]; var tc = st[1];
+  var brand = (s.cat||'')+(s.taux?' - '+s.taux:'');
+  var puffsLbl = s.puffs ? fmtPuffs(s.puffs)+' puffs' : '';
+  var qC = s.qty<=0 ? 'var(--red)' : s.qty<=(s.alert||5) ? '#FB923C' : 'var(--green)';
+  var border = isChk ? 'rgba(240,180,41,.4)' : 'var(--gb)';
+  var mb = (s.carton && s.cartonQty>0) ? '2' : '8';
+  var photo = s.image
+    ? '<img src="'+s.image+'" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;">'
+    : '<div style="width:44px;height:44px;border-radius:10px;background:var(--bg2);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">'+emoji(s.name)+'</div>';
+  var chk = isChk ? 'checked' : '';
+  var onVente = s.enVente ? '<span style="font-size:9px;color:var(--green);font-weight:700;">Unite</span>' : '';
+  var row = '<div style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--bg3);border:1px solid '+border+';border-radius:var(--r);margin-bottom:'+mb+'px;">';
+  row += '<input type="checkbox" '+chk+' data-sid="'+s.id+'" onchange="vToggleRowEl(this)" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;">';
+  row += photo;
+  row += '<div style="flex:1;min-width:0;" onclick="openAddWizard('+idx+')" style="cursor:pointer;">';
+  row += '<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(s.name||'Sans nom')+'</div>';
+  row += '<div style="font-size:10px;color:var(--t3);margin-top:1px;">'+(brand ? brand+' | ' : '')+puffsLbl+'</div>';
+  row += '<div style="margin-top:3px;"><span class="tag '+tc+'" style="font-size:9px;padding:2px 6px;">'+lbl+'</span> '+onVente+'</div>';
+  row += '</div>';
+  row += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">';
+  row += '<div style="font-size:13px;font-weight:800;color:var(--gold);">'+(s.price||0)+'€</div>';
+  row += '<div style="display:flex;align-items:center;gap:5px;">';
+  row += '<button onclick="event.stopPropagation();chQty('+idx+',-1)" style="width:26px;height:26px;border-radius:7px;background:var(--bg2);border:1px solid var(--gb);font-size:14px;cursor:pointer;color:var(--text);">-</button>';
+  row += '<span style="font-family:monospace;font-size:14px;font-weight:800;color:'+qC+';min-width:22px;text-align:center;">'+s.qty+'</span>';
+  row += '<button onclick="event.stopPropagation();chQty('+idx+',1)" style="width:26px;height:26px;border-radius:7px;background:var(--bg2);border:1px solid var(--gb);font-size:14px;cursor:pointer;color:var(--text);">+</button>';
+  row += '</div>';
+  row += '<div style="display:flex;gap:4px;">';
+  row += '<button onclick="event.stopPropagation();openAddWizard('+idx+')" style="padding:3px 7px;border-radius:5px;background:var(--gdim);border:1px solid var(--gborder);color:var(--gold);font-size:10px;cursor:pointer;">&#9998;</button>';
+  row += '<button onclick="event.stopPropagation();duplicateStock('+idx+')" style="padding:3px 7px;border-radius:5px;background:var(--bdim);border:1px solid var(--bbdr);color:var(--blue);font-size:10px;cursor:pointer;">&#128203;</button>';
+  row += '<button onclick="event.stopPropagation();delStock('+idx+')" style="padding:3px 7px;border-radius:5px;background:var(--rdim);border:1px solid var(--rbdr);color:var(--red);font-size:10px;cursor:pointer;">x</button>';
+  row += '</div></div></div>';
+  return row;
+}
+
+function makeStockRowCarton(s, idx){
+  var cartonsTotal = Math.floor(s.qty / s.cartonQty);
+  var cartonsVente = (s.qtyCartonVente!==undefined) ? s.qtyCartonVente : cartonsTotal;
+  var cp = s.cartonPrice ? parseFloat(s.cartonPrice).toFixed(2) : (parseFloat(s.price||0)*s.cartonQty).toFixed(2);
+  var qC = cartonsTotal<=0 ? 'var(--red)' : 'var(--blue)';
+  var border = s.enVenteCarton ? 'rgba(79,195,247,.4)' : 'rgba(79,195,247,.15)';
+  var chk = s.enVenteCarton ? 'checked' : '';
+  var onLabel = s.enVenteCarton ? '<div style="font-size:9px;color:var(--blue);font-weight:700;">Carton on</div>' : '<div style="font-size:9px;color:var(--t3);">Carton off</div>';
+  var row = '<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;background:rgba(79,195,247,.05);border:1px solid '+border+';border-radius:var(--r);margin-bottom:8px;margin-left:20px;">';
+  row += '<div style="width:16px;flex-shrink:0;"></div>';
+  row += '<div style="width:44px;height:36px;border-radius:8px;background:rgba(79,195,247,.1);border:1px solid rgba(79,195,247,.25);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128230;</div>';
+  row += '<div style="flex:1;min-width:0;">';
+  row += '<div style="font-size:12px;font-weight:700;color:var(--blue);">Carton x'+s.cartonQty+'</div>';
+  row += '<div style="font-size:10px;color:var(--t3);margin-top:1px;">'+cartonsTotal+' cartons dispo - '+cp+'€/carton</div>';
+  row += onLabel;
+  row += '</div>';
+  row += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">';
+  row += '<div style="font-size:12px;font-weight:800;color:var(--blue);">'+cp+'€</div>';
+  row += '<div style="font-size:10px;color:var(--t3);">Vente: '+cartonsVente+'</div>';
+  row += '<div style="display:flex;align-items:center;gap:4px;">';
+  row += '<button onclick="event.stopPropagation();chCartonVente('+idx+',-1)" style="width:22px;height:22px;border-radius:6px;background:var(--bg2);border:1px solid var(--gb);font-size:12px;cursor:pointer;color:var(--text);">-</button>';
+  row += '<span style="font-family:monospace;font-size:12px;font-weight:800;color:'+qC+';min-width:20px;text-align:center;">'+cartonsVente+'</span>';
+  row += '<button onclick="event.stopPropagation();chCartonVente('+idx+',1)" style="width:22px;height:22px;border-radius:6px;background:var(--bg2);border:1px solid var(--gb);font-size:12px;cursor:pointer;color:var(--text);">+</button>';
+  row += '</div>';
+  row += '<label class="sw" style="transform:scale(.8);"><input type="checkbox" '+chk+' data-idx="'+idx+'" onchange="toggleCartonVente(this)"><span class="sw-t"></span><span class="sw-k"></span></label>';
+  row += '</div></div>';
+  return row;
+}
+
+function renderStock(){
+  updateStockStats();
+  buildStockFilters();
+  var list  = document.getElementById('stockList');
+  var items = getFilteredStock();
+  if(!items.length){
+    list.innerHTML = '<div class="empty-state"><div class="empty-title">Aucun gout</div><div class="empty-sub">+ Ajouter ou ajuster les filtres</div></div>';
+    return;
+  }
+  var html = '';
+  for(var i=0; i<items.length; i++){
+    var s = items[i];
+    var idx = stock.indexOf(s);
+    html += makeStockRowUnite(s, idx);
+    if(s.carton && s.cartonQty>0) html += makeStockRowCarton(s, idx);
+  }
+  list.innerHTML = html;
+}
+
+function renderStockPanel(){ renderStock(); }
 function renderStockPanel(){ renderStock(); }
 function addStockRow(){ openAddWizard(); }
 
@@ -1101,6 +1224,14 @@ function chQty(idx, d){ stock[idx].qty = Math.max(0,(stock[idx].qty||0)+d); rend
 
 
 function delStock(idx){ stock.splice(idx,1); renderStock(); renderCatalogue(); }
+
+function chCartonVente(idx, d){
+  const s = stock[idx]; if(!s) return;
+  const cartonsTotal = Math.floor(s.qty / s.cartonQty);
+  const current = s.qtyCartonVente !== undefined ? s.qtyCartonVente : cartonsTotal;
+  s.qtyCartonVente = Math.max(0, Math.min(cartonsTotal, current + d));
+  renderStock();
+}
 
 function duplicateStock(idx){
   const s = stock[idx]; if(!s) return;
@@ -1133,6 +1264,17 @@ function vBulkDuplicate(){
 function vSaveLocal(){ showToast('✓ Modifications sauvegardées localement'); }
 
 // ── Bulk edit
+function vToggleRowEl(el){
+  const id = parseInt(el.dataset.sid);
+  vToggleRow(id, el.checked);
+}
+
+function toggleCartonVente(el){
+  const idx = parseInt(el.dataset.idx);
+  if(stock[idx]) stock[idx].enVenteCarton = el.checked;
+  renderStock();
+}
+
 function vToggleRow(id, checked){
   if(checked) vBulkSelected.add(id); else vBulkSelected.delete(id);
   const row = document.getElementById('vrow_'+id);
@@ -1277,11 +1419,16 @@ function renderCatalogue(){
   }
 
   grid.innerHTML = items.map(s=>{
-    const idx   = stock.indexOf(s);
-    const brand = extractBrand(s.cat);
-    const pf    = s.puffs ? fmtPuffs(s.puffs)+' puffs' : '';
-    return `<div class="cat-card ${s.enVente?'on':''}">
-      <div class="cat-card-img">
+    const idx    = stock.indexOf(s);
+    const brand  = extractBrand(s.cat);
+    const pf     = s.puffs ? fmtPuffs(s.puffs)+' puffs' : '';
+    const isSel  = catSelected.has(s.id);
+    return `<div class="cat-card ${s.enVente?'on':''} ${isSel?'selected':''}" style="${isSel?'border-color:var(--gborder);':''}">
+      <div style="position:absolute;top:6px;left:6px;z-index:2;">
+        <input type="checkbox" ${isSel?'checked':''} onchange="catToggle(${s.id},this.checked)"
+          style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;" onclick="event.stopPropagation()">
+      </div>
+      <div class="cat-card-img" style="position:relative;">
         ${s.image?`<img src="${s.image}" alt="${s.name}">`:`<span style="font-size:32px;">${emoji(s.name)}</span>`}
       </div>
       <div class="cat-card-brand">${brand}${s.taux?' · '+s.taux:''}</div>
@@ -1293,8 +1440,16 @@ function renderCatalogue(){
           <input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()">
           <span class="sw-t"></span><span class="sw-k"></span>
         </label>
-        <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'A l\'unite ✓':'Unite off'}</span>
+        <span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'Unite ✓':'Off'}</span>
       </div>
+      ${s.carton&&s.cartonQty>0?`
+      <div class="cat-card-toggle" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--gb);">
+        <label class="sw">
+          <input type="checkbox" ${s.enVenteCarton?'checked':''} onchange="stock[${idx}].enVenteCarton=this.checked;renderCatalogue()">
+          <span class="sw-t"></span><span class="sw-k"></span>
+        </label>
+        <span style="font-size:11px;color:${s.enVenteCarton?'var(--blue)':'var(--t2)'};">📦 ${s.enVenteCarton?'Carton ✓':'Carton off'}</span>
+      </div>`:''}
     </div>`;
   }).join('');
 
@@ -1332,7 +1487,72 @@ function renderCatalogue(){
   }
 }
 
-function catSelectAll(state){ stock.forEach(s=>{if(s.qty>0)s.enVente=state;}); renderCatalogue(); }
+let catSelected = new Set();
+
+function catToggle(id, checked){
+  if(checked) catSelected.add(id); else catSelected.delete(id);
+  updateCatBulkBar();
+  renderCatalogue();
+}
+
+function catDeselectAll(){
+  catSelected.clear();
+  updateCatBulkBar();
+  renderCatalogue();
+}
+
+function updateCatBulkBar(){
+  const n = catSelected.size;
+  const bar = document.getElementById('catBulkActions');
+  if(n>0){
+    bar.style.display='flex';
+    document.getElementById('catBulkCount').textContent = n+' selectionne(s)';
+  } else {
+    bar.style.display='none';
+  }
+}
+
+function catSelectAll(state){
+  stock.forEach(s=>{
+    if(s.qty>0){
+      s.enVente = state;
+      if(s.carton&&s.cartonQty>0) s.enVenteCarton = state;
+    }
+  });
+  renderCatalogue();
+}
+
+function catBulkToggle(state){
+  catSelected.forEach(id=>{
+    const s = stock.find(x=>x.id===id); if(!s) return;
+    s.enVente = state;
+    if(s.carton&&s.cartonQty>0) s.enVenteCarton = state;
+  });
+  catDeselectAll();
+}
+
+function catBulkPricePrompt(){
+  const price = prompt('Nouveau prix unitaire (€) pour '+catSelected.size+' article(s) :');
+  if(!price) return;
+  const val = parseFloat(price);
+  if(isNaN(val)||val<=0){ showToast('Prix invalide','err'); return; }
+  catSelected.forEach(id=>{
+    const s = stock.find(x=>x.id===id); if(!s) return;
+    s.price = val;
+  });
+  showToast('Prix mis a jour sur '+catSelected.size+' article(s)');
+  catDeselectAll();
+}
+
+function catBulkDelete(){
+  if(!confirm('Supprimer '+catSelected.size+' article(s) definitivement ?')) return;
+  stock = stock.filter(s=>!catSelected.has(s.id));
+  catSelected.clear();
+  updateCatBulkBar();
+  renderStock();
+  renderCatalogue();
+  showToast('Articles supprimes');
+}
 
 async function pushCatalogue(){
   const items = [];
@@ -1348,6 +1568,8 @@ async function pushCatalogue(){
   });
   stock.filter(s=>s.enVenteCarton&&s.carton&&s.cartonQty>0&&s.qty>=s.cartonQty).forEach(s=>{
     const cp = s.cartonPrice ? parseFloat(s.cartonPrice) : parseFloat(s.price||0)*s.cartonQty;
+    const cartonsTotal = Math.floor(s.qty / s.cartonQty);
+    const cartonsVente = s.qtyCartonVente !== undefined ? Math.min(s.qtyCartonVente, cartonsTotal) : cartonsTotal;
     items.push({
       title:s.name+' (Carton x'+s.cartonQty+')', image:s.image||'',
       description:'Carton de '+s.cartonQty+(s.puffs?' · '+fmtPuffs(s.puffs)+' puffs':'')+(s.cat?' · '+s.cat:''),
@@ -1355,6 +1577,7 @@ async function pushCatalogue(){
       asset:'EUR', payload:'carton_'+s.id, stockId:s.id,
       cat:(s.cat||'')+(s.taux?' '+s.taux:''),
       carton:true, cartonQty:s.cartonQty, cartonPrice:String(cp.toFixed(2)),
+      qty:cartonsVente,
     });
   });
   try {
