@@ -1103,13 +1103,14 @@ IMPORTANT: Commence DIRECTEMENT par [ sans aucun texte avant ou apres.`;
       },
       body: JSON.stringify({
         model: cfg.claudeModel || 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [{role:'user', content: prompt}]
       })
     });
     if(!aiRes.ok){ const e=await aiRes.json().catch(()=>{}); throw new Error(e?.error?.message||'Erreur Claude '+aiRes.status); }
     const data = await aiRes.json();
     const text = data.content?.[0]?.text || '';
+    addLog('info', 'IA raw response length: '+text.length+' chars, finish: '+(data.stop_reason||'?'));
     // Extraction robuste du JSON — Claude peut mettre du texte avant/après
     let items;
     const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
@@ -1122,8 +1123,12 @@ IMPORTANT: Commence DIRECTEMENT par [ sans aucun texte avant ou apres.`;
     addLog('ok', `IA stock · ${items.length} articles générés pour ${cat}`);
     res.json({ok:true, items});
   } catch(e) {
-    addLog('err', 'IA generate-stock: '+e.message);
-    res.status(500).json({error:e.message});
+    const stopReason = data?.stop_reason || '';
+    const errMsg = stopReason === 'max_tokens'
+      ? 'Liste trop longue — réduisez à 5-6 goûts à la fois'
+      : e.message;
+    addLog('err', 'IA generate-stock: '+errMsg);
+    res.status(500).json({error:errMsg});
   }
 });
 
