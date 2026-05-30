@@ -1069,29 +1069,29 @@ app.post('/ai/generate-stock', auth, async(req,res)=>{
   if(!flavors||!flavors.length) return res.status(400).json({error:'Liste de goûts vide'});
   if(!cfg.claudeKey) return res.status(400).json({error:'Clé Claude non configurée'});
 
-  const prompt = `Tu es un expert en produits de vapotage.
-Pour chaque goût de base de cette liste, génère TOUTES les variantes logiques possibles (Ice, Menthol, Double Ice, Fresh, Frozen, Tropical, etc.) selon ce qui a du sens pour ce goût.
+  const prompt = `Tu es un assistant qui structure des fiches produits pour des puffs/vapes.
+
+Pour chaque goût de la liste, crée UNE SEULE fiche produit — exactement le goût tel qu'il est écrit, sans inventer de variantes.
 
 Marque: ${cat}
 Puffs: ${puffs}K
 Taux nicotine: ${taux||'2%'}
-Prix unitaire: ${price}€
+Prix: ${price}€
 
-Liste de goûts de base:
+Liste des goûts (un article = une ligne):
 ${flavors.map((f,i)=>`${i+1}. ${f}`).join('\n')}
 
-Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, sans backticks.
-Format exact:
+Réponds UNIQUEMENT avec un tableau JSON, sans texte avant ni après.
+Format:
 [
   {
-    "name": "Blue Razz Ice",
-    "description": "Framboise bleue glacée avec une touche mentholée rafraîchissante",
+    "name": "Strawberry",
+    "description": "Goût fraise sucrée et fruitée",
     "price": ${price}
   }
 ]
 
-Génère entre 3 et 6 variantes par goût de base. Sois créatif mais réaliste.
-IMPORTANT: Commence DIRECTEMENT par [ sans aucun texte avant ou apres.`;
+RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${flavors.length} objets. Commence par [.`;
 
   try {
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
