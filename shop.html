@@ -279,8 +279,16 @@ function loadLocal(){ try{ cart=JSON.parse(localStorage.getItem('cart_'+USER_ID)
 function saveCart(){ try{ localStorage.setItem('cart_'+USER_ID,JSON.stringify(cart)); }catch(e){} }
 function getFavs(){ try{ return JSON.parse(localStorage.getItem('favs_'+USER_ID)||'[]'); }catch(e){ return []; } }
 function saveFavs(f){ try{ localStorage.setItem('favs_'+USER_ID,JSON.stringify(f)); }catch(e){} }
-function getReviews(key){ try{ return JSON.parse(localStorage.getItem('reviews_'+key)||'[]'); }catch(e){ return []; } }
-function saveReviews(key,r){ try{ localStorage.setItem('reviews_'+key,JSON.stringify(r)); }catch(e){} }
+// Reviews cached from server (key = productId)
+const reviewsCache = {};
+function getReviews(key){ return reviewsCache[key] || []; }
+function saveReviews(key,r){ reviewsCache[key] = r; }
+async function fetchReviews(productId){
+  try{
+    const data = await fetch(SERVER+'/reviews/public/'+productId).then(r=>r.json());
+    reviewsCache[productId] = data||[];
+  }catch(e){ reviewsCache[productId] = []; }
+}
 function getHistory(){ try{ return JSON.parse(localStorage.getItem('orders_'+USER_ID)||'[]'); }catch(e){ return []; } }
 function saveHistory(order){
   const h=getHistory(); h.unshift(order);
@@ -310,7 +318,7 @@ function pKey(p){ return p.sellerId+'_'+p.id+(p.isCarton?'_carton':''); }
 function extractBrand(cat){ return (cat||'').split(' ')[0]||''; }
 function puffsK(p){ return p?fmtPuffs(p):'other'; }
 function groupKey(p){ return p.sellerId+'__'+p.cat+'__'+(p.isCarton?'carton':'unite'); }
-function getAvgRating(k){ const r=getReviews(k); if(!r.length) return null; return (r.reduce((s,x)=>s+x.stars,0)/r.length).toFixed(1); }
+function getAvgRating(k){ const r=getReviews(k).filter(x=>x.status==='approved'); if(!r.length) return null; return (r.reduce((s,x)=>s+x.stars,0)/r.length).toFixed(1); }
 
 function buildGroups(products){
   const map={};
@@ -334,8 +342,14 @@ async function init(){
       {id:2,sellerId:'admin',title:'Cherry Berry',cat:'JNR 16K 2%',price:15,qty:15,puffs:16000,alert:5},
     ]}];
   }
-  allProducts=sellersData.flatMap(s=>s.items.map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,emj:emoji(p.title),isCarton:false})));
-  allCartons=sellersData.flatMap(s=>s.items.filter(p=>p.carton&&p.cartonQty>0&&parseFloat(p.cartonPrice||0)>0&&p.qty>=p.cartonQty).map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,isCarton:true,price:parseFloat(p.cartonPrice),qty:Math.floor(p.qty/p.cartonQty),emj:emoji(p.title),title:p.title+' (Carton ×'+p.cartonQty+')'})));
+  // Le server retourne déjà les items séparés (isCarton:true/false)
+  // allProducts = unités, allCartons = cartons (déjà calculés par le server)
+  allProducts=sellersData.flatMap(s=>s.items
+    .filter(p=>!p.isCarton)
+    .map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,emj:emoji(p.title)})));
+  allCartons=sellersData.flatMap(s=>s.items
+    .filter(p=>p.isCarton)
+    .map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,emj:emoji(p.title)})));
   buildFilters(); renderMarket();
 }
 
@@ -462,7 +476,7 @@ function openDetail(gKey){
   tags+='<div class="dtag '+(avail>0?'green':'')+'">'+avail+'/'+g.items.length+' goûts dispo</div>';
   if(g.isCarton) tags+='<div class="dtag blue">📦 Carton ×'+g.cartonQty+'</div>';
   document.getElementById('dTags').innerHTML=tags;
-  renderFlavorPicker(); renderReviews(g.gKey); updateDetDisplay();
+  renderFlavorPicker(); fetchReviews(g.items[0]?.id||g.gKey).then(()=>renderReviews(g.gKey)); updateDetDisplay();
   document.getElementById('detOv').classList.add('open');
   document.getElementById('detSh').classList.add('open');
 }
@@ -514,7 +528,7 @@ function closeDetail(){document.getElementById('detOv').classList.remove('open')
 
 let selectedStars=0;
 function renderReviews(k){
-  const reviews=getReviews(k);
+  const reviews=getReviews(k).filter(r=>r.status==='approved');
   const avg=reviews.length?(reviews.reduce((s,x)=>s+x.stars,0)/reviews.length).toFixed(1):null;
   let html='<div class="ratings-title">';
   if(avg) html+='<span class="avg-rating">★ '+avg+'</span><span style="color:var(--t3);font-size:11px;">('+reviews.length+' avis)</span>';
@@ -526,7 +540,38 @@ function renderReviews(k){
   document.getElementById('ratingsSection').innerHTML=html;
 }
 function selectStar(n){ selectedStars=n; document.querySelectorAll('#starSelect span').forEach((s,i)=>s.classList.toggle('sel',i<n)); }
-function submitReview(k){ if(!selectedStars){showToast('⚠ Choisissez une note');return;} const text=document.getElementById('reviewText').value.trim(); const reviews=getReviews(k); reviews.unshift({stars:selectedStars,text,date:new Date().toLocaleDateString('fr-FR'),ts:Date.now()}); saveReviews(k,reviews); showToast('✓ Avis publié !'); renderReviews(k); renderMarket(); }
+async function submitReview(k){
+  if(!selectedStars){showToast('⚠ Choisissez une note');return;}
+  const text=document.getElementById('reviewText').value.trim();
+  const btn=document.querySelector('#ratingsSection button');
+  if(btn){btn.disabled=true;btn.textContent='Envoi…';}
+  try{
+    // k = groupKey = sellerId__cat__unite|carton
+    const group = buildGroups([...allProducts,...allCartons]).find(g=>g.gKey===k);
+    const repItem = group?.items[0];
+    await fetch(SERVER+'/reviews',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        productId  : repItem?.id||k,
+        productTitle: group?.cat||k,
+        sellerId   : group?.sellerId||'',
+        sellerName : group?.sellerName||'',
+        stars      : selectedStars,
+        text,
+        userId     : USER_ID,
+      })
+    });
+    showToast('✓ Avis envoyé — en attente de modération');
+    selectedStars=0;
+    if(btn){btn.disabled=false;btn.textContent='Publier';}
+    document.getElementById('reviewText').value='';
+    document.querySelectorAll('#starSelect span').forEach(s=>s.classList.remove('sel'));
+  }catch(e){
+    showToast('⚠ Erreur: '+e.message);
+    if(btn){btn.disabled=false;btn.textContent='Publier';}
+  }
+}
 
 // ── CART
 function openCart(){ if(!Object.values(cart).length) resetPromo(); renderCart(); document.getElementById('cartOv').classList.add('open'); document.getElementById('cartSh').classList.add('open'); }
