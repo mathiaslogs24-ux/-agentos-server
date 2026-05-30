@@ -373,6 +373,7 @@ function startBot() {
 // ─────────────────────────────────────────
 let vendorBot = null;
 let vendorBotUsername = '';
+let reviewBot = null;
 
 function startVendorBot() {
   const token = process.env.VENDOR_BOT_TOKEN;
@@ -480,6 +481,66 @@ function startVendorBot() {
     vendorBot.on('polling_error', err=>addLog('err','VendorBot: '+(err.message||String(err))));
     vendorBot.on('error',         err=>addLog('err','VendorBot: '+(err.message||String(err))));
   } catch(e) { addLog('err','VendorBot démarrage: '+e.message); }
+}
+
+function startReviewBot() {
+  const token = process.env.REVIEW_BOT_TOKEN;
+  if(!token){ addLog('warn','REVIEW_BOT_TOKEN non configuré'); return; }
+  try {
+    reviewBot = new TelegramBot(token, {polling:true});
+    reviewBot.getMe().then(me=>addLog('ok','Bot avis démarré ✓ @'+me.username)).catch(()=>addLog('ok','Bot avis démarré ✓'));
+
+    reviewBot.on('callback_query', async(query)=>{
+      const data = query.data;
+      if(!data?.startsWith('review_approve_') && !data?.startsWith('review_reject_')) return;
+
+      const parts   = data.split('_');
+      const action  = parts[1]; // 'approve' ou 'reject'
+      const reviewId= parts[2];
+
+      try {
+        const review = await getReview(reviewId);
+        if(!review){ reviewBot.answerCallbackQuery(query.id,{text:'Avis introuvable'}); return; }
+
+        review.status = action==='approve' ? 'approved' : 'rejected';
+        await saveReview(review);
+        addLog('ok', `Avis ${action==='approve'?'approuvé':'refusé'} via bot: #${reviewId}`);
+
+        // Notifier le client sur le bot principal (seulement si approuvé)
+        if(action==='approve' && review.userId && review.userId!=='guest' && bot) {
+          bot.sendMessage(review.userId,
+            `✅ *Ton avis a été publié !*
+
+`
+            +`⭐ ${review.stars}/5 sur *${review.productTitle||'le produit'}*
+`
+            +(review.text?`"${review.text}"
+
+`:`
+`)
+            +`Merci pour ton retour ! 🙏`,
+            {parse_mode:'Markdown'}
+          ).catch(()=>{});
+        }
+
+        // Éditer le message Telegram avec le résultat
+        const label = action==='approve'
+          ? `✅ Approuvé — ${review.stars}★ sur ${review.productTitle||'produit'}`
+          : `❌ Refusé — ${review.stars}★ sur ${review.productTitle||'produit'}`;
+        reviewBot.editMessageReplyMarkup(
+          {inline_keyboard:[[{text:label, callback_data:'done'}]]},
+          {chat_id:query.message.chat.id, message_id:query.message.message_id}
+        ).catch(()=>{});
+
+        reviewBot.answerCallbackQuery(query.id,{text:action==='approve'?'✅ Avis approuvé et client notifié !':'❌ Avis refusé.'});
+      } catch(e) {
+        reviewBot.answerCallbackQuery(query.id,{text:'Erreur: '+e.message});
+        addLog('err','ReviewBot callback: '+e.message);
+      }
+    });
+
+    reviewBot.on('polling_error', err=>addLog('err','ReviewBot: '+(err.message||String(err))));
+  } catch(e) { addLog('err','ReviewBot démarrage: '+e.message); }
 }
 
 function stopBot(){
@@ -976,6 +1037,27 @@ app.post('/reviews', async(req,res)=>{
   };
   await saveReview(review);
   addLog('info', `Nouvel avis · ${productTitle} · ${stars}★`);
+
+  // Notifier le bot avis pour modération
+  if(reviewBot && cfg.adminTelegramId) {
+    const stars_display = '★'.repeat(parseInt(stars)) + '☆'.repeat(5-parseInt(stars));
+    const msg = `⭐ *Nouvel avis à modérer*\n\n`
+      +`${stars_display} *${parseInt(stars)}/5*\n\n`
+      +`📦 *Produit :* ${productTitle||'?'}\n`
+      +(sellerName?`🏪 *Vendeur :* ${sellerName}\n`:'')
+      +(text?`\n💬 *Commentaire :*\n"${text}"\n`:' _Pas de commentaire_\n')
+      +`\n👤 *Client :* ${userId==='guest'?'Invité':'#'+userId}`
+      +`\n📅 *Date :* ${new Date().toLocaleString('fr-FR')}`;
+
+    reviewBot.sendMessage(cfg.adminTelegramId, msg, {
+      parse_mode:'Markdown',
+      reply_markup:{inline_keyboard:[[
+        {text:'✅ Approuver', callback_data:`review_approve_${review.id}`},
+        {text:'❌ Refuser',   callback_data:`review_reject_${review.id}`},
+      ]]}
+    }).catch(e=>addLog('warn','ReviewBot notif: '+e.message));
+  }
+
   res.json({ok:true, review});
 });
 
@@ -1289,6 +1371,7 @@ async function main() {
   if(cfg.telegramToken&&cfg.claudeKey) setTimeout(()=>startBot(),2000);
   setTimeout(()=>startVendorBot(),2500);
   setTimeout(()=>startAdminBot(),3000);
+  setTimeout(()=>startReviewBot(),3500);
 }
 
 main().catch(e=>{ console.error('Startup error:', e); process.exit(1); });
