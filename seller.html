@@ -1691,10 +1691,25 @@ function setPeriod(p, el){
 async function loadStats(){
   try {
     if(!orders.length) orders = await api('GET','/seller/orders');
+    buildKpis();
     buildCharts();
     buildTopProducts();
     if(document.getElementById('comparisonSection')) buildComparison();
   } catch(e){ showToast('⚠ '+e.message,'err'); }
+}
+
+function buildKpis(){
+  const el = document.getElementById('statsKpis');
+  if(!el) return;
+  const totalRev  = orders.reduce((s,o)=>s+parseFloat(o.net||0),0);
+  const totalCom  = orders.reduce((s,o)=>s+parseFloat(o.commission||0),0);
+  const totalOrders = orders.length;
+  const avgOrder  = totalOrders ? (totalRev/totalOrders).toFixed(2) : '0.00';
+  el.innerHTML =
+    '<div class="stat-card"><div class="stat-label">Gain net total</div><div class="stat-val gold">'+totalRev.toFixed(2)+'€</div></div>'
+   +'<div class="stat-card"><div class="stat-label">Commandes</div><div class="stat-val blue">'+totalOrders+'</div></div>'
+   +'<div class="stat-card"><div class="stat-label">Commissions</div><div class="stat-val" style="color:var(--red);">'+totalCom.toFixed(2)+'€</div></div>'
+   +'<div class="stat-card"><div class="stat-label">Panier moyen</div><div class="stat-val green">'+avgOrder+'€</div></div>';
 }
 
 function getDaysRange(period){
