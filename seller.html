@@ -278,7 +278,8 @@ input,textarea,select{font-family:inherit;}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;">
           <div style="display:flex;gap:7px;">
             <button class="btn sm primary" onclick="openAddWizard()">+ Ajouter</button>
-            <button class="btn sm primary" onclick="pushStock()">🖥 Pousser</button>
+            <button class="btn sm primary" onclick="pushStock()">🖥 Stock</button>
+            <button class="btn sm success" onclick="pushAll()">🖥 Tout</button>
           </div>
           <input type="text" id="vStockSearch" placeholder="Rechercher…"
             style="background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:8px 12px;border-radius:var(--rs);outline:none;width:130px;"
@@ -426,7 +427,7 @@ input,textarea,select{font-family:inherit;}
             </div>
 
             <!-- Toggle CARTON — visible seulement si carton activé -->
-            <div id="wizEnVenteCartonBox" style="display:none;display:flex;align-items:center;gap:12px;background:rgba(79,195,247,.06);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);padding:13px 14px;">
+            <div id="wizEnVenteCartonBox" style="display:none;flex-direction:row;align-items:center;gap:12px;background:rgba(79,195,247,.06);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);padding:13px 14px;">
               <label class="sw"><input type="checkbox" id="wizEnVenteCarton"><span class="sw-t"></span><span class="sw-k"></span></label>
               <div>
                 <div style="font-size:13px;font-weight:700;color:var(--blue);">📦 En carton</div>
@@ -588,6 +589,8 @@ input,textarea,select{font-family:inherit;}
           </div>
         </div>
 
+        <div id="withdrawalsList"></div>
+
       </div><!-- /panel-withdrawals -->
 
       <!-- SETTINGS -->
@@ -609,6 +612,8 @@ input,textarea,select{font-family:inherit;}
             <div style="margin-top:12px;">
               <button class="btn sm" onclick="sendTestAlert()" style="background:var(--bdim);color:var(--blue);border-color:var(--bbdr);">📩 Test d'alerte</button>
             </div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;margin-top:12px;">Seuils par article</div>
+            <div id="perItemThresholds"></div>
           </div>
         </div>
         <div class="card">
@@ -648,6 +653,9 @@ input,textarea,select{font-family:inherit;}
     </button>
     <button class="bnav" id="nav-promos" onclick="switchTab('promos',this)">
       <span class="bnav-icon">🏷</span><span class="bnav-label">Promos</span>
+    </button>
+    <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)">
+      <span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span>
     </button>
     <button class="bnav" id="nav-settings" onclick="switchTab('settings',this)">
       <span class="bnav-icon">⚙️</span><span class="bnav-label">Config</span>
@@ -1049,7 +1057,6 @@ function wizNext(){
       carton       :document.getElementById('wizCarton').checked,
       cartonQty  :parseInt(document.getElementById('wizCartonQty').value)||0,
       cartonPrice:parseFloat(document.getElementById('wizCartonPrice').value)||0,
-      enVenteCarton:false,
       image :img?img.src:(wizEditIdx>=0?stock[wizEditIdx].image||'':''),
     };
     if(wizEditIdx>=0) stock[wizEditIdx]=entry;
@@ -1212,7 +1219,6 @@ function renderStock(){
   list.innerHTML = html;
 }
 
-function renderStockPanel(){ renderStock(); }
 function renderStockPanel(){ renderStock(); }
 function addStockRow(){ openAddWizard(); }
 
@@ -1811,6 +1817,11 @@ function togglePromoLimit(){
 function togglePromoScope(){
   const v = document.getElementById('promoScope').value;
   document.getElementById('promoCatBox').style.display = v==='category'?'block':'none';
+}
+
+function togglePromoType(){
+  const v = document.getElementById('promoType').value;
+  document.getElementById('promoTypeLabel').textContent = v==='percent'?'(%)':'(€)';
 }
 
 function createPromo(){
