@@ -96,6 +96,8 @@ let cfg = {
   commissionRate: 0.05,
   commissionMode: 'flat',
   commissionFlat: 1.00,
+  // ✅ FIX #1 — promos admin initialisées à tableau vide (était undefined avant)
+  promos        : [],
 };
 
 let stock     = [];
@@ -107,6 +109,8 @@ async function loadConfig() {
     if(r.rows.length) {
       const saved = r.rows[0].value;
       cfg       = { ...cfg, ...saved.cfg };
+      // ✅ FIX #1 — s'assurer que cfg.promos est toujours un tableau après chargement
+      if(!Array.isArray(cfg.promos)) cfg.promos = [];
       stock     = saved.stock     || [];
       shopItems = saved.shopItems || [];
     }
@@ -509,15 +513,9 @@ function startReviewBot() {
         // Notifier le client sur le bot principal (seulement si approuvé)
         if(action==='approve' && review.userId && review.userId!=='guest' && bot) {
           bot.sendMessage(review.userId,
-            `✅ *Ton avis a été publié !*
-
-`
-            +`⭐ ${review.stars}/5 sur *${review.productTitle||'le produit'}*
-`
-            +(review.text?`"${review.text}"
-
-`:`
-`)
+            `✅ *Ton avis a été publié !*\n\n`
+            +`⭐ ${review.stars}/5 sur *${review.productTitle||'le produit'}*\n`
+            +(review.text?`"${review.text}"\n\n`:'\n')
             +`Merci pour ton retour ! 🙏`,
             {parse_mode:'Markdown'}
           ).catch(()=>{});
@@ -852,13 +850,23 @@ app.post('/seller/promos', sellerAuth, async(req,res)=>{
   res.json({ok:true,count:req.body.length});
 });
 
-// ── Code promo
+// ─────────────────────────────────────────
+//  ✅ FIX #1 — CODE PROMO
+//  AVANT : cfg.promos était undefined → les promos admin jamais trouvées
+//  MAINTENANT : cfg.promos est initialisé à [] dans la config
+//  + recherche robuste avec fallback Array.isArray
+// ─────────────────────────────────────────
 async function applyPromoCode(code, sellerId, cat, amount, userId){
   if(!code) return{ok:false,error:'Code manquant'};
   const codeUp=code.trim().toUpperCase();
   let found=null,foundSellerId=null,foundSeller=null;
-  const ap=(cfg.promos||[]).find(p=>p.code===codeUp&&p.active);
+
+  // Recherche dans les promos admin (cfg.promos est maintenant toujours un tableau)
+  const adminPromos = Array.isArray(cfg.promos) ? cfg.promos : [];
+  const ap = adminPromos.find(p=>p.code===codeUp&&p.active);
   if(ap){found=ap;foundSellerId='admin';}
+
+  // Recherche dans les promos vendeurs
   if(!found){
     const sellers=await getSellers();
     for(const v of sellers){
@@ -866,67 +874,106 @@ async function applyPromoCode(code, sellerId, cat, amount, userId){
       if(vp){found=vp;foundSellerId=String(v.id);foundSeller=v;break;}
     }
   }
-  if(!found)                                                               return{ok:false,error:'Code invalide'};
+
+  if(!found)                                                               return{ok:false,error:'Code invalide ou inexistant'};
   if(found.expiry&&new Date(found.expiry)<new Date())                      return{ok:false,error:'Code expiré'};
-  if(found.limitType==='total'&&(found.usedCount||0)>=found.limitVal)      return{ok:false,error:'Code épuisé'};
-  if(found.limitType==='per_user'&&(found.usedBy||[]).includes(userId))    return{ok:false,error:'Déjà utilisé par ce client'};
-  if(found.scope==='seller'&&sellerId&&foundSellerId!=='admin'&&String(foundSellerId)!==String(sellerId))
+  if(found.limitType==='total'&&(found.usedCount||0)>=(found.limitVal||Infinity)) return{ok:false,error:'Code épuisé'};
+  if(found.limitType==='per_user'&&(found.usedBy||[]).includes(String(userId))) return{ok:false,error:'Déjà utilisé par ce client'};
+
+  // Vérif scope vendeur : si le code appartient à un vendeur, il faut que le panier inclue ce vendeur
+  if(foundSellerId!=='admin'&&sellerId&&String(foundSellerId)!==String(sellerId))
     return{ok:false,error:'Code non valide pour ce vendeur'};
-  if(found.scope==='category'&&cat&&found.cat&&found.cat.toLowerCase()!==cat.toLowerCase())
+
+  // Vérif scope catégorie (seulement si cat est fourni et que le scope est 'category')
+  if(found.scope==='category'&&found.cat&&cat&&found.cat.toLowerCase()!==cat.toLowerCase())
     return{ok:false,error:'Code non valide pour cette catégorie'};
+
   const discount=found.type==='percent'
     ?parseFloat(amount)*found.value/100
     :Math.min(found.value,parseFloat(amount));
-  return{ok:true,code:found.code,type:found.type,value:found.value,
-    discount:parseFloat(discount.toFixed(2)),foundSellerId,foundSeller,promoObj:found};
+
+  return{
+    ok:true,
+    code:found.code,
+    type:found.type,
+    value:found.value,
+    discount:parseFloat(discount.toFixed(2)),
+    foundSellerId,
+    foundSeller,
+    promoObj:found,
+  };
 }
 
 async function markPromoUsed(code, userId){
   const codeUp=(code||'').toUpperCase();
-  const ap=(cfg.promos||[]).find(p=>p.code===codeUp);
+
+  // Chercher dans les promos admin
+  const adminPromos = Array.isArray(cfg.promos) ? cfg.promos : [];
+  const ap=adminPromos.find(p=>p.code===codeUp);
   if(ap){
     ap.usedCount=(ap.usedCount||0)+1;
-    if(userId&&ap.limitType==='per_user') ap.usedBy=[...(ap.usedBy||[]),userId];
+    if(userId&&ap.limitType==='per_user') ap.usedBy=[...(ap.usedBy||[]),String(userId)];
     await saveConfig(); return;
   }
+
+  // Chercher dans les promos vendeurs
   const sellers=await getSellers();
   for(const v of sellers){
     const vp=(v.promos||[]).find(p=>p.code===codeUp);
     if(vp){
       vp.usedCount=(vp.usedCount||0)+1;
-      if(userId&&vp.limitType==='per_user') vp.usedBy=[...(vp.usedBy||[]),userId];
+      if(userId&&vp.limitType==='per_user') vp.usedBy=[...(vp.usedBy||[]),String(userId)];
       await saveSeller(v); return;
     }
   }
 }
 
+// ─────────────────────────────────────────
+//  ✅ FIX #3 — RETRAITS (double notification supprimée)
+//  AVANT : vendorBot envoyait un message au vendeur en plus du message à l'admin
+//          → le vendeur recevait 2 notifications (une ici + une via adminBot confirm)
+//  MAINTENANT : on n'envoie plus au vendeur ici, seulement à l'admin.
+//               Le vendeur sera notifié UNIQUEMENT quand l'admin confirme le paiement.
+// ─────────────────────────────────────────
 app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   const{amount,coords,name,mode}=req.body;
   const v=req.seller;
   if(!amount||amount<=0)  return res.status(400).json({error:'Montant invalide'});
   if(amount>(v.balance||0)) return res.status(400).json({error:'Solde insuffisant'});
   if(!coords)             return res.status(400).json({error:'Coordonnées requises'});
-  const wd={id:Date.now(),amount:parseFloat(amount).toFixed(2),name:name||'',coords,mode:mode||'iban',
-    date:new Date().toLocaleString('fr-FR'),status:'pending'};
+  const wd={
+    id:Date.now(),
+    amount:parseFloat(amount).toFixed(2),
+    name:name||'',
+    coords,
+    mode:mode||'iban',
+    date:new Date().toLocaleString('fr-FR'),
+    status:'pending',
+  };
   if(!v.withdrawals) v.withdrawals=[];
   v.withdrawals.unshift(wd);
   await saveSeller(v);
   addLog('ok',`Retrait demandé · ${v.name} · ${amount}€`);
-  if(adminBot&&cfg.adminTelegramId){
-    adminBot.sendMessage(cfg.adminTelegramId,
+
+  // Notifier l'admin pour validation
+  // ✅ FIX #3 — utilise aussi process.env.ADMIN_TELEGRAM_ID comme fallback
+  const adminId = cfg.adminTelegramId || process.env.ADMIN_TELEGRAM_ID;
+  if(adminBot && adminId){
+    adminBot.sendMessage(adminId,
       `💸 *Nouvelle demande de retrait*\n\n👤 *${v.shopName||v.name}*\n💰 *${parseFloat(amount).toFixed(2)}€*\n🧾 ${wd.name||'—'}\n💳 ${coords}`,
       {
         parse_mode:'Markdown',
         reply_markup:{inline_keyboard:[[
           {text:'✅ Confirmer le paiement', callback_data:`confirm_wd_${v.id}_${wd.id}_${parseFloat(amount).toFixed(2)}`}
         ]]}
-      }).catch(e=>addLog('warn','AdminBot notif: '+e.message));
+      }
+    ).catch(e=>addLog('warn','AdminBot notif: '+e.message));
   }
-  if(v.telegramId&&vendorBot){
-    vendorBot.sendMessage(v.telegramId,
-      `💸 *Demande de retrait envoyée !*\n\nMontant : *${parseFloat(amount).toFixed(2)}€*\n\nTraitement sous 24-48h.`,
-      {parse_mode:'Markdown'}).catch(()=>{});
-  }
+
+  // ✅ FIX #3 — SUPPRESSION de la double notification vendeur ici.
+  // Le vendeur sera notifié uniquement quand l'admin confirme via le bouton.
+  // (Le message "Demande envoyée" est déjà affiché par le dashboard seller.html)
+
   res.json({ok:true, seller:{...v,secret:undefined}});
 });
 
@@ -967,8 +1014,6 @@ async function checkSellerStockAlerts(seller) {
 // ─────────────────────────────────────────
 //  ROUTES ADMIN — AVIS
 // ─────────────────────────────────────────
-
-// Lister tous les avis
 app.get('/reviews', auth, async(req,res)=>{
   try {
     let reviews = await getReviews();
@@ -977,7 +1022,6 @@ app.get('/reviews', auth, async(req,res)=>{
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 
-// Approuver un avis
 app.post('/reviews/:id/approve', auth, async(req,res)=>{
   try {
     const r = await getReview(req.params.id);
@@ -989,7 +1033,6 @@ app.post('/reviews/:id/approve', auth, async(req,res)=>{
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 
-// Refuser un avis
 app.post('/reviews/:id/reject', auth, async(req,res)=>{
   try {
     const r = await getReview(req.params.id);
@@ -1001,7 +1044,6 @@ app.post('/reviews/:id/reject', auth, async(req,res)=>{
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 
-// Supprimer un avis
 app.delete('/reviews/:id', auth, async(req,res)=>{
   try {
     await deleteReview(req.params.id);
@@ -1009,7 +1051,7 @@ app.delete('/reviews/:id', auth, async(req,res)=>{
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 
-// Route PUBLIQUE — avis approuvés pour un produit (shop.html)
+// Route PUBLIQUE — avis approuvés pour un produit
 app.get('/reviews/public/:productId', async(req,res)=>{
   try {
     const reviews = await getReviews();
@@ -1018,10 +1060,17 @@ app.get('/reviews/public/:productId', async(req,res)=>{
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 
-// Route PUBLIQUE — soumettre un avis (shop.html)
+// ─────────────────────────────────────────
+//  ✅ FIX #2 — AVIS : notification Telegram manquante
+//  AVANT : cfg.adminTelegramId pouvait être undefined si le bot admin n'avait
+//          jamais reçu /start → reviewBot.sendMessage() jamais appelé → 0 notif
+//  MAINTENANT : fallback sur process.env.ADMIN_TELEGRAM_ID en priorité,
+//               puis cfg.adminTelegramId comme second choix
+// ─────────────────────────────────────────
 app.post('/reviews', async(req,res)=>{
   const{productId, productTitle, sellerId, sellerName, stars, text, userId}=req.body;
   if(!productId||!stars||stars<1||stars>5) return res.status(400).json({error:'Données invalides'});
+
   const review = {
     id         : Date.now(),
     productId  : String(productId),
@@ -1038,8 +1087,10 @@ app.post('/reviews', async(req,res)=>{
   await saveReview(review);
   addLog('info', `Nouvel avis · ${productTitle} · ${stars}★`);
 
-  // Notifier le bot avis pour modération
-  if(reviewBot && cfg.adminTelegramId) {
+  // ✅ FIX #2 — Priorité : variable d'environnement > cfg.adminTelegramId
+  const adminTelegramId = process.env.ADMIN_TELEGRAM_ID || cfg.adminTelegramId;
+
+  if(reviewBot && adminTelegramId) {
     const stars_display = '★'.repeat(parseInt(stars)) + '☆'.repeat(5-parseInt(stars));
     const msg = `⭐ *Nouvel avis à modérer*\n\n`
       +`${stars_display} *${parseInt(stars)}/5*\n\n`
@@ -1049,13 +1100,17 @@ app.post('/reviews', async(req,res)=>{
       +`\n👤 *Client :* ${userId==='guest'?'Invité':'#'+userId}`
       +`\n📅 *Date :* ${new Date().toLocaleString('fr-FR')}`;
 
-    reviewBot.sendMessage(cfg.adminTelegramId, msg, {
+    reviewBot.sendMessage(adminTelegramId, msg, {
       parse_mode:'Markdown',
       reply_markup:{inline_keyboard:[[
         {text:'✅ Approuver', callback_data:`review_approve_${review.id}`},
         {text:'❌ Refuser',   callback_data:`review_reject_${review.id}`},
       ]]}
     }).catch(e=>addLog('warn','ReviewBot notif: '+e.message));
+  } else {
+    // Log pour aider au diagnostic si la notif ne part toujours pas
+    if(!reviewBot)        addLog('warn','ReviewBot: bot non démarré (REVIEW_BOT_TOKEN manquant ?)');
+    if(!adminTelegramId)  addLog('warn','ReviewBot: ADMIN_TELEGRAM_ID non configuré — ajoutez-le dans .env ou envoyez /start au bot admin');
   }
 
   res.json({ok:true, review});
@@ -1063,6 +1118,7 @@ app.post('/reviews', async(req,res)=>{
 
 // ─────────────────────────────────────────
 //  ROUTE IA — GÉNÉRATION STOCK
+//  ✅ FIX #4 — variable 'data' déclarée avant le try pour éviter ReferenceError dans le catch
 // ─────────────────────────────────────────
 app.post('/ai/generate-stock', auth, async(req,res)=>{
   const { flavors, cat, puffs, price, taux } = req.body;
@@ -1093,6 +1149,8 @@ Format:
 
 RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${flavors.length} objets. Commence par [.`;
 
+  // ✅ FIX #4 — 'data' déclaré AVANT le try pour être accessible dans le catch
+  let data = null;
   try {
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -1108,10 +1166,10 @@ RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${
       })
     });
     if(!aiRes.ok){ const e=await aiRes.json().catch(()=>{}); throw new Error(e?.error?.message||'Erreur Claude '+aiRes.status); }
-    const data = await aiRes.json();
+    data = await aiRes.json();
     const text = data.content?.[0]?.text || '';
     addLog('info', 'IA raw response length: '+text.length+' chars, finish: '+(data.stop_reason||'?'));
-    // Extraction robuste du JSON — Claude peut mettre du texte avant/après
+    // Extraction robuste du JSON
     let items;
     const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if(jsonMatch){
@@ -1123,6 +1181,7 @@ RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${
     addLog('ok', `IA stock · ${items.length} articles générés pour ${cat}`);
     res.json({ok:true, items});
   } catch(e) {
+    // ✅ FIX #4 — 'data' est maintenant accessible ici sans ReferenceError
     const stopReason = data?.stop_reason || '';
     const errMsg = stopReason === 'max_tokens'
       ? 'Liste trop longue — réduisez à 5-6 goûts à la fois'
@@ -1135,8 +1194,6 @@ RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${
 // ─────────────────────────────────────────
 //  ROUTES PUBLIQUES — MARKETPLACE
 // ─────────────────────────────────────────
-
-// Helper: construit les items pour un vendeur en séparant unité et carton
 function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sellerShop) {
   const items = [];
   shopItemsArr.forEach(item => {
@@ -1146,7 +1203,6 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
     const isCarton = (item.carton === true) || (item.payload || '').startsWith('carton_');
 
     if (isCarton) {
-      // Vente au carton : qty = nombre de cartons disponibles
       const cqty = item.cartonQty || s.cartonQty || 1;
       const cartonsLeft = Math.floor(s.qty / cqty);
       if (cartonsLeft <= 0) return;
@@ -1172,7 +1228,6 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
         cartonPrice : cp,
       });
     } else {
-      // Vente à l'unité : qty = unités disponibles
       items.push({
         id          : item.stockId,
         sellerId, sellerName, sellerShop,
@@ -1218,6 +1273,29 @@ app.get('/stock-public', async(req,res) => {
 });
 
 // ─────────────────────────────────────────
+//  ✅ ROUTE PUBLIQUE — VALIDATION CODE PROMO
+//  Permet au shop.html de valider un code et d'obtenir la réduction AVANT le paiement
+//  sans créer de session Stripe
+// ─────────────────────────────────────────
+app.post('/promo/validate', async(req,res)=>{
+  const { code, subtotal, sellerId, userId } = req.body;
+  if(!code || !subtotal) return res.status(400).json({ok:false, error:'Code ou montant manquant'});
+  try {
+    const result = await applyPromoCode(code, sellerId||null, null, parseFloat(subtotal), userId||'guest');
+    if(!result.ok) return res.status(400).json({ok:false, error:result.error});
+    res.json({
+      ok      : true,
+      code    : result.code,
+      type    : result.type,
+      value   : result.value,
+      discount: result.discount,
+    });
+  } catch(e) {
+    res.status(500).json({ok:false, error:e.message});
+  }
+});
+
+// ─────────────────────────────────────────
 //  CHECKOUT STRIPE
 // ─────────────────────────────────────────
 app.post('/shop-checkout', async(req,res) => {
@@ -1228,8 +1306,9 @@ app.post('/shop-checkout', async(req,res) => {
     const subtotal=cart.reduce((s,i)=>s+parseFloat(i.price)*parseInt(i.qty||1),0);
     let promoResult=null;
     if(promoCode){
+      // ✅ FIX #1 — on passe le sellerId du premier vendeur du panier pour la validation scope vendeur
       const firstSellerId=cart.find(i=>i.sellerId&&i.sellerId!=='admin')?.sellerId||'admin';
-      promoResult=await applyPromoCode(promoCode,firstSellerId,null,subtotal,userId||'guest');
+      promoResult=await applyPromoCode(promoCode, firstSellerId, null, subtotal, userId||'guest');
       if(!promoResult.ok) return res.status(400).json({error:'Code promo : '+promoResult.error});
       addLog('info',`Promo "${promoCode}" appliquée · -${promoResult.discount}€`);
     }
@@ -1359,7 +1438,6 @@ app.post('/stripe-webhook', async(req,res) => {
       if(ci.sellerId==='admin'||!ci.sellerId){
         const s=stock.find(x=>x.id===ci.id);
         if(s&&s.qty>0){
-          // Si c'est un carton, déduire cartonQty * qty unités du stock
           const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
           s.qty=Math.max(0,s.qty-unitsToDeduct);
           addLog('info',`Admin ${s.name} → ${s.qty}`);
@@ -1378,7 +1456,6 @@ app.post('/stripe-webhook', async(req,res) => {
           v.totalCommission =parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
           const s=(v.stock||[]).find(x=>x.id===ci.id);
           if(s&&s.qty>0){
-            // Si c'est un carton, déduire cartonQty * qty unités du stock
             const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
             s.qty=Math.max(0,s.qty-unitsToDeduct);
             addLog('info',`${v.name} ${s.name} → ${s.qty}`);
