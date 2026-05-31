@@ -270,8 +270,6 @@ let filterSeller='all', filterBrand='all', filterPuffs='all', searchQ='';
 let detailGroup=null, detailFlavor=null, detailQty=1;
 
 // ── PROMO STATE
-// Le code est stocké localement pour l'affichage
-// La validation REELLE se fait côté serveur au moment du paiement
 let promoState = { code:'', applied:false, discount:0, type:'', value:0 };
 
 // ── PERSISTANCE
@@ -279,7 +277,6 @@ function loadLocal(){ try{ cart=JSON.parse(localStorage.getItem('cart_'+USER_ID)
 function saveCart(){ try{ localStorage.setItem('cart_'+USER_ID,JSON.stringify(cart)); }catch(e){} }
 function getFavs(){ try{ return JSON.parse(localStorage.getItem('favs_'+USER_ID)||'[]'); }catch(e){ return []; } }
 function saveFavs(f){ try{ localStorage.setItem('favs_'+USER_ID,JSON.stringify(f)); }catch(e){} }
-// Reviews cached from server (key = productId)
 const reviewsCache = {};
 function getReviews(key){ return reviewsCache[key] || []; }
 function saveReviews(key,r){ reviewsCache[key] = r; }
@@ -342,8 +339,6 @@ async function init(){
       {id:2,sellerId:'admin',title:'Cherry Berry',cat:'JNR 16K 2%',price:15,qty:15,puffs:16000,alert:5},
     ]}];
   }
-  // Le server retourne déjà les items séparés (isCarton:true/false)
-  // allProducts = unités, allCartons = cartons (déjà calculés par le server)
   allProducts=sellersData.flatMap(s=>s.items
     .filter(p=>!p.isCarton)
     .map(p=>({...p,sellerName:s.sellerName||s.name,sellerShop:s.sellerShop||s.sellerName,emj:emoji(p.title)})));
@@ -546,7 +541,6 @@ async function submitReview(k){
   const btn=document.querySelector('#ratingsSection button');
   if(btn){btn.disabled=true;btn.textContent='Envoi…';}
   try{
-    // k = groupKey = sellerId__cat__unite|carton
     const group = buildGroups([...allProducts,...allCartons]).find(g=>g.gKey===k);
     const repItem = group?.items[0];
     await fetch(SERVER+'/reviews',{
@@ -574,7 +568,7 @@ async function submitReview(k){
 }
 
 // ── CART
-function openCart(){ if(!Object.values(cart).length) resetPromo(); renderCart(); document.getElementById('cartOv').classList.add('open'); document.getElementById('cartSh').classList.add('open'); }
+function openCart(){ renderCart(); document.getElementById('cartOv').classList.add('open'); document.getElementById('cartSh').classList.add('open'); }
 function closeCart(){document.getElementById('cartOv').classList.remove('open');document.getElementById('cartSh').classList.remove('open');}
 function clearCart(){ cart={}; resetPromo(); saveCart(); renderCart(); renderMarket(); updateBadges(); }
 function updateBadges(){
@@ -584,54 +578,151 @@ function updateBadges(){
   const fb=document.getElementById('favBadge'); fb.style.display=f>0?'flex':'none'; fb.textContent=f;
 }
 
-// ── PROMO — tout se passe côté serveur, ici on stocke juste le code saisi
 function resetPromo(){ promoState={code:'',applied:false,discount:0,type:'',value:0}; }
 function getSubtotal(){ return Object.values(cart).reduce((s,{product:p,qty})=>s+p.price*qty,0); }
 function getCartSellerId(){ const first=Object.values(cart)[0]; return first?String(first.product.sellerId):''; }
 
-// applyPromo : on ne vérifie PLUS côté client via /promo/check (route supprimée)
-// On stocke juste le code, la validation se fait côté serveur au checkout
-function applyPromo(){
+// ════════════════════════════════════════════════
+//  ✅ FIX #1 — applyPromo()
+//  AVANT : stockait le code localement sans validation serveur
+//          → code invalide découvert seulement au moment de payer (mauvaise UX)
+//  MAINTENANT : appelle /promo/validate → affiche le vrai montant avant paiement
+// ════════════════════════════════════════════════
+async function applyPromo(){
   const input = document.getElementById('promoCodeInput');
+  const btn   = document.getElementById('promoApplyBtn');
   const code  = (input?.value||'').trim().toUpperCase();
+
   if(!code){ showFeedback('err','Entrez un code promo'); return; }
   if(getSubtotal()<=0){ showFeedback('err','Votre panier est vide'); return; }
 
-  // Stocker le code — il sera validé par le serveur au moment du paiement
-  promoState.code    = code;
-  promoState.applied = true;
-  promoState.discount= 0;   // on ne connait pas encore la reduction exacte
-  promoState.type    = '';
-  promoState.value   = 0;
+  btn.disabled    = true;
+  btn.textContent = '…';
 
-  input.classList.remove('invalid'); input.classList.add('valid');
-  input.disabled=true;
-  document.getElementById('promoApplyBtn').style.display='none';
-  showFeedback('ok','Code "'+code+'" enregistré — réduction appliquée au paiement', true);
-  if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-  renderCartSummary();
+  try {
+    const firstSellerId = String(Object.values(cart)[0]?.product?.sellerId || '');
+    const res = await fetch(SERVER+'/promo/validate', {
+      method : 'POST',
+      headers: {'Content-Type':'application/json'},
+      body   : JSON.stringify({
+        code,
+        subtotal : getSubtotal(),
+        sellerId : firstSellerId,
+        userId   : USER_ID,
+      })
+    });
+    const data = await res.json();
+
+    if(!data.ok){
+      input.classList.remove('valid');
+      input.classList.add('invalid');
+      btn.disabled    = false;
+      btn.textContent = 'Appliquer';
+      showFeedback('err', data.error || 'Code invalide');
+      return;
+    }
+
+    // Code valide — stocker avec le vrai montant
+    promoState.code     = data.code;
+    promoState.applied  = true;
+    promoState.discount = data.discount;
+    promoState.type     = data.type;
+    promoState.value    = data.value;
+
+    input.classList.remove('invalid');
+    input.classList.add('valid');
+    input.disabled    = true;
+    btn.style.display = 'none';
+
+    const label = data.type === 'percent'
+      ? `-${data.value}% → -${data.discount.toFixed(2)}€`
+      : `-${data.discount.toFixed(2)}€`;
+
+    showFeedback('ok', `🎉 Code "${data.code}" : ${label}`, true);
+    if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    renderCartSummary();
+
+  } catch(e) {
+    btn.disabled    = false;
+    btn.textContent = 'Appliquer';
+    showFeedback('err', 'Erreur réseau — réessayez');
+  }
 }
 
 function removePromo(){
   resetPromo();
-  const input=document.getElementById('promoCodeInput');
-  const btn=document.getElementById('promoApplyBtn');
-  if(input){input.value='';input.disabled=false;input.classList.remove('valid','invalid');}
-  if(btn){btn.style.display='';btn.disabled=false;btn.textContent='Appliquer';}
-  const fb=document.getElementById('promoFeedback');
-  if(fb){fb.className='promo-feedback';fb.innerHTML='';}
+  const input = document.getElementById('promoCodeInput');
+  const btn   = document.getElementById('promoApplyBtn');
+  if(input){ input.value=''; input.disabled=false; input.classList.remove('valid','invalid'); }
+  if(btn){ btn.style.display=''; btn.disabled=false; btn.textContent='Appliquer'; }
+  const fb = document.getElementById('promoFeedback');
+  if(fb){ fb.className='promo-feedback'; fb.innerHTML=''; }
   renderCartSummary();
 }
 
-function showFeedback(type,msg,withRemove){
-  const fb=document.getElementById('promoFeedback'); if(!fb) return;
-  fb.className='promo-feedback '+type;
-  fb.innerHTML=msg+(withRemove?'<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>':'');
+function showFeedback(type, msg, withRemove){
+  const fb = document.getElementById('promoFeedback');
+  if(!fb) return;
+  fb.className = 'promo-feedback '+type;
+  fb.innerHTML = msg + (withRemove ? '<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>' : '');
+}
+
+// ════════════════════════════════════════════════
+//  ✅ FIX #2 — renderCartSummary()
+//  AVANT : affichait "Réduction appliquée au paiement" sans montant connu
+//  MAINTENANT : affiche le vrai montant (-2.50€) et le total ajusté
+// ════════════════════════════════════════════════
+function renderCartSummary(){
+  const items = Object.values(cart);
+  const sEl   = document.getElementById('cartSum');
+  if(!items.length || !sEl) return;
+
+  const sub          = getSubtotal();
+  const nb           = items.reduce((s,i)=>s+i.qty, 0);
+  const promoApplied = promoState.applied;
+  const discount     = promoApplied ? promoState.discount : 0;
+  const total        = Math.max(0, sub - discount);
+
+  const promoHTML = '<div class="promo-section">'
+    + '<div class="promo-label">🏷 Code promo</div>'
+    + '<div class="promo-row">'
+      + `<input class="promo-input${promoApplied?' valid':''}" id="promoCodeInput" type="text" `
+      + `placeholder="Ex: SUMMER10" maxlength="32" value="${promoState.code||''}" `
+      + `${promoApplied?'disabled':''} onkeydown="if(event.key==='Enter') applyPromo()">`
+      + `<button class="promo-apply-btn" id="promoApplyBtn" onclick="applyPromo()" `
+      + `${promoApplied?'style="display:none"':''}>Appliquer</button>`
+    + '</div>'
+    + `<div class="promo-feedback${promoApplied?' ok':''}" id="promoFeedback">`
+      + (promoApplied
+          ? `🎉 Code "${promoState.code}" — -${promoState.discount.toFixed(2)}€`
+          + `<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>`
+          : '')
+    + '</div>'
+    + '</div>';
+
+  let summaryRows = '';
+  if(promoApplied){
+    summaryRows =
+      `<div class="cr"><span class="l">${nb} article(s)</span><span class="v" style="text-decoration:line-through;opacity:.5;">${sub.toFixed(2)}€</span></div>`
+      + `<div class="cr discount"><span class="l">🏷 ${promoState.code}</span><span class="v">-${discount.toFixed(2)}€</span></div>`;
+  } else {
+    summaryRows = `<div class="cr"><span class="l">${nb} article(s)</span><span class="v">${sub.toFixed(2)}€</span></div>`;
+  }
+
+  sEl.innerHTML = '<div class="csep"></div>'
+    + promoHTML
+    + summaryRows
+    + '<div class="csep"></div>'
+    + `<div class="cr tot"><span class="l">Total</span><span class="v">${total.toFixed(2)}€</span></div>`
+    + '<div style="height:10px;"></div>'
+    + `<button class="pay-btn" id="payBtn" onclick="placeOrder()">💳 Payer ${total.toFixed(2)}€</button>`
+    + '<div style="height:6px;"></div>';
 }
 
 function renderCart(){
-  const items=Object.values(cart);
-  const iEl=document.getElementById('cartItems'), sEl=document.getElementById('cartSum');
+  const items = Object.values(cart);
+  const iEl   = document.getElementById('cartItems');
+  const sEl   = document.getElementById('cartSum');
   if(!items.length){ iEl.innerHTML='<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">Panier vide</div></div>'; sEl.innerHTML=''; return; }
   const bySeller={};
   items.forEach(({product:p,qty})=>{ const sid=String(p.sellerId); if(!bySeller[sid]) bySeller[sid]={name:p.sellerName||'Boutique',items:[]}; bySeller[sid].items.push({p,qty}); });
@@ -642,41 +733,8 @@ function renderCart(){
       html+='<div class="ci"><div class="ci-ic">'+(p.emj||'💨')+'</div><div class="ci-inf"><div class="ci-name">'+p.title+'</div><div class="ci-sub">'+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':'')+(p.isCarton?' · Carton ×'+p.cartonQty:'')+'</div></div><div class="ci-r"><div class="ci-price">'+(p.price*qty).toFixed(2)+'€</div><div class="ci-qty"><div class="cqb" onclick="cqty(\''+pKey(p)+'\',-1)">−</div><div class="cqn">'+qty+'</div><div class="cqb" onclick="cqty(\''+pKey(p)+'\',1)">+</div></div></div></div>';
     });
   });
-  iEl.innerHTML=html;
+  iEl.innerHTML = html;
   renderCartSummary();
-}
-
-function renderCartSummary(){
-  const items=Object.values(cart);
-  const sEl=document.getElementById('cartSum');
-  if(!items.length||!sEl) return;
-  const sub=getSubtotal();
-  const nb=items.reduce((s,i)=>s+i.qty,0);
-  const promoApplied=promoState.applied;
-
-  const promoHTML='<div class="promo-section">'
-    +'<div class="promo-label">🏷 Code promo</div>'
-    +'<div class="promo-row">'
-      +'<input class="promo-input'+(promoApplied?' valid':'')+'" id="promoCodeInput" type="text" placeholder="Ex: SUMMER10" maxlength="32" value="'+(promoState.code||'')+'" '+(promoApplied?'disabled':'')+' onkeydown="if(event.key===\'Enter\') applyPromo()">'
-      +'<button class="promo-apply-btn" id="promoApplyBtn" onclick="applyPromo()" '+(promoApplied?'style="display:none"':'')+'>Appliquer</button>'
-    +'</div>'
-    +'<div class="promo-feedback'+(promoApplied?' ok':'')+'" id="promoFeedback">'
-      +(promoApplied?'Code "'+promoState.code+'" enregistre — reduction au paiement<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>':'')
-    +'</div>'
-    +'</div>';
-
-  const promoRow = promoApplied
-    ? '<div class="cr discount"><span class="l">🏷 Code '+promoState.code+'</span><span class="v">Reduction appliquee au paiement</span></div>'
-    : '';
-
-  sEl.innerHTML='<div class="csep"></div>'+promoHTML
-    +'<div class="cr"><span class="l">'+nb+' article(s)</span><span class="v">'+sub.toFixed(2)+'€</span></div>'
-    +promoRow
-    +'<div class="csep"></div>'
-    +'<div class="cr tot"><span class="l">Total</span><span class="v">'+sub.toFixed(2)+'€</span></div>'
-    +'<div style="height:10px;"></div>'
-    +'<button class="pay-btn" id="payBtn" onclick="placeOrder()">💳 Payer '+sub.toFixed(2)+'€'+(promoApplied?' + code promo':'')+'</button>'
-    +'<div style="height:6px;"></div>';
 }
 
 function cqty(k,d){
@@ -687,58 +745,96 @@ function cqty(k,d){
   if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 }
 
-// ── CHECKOUT
-// Le code promo est envoyé au serveur qui le valide et applique la vraie réduction
+// ════════════════════════════════════════════════
+//  ✅ FIX #3 — placeOrder()
+//  AVANT : en cas d'erreur promo, removePromo() détruisait #promoFeedback
+//          PUIS showFeedback() cherchait cet élément → message d'erreur silencieux
+//  MAINTENANT : on reconstruit le DOM AVANT d'appeler showFeedback()
+// ════════════════════════════════════════════════
 async function placeOrder(){
-  const items=Object.values(cart); if(!items.length) return;
-  const btn=document.getElementById('payBtn'); btn.disabled=true; btn.textContent='⏳ Création…';
-  const user=tg?.initDataUnsafe?.user;
-  const cartPayload=items.map(({product:p,qty})=>({
-    sellerId:p.sellerId, id:p.id, title:p.title,
-    description:(p.isCarton?'Carton ×'+p.cartonQty+' · ':'')+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':''),
-    price:(p.price*qty).toFixed(2), qty,
-    payload:(p.isCarton?'carton_':'stock_')+p.id,
-    isCarton:p.isCarton||false, cartonQty:p.cartonQty||1,
+  const items = Object.values(cart);
+  if(!items.length) return;
+
+  const btn = document.getElementById('payBtn');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Création…';
+
+  const user        = tg?.initDataUnsafe?.user;
+  const cartPayload = items.map(({product:p, qty})=>({
+    sellerId   : p.sellerId,
+    id         : p.id,
+    title      : p.title,
+    description: (p.isCarton?'Carton ×'+p.cartonQty+' · ':'')+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':''),
+    price      : (p.price*qty).toFixed(2),
+    qty,
+    payload    : (p.isCarton?'carton_':'stock_')+p.id,
+    isCarton   : p.isCarton||false,
+    cartonQty  : p.cartonQty||1,
   }));
 
   const body = {
     cart    : cartPayload,
-    userId  : user?.id||'',
-    userName: user?.username||user?.first_name||'',
+    userId  : user?.id   || '',
+    userName: user?.username || user?.first_name || '',
   };
-  // Ajouter le code promo si présent — le serveur le validera
+
   if(promoState.applied && promoState.code){
     body.promoCode = promoState.code;
   }
 
-  try{
-    const res=await fetch(SERVER+'/shop-checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const data=await res.json();
-    if(!data.url) throw new Error(data.error||'Erreur');
+  try {
+    const res  = await fetch(SERVER+'/shop-checkout', {
+      method : 'POST',
+      headers: {'Content-Type':'application/json'},
+      body   : JSON.stringify(body),
+    });
+    const data = await res.json();
 
-    // Si le serveur indique que le code était invalide il renvoie une erreur
-    // sinon on continue normalement
+    if(!data.url) throw new Error(data.error || 'Erreur serveur');
 
-    const sub=getSubtotal();
+    const sub      = getSubtotal();
+    const discount = promoState.applied ? promoState.discount : 0;
     saveHistory({
       date    : new Date().toLocaleDateString('fr-FR')+' '+new Date().toLocaleTimeString('fr-FR'),
       products: items.map(({product:p,qty})=>qty+'x '+p.title).join(', '),
-      total   : sub.toFixed(2),
-      promo   : promoState.applied?promoState.code:null,
+      total   : Math.max(0, sub - discount).toFixed(2),
+      promo   : promoState.applied ? promoState.code : null,
       ts      : Date.now(),
     });
+
     if(tg) tg.openLink(data.url); else window.open(data.url,'_blank');
-    cart={}; resetPromo(); saveCart(); updateBadges(); closeCart();
-    showToast('✓ Redirection paiement…');
+    cart = {};
+    resetPromo();
+    saveCart();
+    updateBadges();
+    closeCart();
+    showToast('✓ Redirection vers le paiement…');
     if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-  }catch(e){
-    showToast('⚠ '+e.message);
-    // Si erreur code promo invalide, on le signale
-    if(e.message && e.message.toLowerCase().includes('promo')){
-      removePromo();
-      showFeedback('err','Code promo invalide ou expiré');
+
+  } catch(e) {
+    // Détecter si l'erreur vient du code promo
+    const isPromoError = e.message && (
+      e.message.toLowerCase().includes('promo') ||
+      e.message.toLowerCase().includes('code')  ||
+      e.message.toLowerCase().includes('expir') ||
+      e.message.toLowerCase().includes('épuis') ||
+      e.message.toLowerCase().includes('invalide')
+    );
+
+    if(isPromoError){
+      // ✅ Réinitialiser le state promo d'abord
+      promoState = { code:'', applied:false, discount:0, type:'', value:0 };
+      // ✅ Reconstruire le DOM (recrée #promoFeedback)
+      renderCartSummary();
+      // ✅ Maintenant showFeedback() trouve bien #promoFeedback
+      showFeedback('err', 'Code promo invalide ou expiré — réessayez');
+      showToast('⚠ Code promo refusé');
+    } else {
+      showToast('⚠ '+e.message);
     }
-    if(btn){btn.disabled=false; btn.textContent='💳 Réessayer';}
+
+    const payBtn = document.getElementById('payBtn');
+    if(payBtn){ payBtn.disabled=false; payBtn.textContent='💳 Réessayer'; }
   }
 }
 
