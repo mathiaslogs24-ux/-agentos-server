@@ -1060,6 +1060,19 @@ app.get('/reviews/public/:productId', async(req,res)=>{
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 
+// Route PUBLIQUE — avis vendeur approuvés (type='seller')
+app.get('/reviews/seller/:sellerId', async(req,res)=>{
+  try {
+    const reviews = await getReviews();
+    const approved = reviews.filter(r=>
+      r.status==='approved' &&
+      r.type==='seller' &&
+      String(r.sellerId)===req.params.sellerId
+    );
+    res.json(approved);
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
 // ─────────────────────────────────────────
 //  ✅ FIX #2 — AVIS : notification Telegram manquante
 //  AVANT : cfg.adminTelegramId pouvait être undefined si le bot admin n'avait
@@ -1068,12 +1081,15 @@ app.get('/reviews/public/:productId', async(req,res)=>{
 //               puis cfg.adminTelegramId comme second choix
 // ─────────────────────────────────────────
 app.post('/reviews', async(req,res)=>{
-  const{productId, productTitle, sellerId, sellerName, stars, text, userId}=req.body;
-  if(!productId||!stars||stars<1||stars>5) return res.status(400).json({error:'Données invalides'});
+  const{productId, productTitle, sellerId, sellerName, stars, text, userId, type}=req.body;
+  if(!stars||stars<1||stars>5) return res.status(400).json({error:'Données invalides'});
+  // Pour un avis vendeur, productId n'est pas requis
+  if(type!=='seller' && !productId) return res.status(400).json({error:'Données invalides'});
 
   const review = {
     id         : Date.now(),
-    productId  : String(productId),
+    type       : type||'product',
+    productId  : String(productId||''),
     productTitle: productTitle||'',
     sellerId   : String(sellerId||''),
     sellerName : sellerName||'',
@@ -1092,10 +1108,13 @@ app.post('/reviews', async(req,res)=>{
 
   if(reviewBot && adminTelegramId) {
     const stars_display = '★'.repeat(parseInt(stars)) + '☆'.repeat(5-parseInt(stars));
-    const msg = `⭐ *Nouvel avis à modérer*\n\n`
+    const isSellerReview = (type==='seller');
+    const msg = `${isSellerReview?'🏪':'⭐'} *Nouvel avis ${isSellerReview?'vendeur':'produit'} à modérer*\n\n`
       +`${stars_display} *${parseInt(stars)}/5*\n\n`
-      +`📦 *Produit :* ${productTitle||'?'}\n`
-      +(sellerName?`🏪 *Vendeur :* ${sellerName}\n`:'')
+      +(isSellerReview
+        ? `🏪 *Vendeur :* ${sellerName||'?'}\n`
+        : `📦 *Produit :* ${productTitle||'?'}\n`
+          +(sellerName?`🏪 *Vendeur :* ${sellerName}\n`:''))
       +(text?`\n💬 *Commentaire :*\n"${text}"\n`:' _Pas de commentaire_\n')
       +`\n👤 *Client :* ${userId==='guest'?'Invité':'#'+userId}`
       +`\n📅 *Date :* ${new Date().toLocaleString('fr-FR')}`;
