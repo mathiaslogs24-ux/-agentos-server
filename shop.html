@@ -314,7 +314,7 @@ function fmtPuffs(p){ return p>=1000?(p/1000).toFixed(0)+'K':String(p); }
 function pKey(p){ return p.sellerId+'_'+p.id+(p.isCarton?'_carton':''); }
 function extractBrand(cat){ return (cat||'').split(' ')[0]||''; }
 function puffsK(p){ return p?fmtPuffs(p):'other'; }
-function groupKey(p){ return p.sellerId+'__'+p.cat+'__'+(p.isCarton?'carton':'unite'); }
+function groupKey(p){ return p.sellerId+'__'+p.cat+'__'+p.puffs+'__'+(p.taux||'')+'__'+(p.isCarton?'carton':'unite'); }
 function getAvgRating(k){ const r=getReviews(k).filter(x=>x.status==='approved'); if(!r.length) return null; return (r.reduce((s,x)=>s+x.stars,0)/r.length).toFixed(1); }
 
 function buildGroups(products){
