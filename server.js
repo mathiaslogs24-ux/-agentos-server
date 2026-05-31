@@ -856,12 +856,12 @@ app.post('/seller/promos', sellerAuth, async(req,res)=>{
 //  MAINTENANT : cfg.promos est initialisé à [] dans la config
 //  + recherche robuste avec fallback Array.isArray
 // ─────────────────────────────────────────
-async function applyPromoCode(code, sellerId, cat, amount, userId){
+async function applyPromoCode(code, sellerId, cat, amount, userId, cartStockIds=[]){
   if(!code) return{ok:false,error:'Code manquant'};
   const codeUp=code.trim().toUpperCase();
   let found=null,foundSellerId=null,foundSeller=null;
 
-  // Recherche dans les promos admin (cfg.promos est maintenant toujours un tableau)
+  // Recherche dans les promos admin
   const adminPromos = Array.isArray(cfg.promos) ? cfg.promos : [];
   const ap = adminPromos.find(p=>p.code===codeUp&&p.active);
   if(ap){found=ap;foundSellerId='admin';}
@@ -875,18 +875,25 @@ async function applyPromoCode(code, sellerId, cat, amount, userId){
     }
   }
 
-  if(!found)                                                               return{ok:false,error:'Code invalide ou inexistant'};
-  if(found.expiry&&new Date(found.expiry)<new Date())                      return{ok:false,error:'Code expiré'};
+  if(!found)                                                                    return{ok:false,error:'Code invalide ou inexistant'};
+  if(found.expiry&&new Date(found.expiry)<new Date())                           return{ok:false,error:'Code expiré'};
   if(found.limitType==='total'&&(found.usedCount||0)>=(found.limitVal||Infinity)) return{ok:false,error:'Code épuisé'};
   if(found.limitType==='per_user'&&(found.usedBy||[]).includes(String(userId))) return{ok:false,error:'Déjà utilisé par ce client'};
 
-  // Vérif scope vendeur : si le code appartient à un vendeur, il faut que le panier inclue ce vendeur
+  // Vérif scope vendeur
   if(foundSellerId!=='admin'&&sellerId&&String(foundSellerId)!==String(sellerId))
     return{ok:false,error:'Code non valide pour ce vendeur'};
 
-  // Vérif scope catégorie (seulement si cat est fourni et que le scope est 'category')
+  // Vérif scope catégorie
   if(found.scope==='category'&&found.cat&&cat&&found.cat.toLowerCase()!==cat.toLowerCase())
     return{ok:false,error:'Code non valide pour cette catégorie'};
+
+  // ✅ Vérif scope goût précis — le panier doit contenir le stockId ciblé
+  if(found.scope==='flavor'&&found.stockId){
+    const ids = cartStockIds.map(id=>parseInt(id));
+    if(!ids.includes(parseInt(found.stockId)))
+      return{ok:false,error:`Code valable uniquement pour "${found.flavorName||'ce goût'}"`};
+  }
 
   const discount=found.type==='percent'
     ?parseFloat(amount)*found.value/100
@@ -1297,10 +1304,11 @@ app.get('/stock-public', async(req,res) => {
 //  sans créer de session Stripe
 // ─────────────────────────────────────────
 app.post('/promo/validate', async(req,res)=>{
-  const { code, subtotal, sellerId, userId } = req.body;
+  const { code, subtotal, sellerId, userId, cartStockIds } = req.body;
   if(!code || !subtotal) return res.status(400).json({ok:false, error:'Code ou montant manquant'});
   try {
-    const result = await applyPromoCode(code, sellerId||null, null, parseFloat(subtotal), userId||'guest');
+    const ids = Array.isArray(cartStockIds) ? cartStockIds : [];
+    const result = await applyPromoCode(code, sellerId||null, null, parseFloat(subtotal), userId||'guest', ids);
     if(!result.ok) return res.status(400).json({ok:false, error:result.error});
     res.json({
       ok      : true,
@@ -1327,7 +1335,8 @@ app.post('/shop-checkout', async(req,res) => {
     if(promoCode){
       // ✅ FIX #1 — on passe le sellerId du premier vendeur du panier pour la validation scope vendeur
       const firstSellerId=cart.find(i=>i.sellerId&&i.sellerId!=='admin')?.sellerId||'admin';
-      promoResult=await applyPromoCode(promoCode, firstSellerId, null, subtotal, userId||'guest');
+      const cartStockIds=cart.map(i=>i.id).filter(Boolean);
+      promoResult=await applyPromoCode(promoCode, firstSellerId, null, subtotal, userId||'guest', cartStockIds);
       if(!promoResult.ok) return res.status(400).json({error:'Code promo : '+promoResult.error});
       addLog('info',`Promo "${promoCode}" appliquée · -${promoResult.discount}€`);
     }
