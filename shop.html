@@ -743,6 +743,7 @@ async function applyPromo(){
 
   try {
     const firstSellerId = String(Object.values(cart)[0]?.product?.sellerId || '');
+    const cartStockIds  = Object.values(cart).map(i=>i.product?.id).filter(Boolean);
     const res = await fetch(SERVER+'/promo/validate', {
       method : 'POST',
       headers: {'Content-Type':'application/json'},
@@ -751,6 +752,7 @@ async function applyPromo(){
         subtotal : getSubtotal(),
         sellerId : firstSellerId,
         userId   : USER_ID,
+        cartStockIds,
       })
     });
     const data = await res.json();
