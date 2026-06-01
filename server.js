@@ -1366,14 +1366,35 @@ app.post('/shop-checkout', async(req,res) => {
       params.append(`line_items[${idx}][quantity]`,'1');
     });
 
+    // ✅ FIX — Stripe n'accepte pas unit_amount négatif
+    // On utilise l'API Coupons Stripe à la place
     if(promoResult&&promoResult.discount>0){
-      const discountCents=-Math.round(promoResult.discount*100);
-      const nextIdx=cart.length;
-      params.append(`line_items[${nextIdx}][price_data][currency]`,'eur');
-      params.append(`line_items[${nextIdx}][price_data][product_data][name]`,`Code promo : ${promoResult.code}`);
-      params.append(`line_items[${nextIdx}][price_data][product_data][description]`,promoResult.type==='percent'?`-${promoResult.value}%`:`-${promoResult.value}€`);
-      params.append(`line_items[${nextIdx}][price_data][unit_amount]`,discountCents);
-      params.append(`line_items[${nextIdx}][quantity]`,'1');
+      try {
+        // Créer un coupon Stripe à usage unique
+        const couponParams = new URLSearchParams();
+        if(promoResult.type==='percent'){
+          couponParams.append('percent_off', String(promoResult.value));
+        } else {
+          couponParams.append('amount_off', String(Math.round(promoResult.discount*100)));
+          couponParams.append('currency', 'eur');
+        }
+        couponParams.append('duration','once');
+        couponParams.append('name', `Code promo : ${promoResult.code}`);
+        couponParams.append('max_redemptions','1');
+
+        const couponRes = await fetch('https://api.stripe.com/v1/coupons',{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${cfg.stripeKey}`,'Content-Type':'application/x-www-form-urlencoded'},
+          body:couponParams,
+        });
+        const coupon = await couponRes.json();
+        if(coupon.id){
+          params.append('discounts[0][coupon]', coupon.id);
+        }
+      } catch(e){
+        addLog('warn','Coupon Stripe: '+e.message);
+        // Fallback: on continue sans réduction Stripe (la réduction reste dans les metadata)
+      }
     }
 
     const sr=await fetch('https://api.stripe.com/v1/checkout/sessions',{
