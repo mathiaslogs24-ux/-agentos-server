@@ -984,6 +984,20 @@ app.post('/seller/withdrawal', sellerAuth, async(req,res)=>{
   res.json({ok:true, seller:{...v,secret:undefined}});
 });
 
+app.post('/seller/shipping', sellerAuth, async(req,res)=>{
+  const { mode, fixed, freeAboveBase, freeAboveMin, zones } = req.body;
+  req.seller.shipping = { mode: mode||'fixed', fixed: parseFloat(fixed)||0, freeAboveBase: parseFloat(freeAboveBase)||0, freeAboveMin: parseFloat(freeAboveMin)||0, zones: zones||{FR:0,BE:0,CH:0,LU:0} };
+  await saveSeller(req.seller);
+  res.json({ok:true});
+});
+
+app.post('/seller/social-links', sellerAuth, async(req,res)=>{
+  const { instagram, tiktok, website, whatsapp } = req.body;
+  req.seller.socialLinks = { instagram: instagram||'', tiktok: tiktok||'', website: website||'', whatsapp: whatsapp||'' };
+  await saveSeller(req.seller);
+  res.json({ok:true});
+});
+
 app.post('/seller/alert-settings', sellerAuth, async(req,res)=>{
   req.seller.alertSettings=req.body;
   await saveSeller(req.seller);
@@ -1269,6 +1283,9 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
         payload     : item.payload,
         isCarton    : false,
         carton      : false,
+        bundle      : s.bundle      || false,
+        bundleQty   : s.bundleQty   || 0,
+        bundlePrice : s.bundlePrice || 0,
       });
     }
   });
@@ -1284,7 +1301,14 @@ app.get('/marketplace', async(req,res) => {
 
   sellers.filter(v => v.active).forEach(v => {
     const items = buildMarketplaceItems(v.stock||[], v.shopItems||[], v.id, v.name, v.shopName||v.name);
-    if (items.length) result.push({ sellerId:v.id, sellerName:v.name, sellerShop:v.shopName||v.name, items });
+    if (items.length) result.push({
+      sellerId  : v.id,
+      sellerName: v.name,
+      sellerShop: v.shopName||v.name,
+      socialLinks: v.socialLinks||{},
+      shipping   : v.shipping||{mode:'fixed',fixed:0},
+      items,
+    });
   });
 
   res.json(result);
@@ -1326,7 +1350,7 @@ app.post('/promo/validate', async(req,res)=>{
 //  CHECKOUT STRIPE
 // ─────────────────────────────────────────
 app.post('/shop-checkout', async(req,res) => {
-  const{cart,userId,userName,promoCode}=req.body;
+  const{cart,userId,userName,promoCode,shipping}=req.body;
   if(!cart||!cart.length) return res.status(400).json({error:'Panier vide'});
   if(!cfg.stripeKey)       return res.status(400).json({error:'Stripe non configuré'});
   try {
@@ -1368,6 +1392,17 @@ app.post('/shop-checkout', async(req,res) => {
 
     // ✅ FIX — Stripe n'accepte pas unit_amount négatif
     // On utilise l'API Coupons Stripe à la place
+    // Frais de livraison en line item Stripe
+    const shippingCents = Math.round(parseFloat(shipping||0)*100);
+    if(shippingCents > 0){
+      const shippingIdx = cart.length;
+      params.append(`line_items[${shippingIdx}][price_data][currency]`,'eur');
+      params.append(`line_items[${shippingIdx}][price_data][product_data][name]`,'Frais de livraison');
+      params.append(`line_items[${shippingIdx}][price_data][product_data][description]`,'Livraison à domicile');
+      params.append(`line_items[${shippingIdx}][price_data][unit_amount]`,String(shippingCents));
+      params.append(`line_items[${shippingIdx}][quantity]`,'1');
+    }
+
     if(promoResult&&promoResult.discount>0){
       try {
         // Créer un coupon Stripe à usage unique
@@ -1458,10 +1493,19 @@ app.post('/stripe-webhook', async(req,res) => {
     let cartItems=[];
     try{cartItems=JSON.parse(meta.cartJson||'[]');}catch(e){}
     const nbItems=cartItems.reduce((s,i)=>s+parseInt(i.qty||1),0);
+
+    // ✅ FIX — Calculer le ratio de réduction promo pour l'appliquer au prorata
+    // amount = montant réellement payé par Stripe (après coupon)
+    // subtotal = somme des prix originaux des articles
+    const subtotalOriginal = cartItems.reduce((s,i)=>s+parseFloat(i.price||0)*parseInt(i.qty||1),0);
+    const amountPaid = parseFloat(amount);
+    // Ratio : 1.0 = pas de réduction, 0.5 = 50% de réduction
+    const discountRatio = subtotalOriginal > 0 ? amountPaid / subtotalOriginal : 1;
+
     const commission=cfg.commissionMode==='flat'
       ?(cfg.commissionFlat*nbItems).toFixed(2)
-      :(parseFloat(amount)*cfg.commissionRate).toFixed(2);
-    const sellerAmount=(parseFloat(amount)-parseFloat(commission)).toFixed(2);
+      :(amountPaid*cfg.commissionRate).toFixed(2);
+    const sellerAmount=(amountPaid-parseFloat(commission)).toFixed(2);
 
     const order={
       id:Date.now(),date:new Date().toLocaleString('fr-FR'),userId,userName,amount,commission,sellerAmount,
@@ -1482,7 +1526,9 @@ app.post('/stripe-webhook', async(req,res) => {
     const sellers=await getSellers();
     for(const ci of cartItems){
       const qty=parseInt(ci.qty||1);
-      const itemAmount=parseFloat(ci.price||0)*qty;
+      // ✅ FIX — Montant réel payé pour cet article (après réduction promo au prorata)
+      const itemAmountOriginal=parseFloat(ci.price||0)*qty;
+      const itemAmount=parseFloat((itemAmountOriginal*discountRatio).toFixed(2));
 
       if(ci.sellerId==='admin'||!ci.sellerId){
         const s=stock.find(x=>x.id===ci.id);
