@@ -205,6 +205,7 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
       <span class="pf-clear" onclick="clearPrice()">✕ Effacer</span>
     </div>
     <div class="filter-row" id="sellerRow"></div>
+    <div class="filter-row" id="countryRow" style="display:none;"></div>
     <div class="brand-cats" id="brandRow"></div>
     <div class="filter-row" id="puffsRow"></div>
   </div>
@@ -286,7 +287,7 @@ const USER_ID = tg?.initDataUnsafe?.user?.id || 'guest';
 
 let sellersData=[], allProducts=[], allCartons=[];
 let cart={};
-let filterSeller='all', filterBrand='all', filterPuffs='all', searchQ='';
+let filterSeller='all', filterBrand='all', filterPuffs='all', filterCountry='all', searchQ='';
 let detailGroup=null, detailFlavor=null, detailQty=1;
 
 // ── PROMO STATE
@@ -353,6 +354,21 @@ function extractBrand(p){
   c=c.replace(/(\s+\d+(?:[.,]\d+)?\s*k(?:\s*puffs?)?|\s+\d{4,6}(?:\s*puffs?)?)+\s*$/i,'').trim();
   return c.toUpperCase();
 }
+// ── PAYS D'EXPÉDITION : champ origin envoyé par le vendeur, sinon déduit de la catégorie ("🇫🇷 France · JNR 2%")
+const COUNTRIES={FR:'🇫🇷 France',EU:'🇪🇺 Europe',CN:'🇨🇳 Chine'};
+function countryOf(p){
+  const o=String((p&&p.origin)||'').toUpperCase();
+  if(COUNTRIES[o]) return o;
+  const c=String((p&&p.cat)||'');
+  if(/🇫🇷|france/i.test(c)) return 'FR';
+  if(/🇪🇺|europe/i.test(c)) return 'EU';
+  if(/🇨🇳|chine|china/i.test(c)) return 'CN';
+  return '';
+}
+// ── CLASSEMENT DES MARQUES : des plus connues aux moins connues (modifie cette liste à ta guise, la 1re = tout en haut)
+const BRAND_RANK=['ELFBAR','LOSTMARY','GEEKBAR','VOZOL','RANDM','AROMAKING','HQD','PUFFBAR','WAKA','FUMOT','YUOTO','SKE'];
+function normBrand(b){ return String(b).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function brandRank(b){ const i=BRAND_RANK.indexOf(normBrand(b)); return i<0?999:i; }
 function puffsK(p){ return p?fmtPuffs(p):'other'; }
 function groupKey(p){ return p.sellerId+'__'+p.cat+'__'+p.puffs+'__'+(p.taux||'')+'__'+(p.isCarton?'carton':'unite'); }
 function getAvgRating(k){ const r=getReviews(k).filter(x=>x.status==='approved'); if(!r.length) return null; return (r.reduce((s,x)=>s+x.stars,0)/r.length).toFixed(1); }
@@ -391,9 +407,21 @@ async function init(){
 function buildFilters(){
   const sellerOpts=[{id:'all',label:'🛍 Tous'},...sellersData.map(s=>({id:String(s.sellerId),label:s.sellerShop||s.sellerName}))];
   document.getElementById('sellerRow').innerHTML=sellerOpts.map(o=>'<div class="chip '+(filterSeller===o.id?'active':'')+'" onclick="setF(\'seller\',\''+o.id+'\')">'+o.label+'</div>').join('');
+  // ── PAYS (suit le vendeur sélectionné)
+  const cCount={};
+  [...allProducts,...allCartons].filter(p=>filterSeller==='all'||String(p.sellerId)===filterSeller)
+    .forEach(p=>{ const c=countryOf(p); if(c) cCount[c]=(cCount[c]||0)+1; });
+  if(filterCountry!=='all' && !cCount[filterCountry]) filterCountry='all';
+  const cKeys=Object.keys(COUNTRIES).filter(c=>cCount[c]);
+  const cRow=document.getElementById('countryRow');
+  cRow.style.display=cKeys.length?'':'none';
+  cRow.innerHTML=cKeys.length?'<span class="filter-label">Pays</span><div class="chip '+(filterCountry==='all'?'active':'')+'" onclick="setF(\'country\',\'all\')">Tous</div>'
+    +cKeys.map(c=>'<div class="chip '+(filterCountry===c?'ab':'')+'" onclick="setF(\'country\',\''+c+'\')">'+COUNTRIES[c]+' <span style="opacity:.6;">'+cCount[c]+'</span></div>').join(''):'';
+  // ── MARQUES (suivent vendeur + pays)
   const brandMap={}, allModels=new Set();
   [...allProducts,...allCartons]
     .filter(p=>filterSeller==='all'||String(p.sellerId)===filterSeller)
+    .filter(p=>filterCountry==='all'||countryOf(p)===filterCountry)
     .forEach(p=>{
       const b=extractBrand(p); if(!b) return;
       if(!brandMap[b]) brandMap[b]={models:new Set(),flavors:0};
@@ -404,7 +432,7 @@ function buildFilters(){
   const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   let brandHTML='<div class="brand-cat'+(filterBrand==='all'?' active':'')+'" data-brand="all" onclick="setF(\'brand\',this.dataset.brand)">'
     +'<div class="brand-cat-ic">🛍</div><div class="brand-cat-name">Toutes</div><div class="brand-cat-count">'+allModels.size+' modèles</div></div>';
-  Object.keys(brandMap).sort((a,b)=>a.localeCompare(b)).forEach(b=>{
+  Object.keys(brandMap).sort((a,b)=>brandRank(a)-brandRank(b)||brandMap[b].models.size-brandMap[a].models.size||a.localeCompare(b)).forEach(b=>{
     const m=brandMap[b];
     brandHTML+='<div class="brand-cat'+(filterBrand===b?' active':'')+'" data-brand="'+esc(b)+'" onclick="setF(\'brand\',this.dataset.brand)">'
       +'<div class="brand-cat-ic">'+esc(b[0])+'</div><div class="brand-cat-name">'+esc(b)+'</div>'
@@ -414,7 +442,7 @@ function buildFilters(){
   const puffsVals=[...new Set(allProducts.map(p=>puffsK(p.puffs)).filter(v=>v!=='other'))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
   document.getElementById('puffsRow').innerHTML='<span class="filter-label">Puffs</span>'+'<div class="chip '+(filterPuffs==='all'?'active':'')+'" onclick="setF(\'puffs\',\'all\')">Tous</div>'+puffsVals.map(v=>'<div class="chip '+(filterPuffs===v?'ab':'')+'" onclick="setF(\'puffs\',\''+v+'\')">💨 '+v+'</div>').join('');
 }
-function setF(t,v){ if(t==='seller')filterSeller=v; if(t==='brand')filterBrand=v; if(t==='puffs')filterPuffs=v; buildFilters(); renderMarket(); }
+function setF(t,v){ if(t==='seller')filterSeller=v; if(t==='brand')filterBrand=v; if(t==='puffs')filterPuffs=v; if(t==='country')filterCountry=v; buildFilters(); renderMarket(); }
 function onSearch(v){ searchQ=v.toLowerCase(); renderMarket(); }
 function clearPrice(){ document.getElementById('priceMin').value=''; document.getElementById('priceMax').value=''; renderMarket(); }
 
@@ -423,6 +451,7 @@ function getFilteredProducts(){
   const maxP=parseFloat(document.getElementById('priceMax')?.value)||Infinity;
   return [...allProducts,...allCartons].filter(p=>{
     if(filterSeller!=='all'&&String(p.sellerId)!==filterSeller) return false;
+    if(filterCountry!=='all'&&countryOf(p)!==filterCountry) return false;
     if(filterBrand!=='all'&&extractBrand(p)!==filterBrand) return false;
     if(filterPuffs!=='all'&&puffsK(p.puffs)!==filterPuffs) return false;
     if(p.price<minP||p.price>maxP) return false;
