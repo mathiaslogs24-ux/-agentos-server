@@ -219,6 +219,12 @@ function addLog(type, msg) {
 }
 
 // ─────────────────────────────────────────
+//  ✅ MODIF — RÈGLE UNIQUE : dans une ligne de panier, "price" = montant TOTAL de la ligne
+//  (la boutique envoie prix unitaire × quantité). On ne le remultiplie donc jamais par qty.
+// ─────────────────────────────────────────
+function lineTotal(ci){ return parseFloat(ci&&ci.price||0)||0; }
+
+// ─────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────
 let bot           = null;
@@ -438,8 +444,11 @@ function startVendorBot() {
         let m=`📦 *Vos 10 dernières ventes :*\n\n`;
         myOrders.forEach((o,i)=>{
           const myItems=o.cartItems.filter(ci=>String(ci.sellerId)===String(seller.id));
-          const total=myItems.reduce((s,ci)=>s+parseFloat(ci.price||0)*parseInt(ci.qty||1),0);
-          const com=myItems.reduce((s,ci)=>s+cfg.commissionFlat*parseInt(ci.qty||1),0);
+          const total=myItems.reduce((s,ci)=>s+lineTotal(ci),0);
+          const vMode=seller.commissionMode||cfg.commissionMode||'flat';
+          const vFlat=seller.commissionFlat!==undefined?seller.commissionFlat:cfg.commissionFlat;
+          const vRate=seller.commissionRate!==undefined?seller.commissionRate:cfg.commissionRate;
+          const com=myItems.reduce((s,ci)=>s+(vMode==='flat'?vFlat*parseInt(ci.qty||1):lineTotal(ci)*vRate),0);
           const c=o.client||{};
           m+=`*${i+1}. ${o.date}* — Net: *${(total-com).toFixed(2)}€* · ${c.name||'—'}\n`;
         });
@@ -737,7 +746,7 @@ app.post('/orders/:id/ship', auth, async(req,res)=>{
     await saveOrder(order);
     addLog('ok', `Commande #${order.id} marquée expédiée (admin)`);
     if(order.userId && bot) {
-      const names=(order.cartItems||[]).map(ci=>`${ci.qty||1}x Article #${ci.id}`).join(', ');
+      const names=(order.cartItems||[]).map(ci=>{ const s=stock.find(x=>x.id===ci.id); return `${ci.qty||1}x ${s?s.name:'Article #'+ci.id}`; }).join(', ');
       bot.sendMessage(order.userId,`📦 *Votre commande a été expédiée !*\n\n🛍 ${names}\n\nMerci ! 🙏`,{parse_mode:'Markdown'}).catch(()=>{});
     }
     res.json({ok:true, order});
@@ -869,8 +878,11 @@ app.get('/seller/orders', sellerAuth, async(req,res)=>{
     .filter(o=>!o.archived&&o.cartItems?.some(ci=>String(ci.sellerId)===sellerId))
     .map(o=>{
       const myItems=o.cartItems.filter(ci=>String(ci.sellerId)===sellerId);
-      const myAmount=myItems.reduce((s,ci)=>s+parseFloat(ci.price||0)*parseInt(ci.qty||1),0);
-      const myCom=myItems.reduce((s,ci)=>s+(cfg.commissionMode==='flat'?cfg.commissionFlat*parseInt(ci.qty||1):parseFloat(ci.price||0)*parseInt(ci.qty||1)*cfg.commissionRate),0);
+      const myAmount=myItems.reduce((s,ci)=>s+lineTotal(ci),0);
+      const vMode=req.seller.commissionMode||cfg.commissionMode||'flat';
+      const vFlat=req.seller.commissionFlat!==undefined?req.seller.commissionFlat:cfg.commissionFlat;
+      const vRate=req.seller.commissionRate!==undefined?req.seller.commissionRate:cfg.commissionRate;
+      const myCom=myItems.reduce((s,ci)=>s+(vMode==='flat'?vFlat*parseInt(ci.qty||1):lineTotal(ci)*vRate),0);
       const myNet=myAmount-myCom;
       const itemsWithNames=myItems.map(ci=>{
         const s=(req.seller.stock||[]).find(x=>x.id===ci.id);
@@ -1299,6 +1311,11 @@ RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${
 // ─────────────────────────────────────────
 //  ROUTES PUBLIQUES — MARKETPLACE
 // ─────────────────────────────────────────
+// ✅ MODIF — paliers de prix dégressifs
+function cleanTiers(t){
+  return (Array.isArray(t)?t:[]).map(x=>({min:parseInt(x&&x.min)||0,pct:Math.min(90,Math.max(0,parseFloat(x&&x.pct)||0))}))
+    .filter(x=>x.min>=2&&x.pct>0).sort((a,b)=>a.min-b.min);
+}
 function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sellerShop) {
   const items = [];
   shopItemsArr.forEach(item => {
@@ -1318,6 +1335,8 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
       brand     : item.brand    || '',
       productImage: item.productImage || '',
       cartonInfo: s.carton ? (s.cartonQty||10) : 0,
+      // ✅ MODIF — prix dégressifs : [{min:5,pct:5},{min:10,pct:10}] (par nombre de cartons du même modèle)
+      tiers     : cleanTiers(item.tiers),
       unlimited,
     };
 
@@ -1441,7 +1460,16 @@ app.post('/shop-checkout', async(req,res) => {
   if(!cart||!cart.length) return res.status(400).json({error:'Panier vide'});
   if(!cfg.stripeKey)       return res.status(400).json({error:'Stripe non configuré'});
   try {
-    const subtotal=cart.reduce((s,i)=>s+parseFloat(i.price)*parseInt(i.qty||1),0);
+    // ✅ MODIF — contrôle des prix (boutique officielle) : jamais en dessous du prix avec la remise dégressive maximale
+    for(const i of cart){
+      if(i.sellerId&&i.sellerId!=='admin') continue;
+      const si=shopItems.find(x=>x.stockId===i.id); if(!si) continue;
+      const base=parseFloat(si.price||0), q=parseInt(i.qty||1);
+      const maxPct=Math.max(0,...cleanTiers(si.tiers).map(t=>t.pct));
+      const floor=base*q*(1-maxPct/100)-0.05;
+      if(parseFloat(i.price)<floor) return res.status(400).json({error:'Prix invalide pour '+(si.title||'un article')+' — recharge la boutique'});
+    }
+    const subtotal=cart.reduce((s,i)=>s+lineTotal(i),0);
     let promoResult=null;
     if(promoCode){
       // ✅ FIX #1 — on passe le sellerId du premier vendeur du panier pour la validation scope vendeur
@@ -1584,7 +1612,7 @@ app.post('/stripe-webhook', async(req,res) => {
     // ✅ FIX — Calculer le ratio de réduction promo pour l'appliquer au prorata
     // amount = montant réellement payé par Stripe (après coupon)
     // subtotal = somme des prix originaux des articles
-    const subtotalOriginal = cartItems.reduce((s,i)=>s+parseFloat(i.price||0)*parseInt(i.qty||1),0);
+    const subtotalOriginal = cartItems.reduce((s,i)=>s+lineTotal(i),0);
     const amountPaid = parseFloat(amount);
     // Ratio : 1.0 = pas de réduction, 0.5 = 50% de réduction
     const discountRatio = subtotalOriginal > 0 ? amountPaid / subtotalOriginal : 1;
@@ -1614,7 +1642,7 @@ app.post('/stripe-webhook', async(req,res) => {
     for(const ci of cartItems){
       const qty=parseInt(ci.qty||1);
       // ✅ FIX — Montant réel payé pour cet article (après réduction promo au prorata)
-      const itemAmountOriginal=parseFloat(ci.price||0)*qty;
+      const itemAmountOriginal=lineTotal(ci);
       const itemAmount=parseFloat((itemAmountOriginal*discountRatio).toFixed(2));
 
       if(ci.sellerId==='admin'||!ci.sellerId){
