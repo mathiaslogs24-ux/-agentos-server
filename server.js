@@ -29,7 +29,14 @@ app.use((req,res,next)=>{
   if(req.method==='OPTIONS') return res.sendStatus(200);
   next();
 });
-app.use(express.json({limit:'2mb'}));
+// ✅ MODIF — limite passée de 2 Mo à 50 Mo (le catalogue part avec un visuel par goût)
+app.use(express.json({limit:'50mb'}));
+// ✅ MODIF — si un envoi dépasse quand même la limite, on répond en JSON (lisible par le dashboard)
+app.use((err,req,res,next)=>{
+  if(err && err.type==='entity.too.large') return res.status(413).json({error:'Envoi trop lourd pour le serveur'});
+  if(err && err.type==='entity.parse.failed') return res.status(400).json({error:'JSON invalide'});
+  next(err);
+});
 
 // ─────────────────────────────────────────
 //  POSTGRESQL
@@ -221,11 +228,15 @@ function checkDailyReset() {
 // ─────────────────────────────────────────
 //  STOCK TEXT
 // ─────────────────────────────────────────
+// ✅ MODIF — l'agent IA connaît le stock illimité (Chine), le lieu d'expédition et le format carton
 function buildStockText() {
   if(!stock.length) return 'Aucun article en stock.';
-  return stock.map(s=>{
-    const st=s.qty===0?'❌ RUPTURE':s.qty<=(s.alert||5)?'⚠ BAS':'✓ OK';
-    return `- ${s.name}: ${s.qty} · ${s.price}€ · ${st}`;
+  return stock.filter(s=>!s.supplierOut).map(s=>{
+    const st=s.unlimited?'∞ ILLIMITÉ':s.qty===0?'❌ RUPTURE':s.qty<=(s.alert||5)?'⚠ BAS':'✓ OK';
+    const carton=s.carton?` (carton de ${s.cartonQty||10} pièces)`:'';
+    const qty=s.unlimited?'disponible':s.qty;
+    const origin=s.originLabel?` · ${s.originLabel}`:'';
+    return `- ${s.name}${carton}: ${qty} · ${s.price}€ · ${st}${origin}`;
   }).join('\n');
 }
 
@@ -439,8 +450,8 @@ function startVendorBot() {
         if(!ss.length){ vendorBot.sendMessage(userId,'📦 Votre stock est vide.'); return; }
         let m=`📊 *État de votre stock :*\n\n`;
         ss.forEach(s=>{
-          const st=s.qty===0?'❌ RUPTURE':s.qty<=(s.alert||5)?'⚠️ BAS':'✅ OK';
-          m+=`${st} *${s.name}* — ${s.qty}\n`;
+          const st=s.unlimited?'∞':s.qty===0?'❌ RUPTURE':s.qty<=(s.alert||5)?'⚠️ BAS':'✅ OK';
+          m+=`${st} *${s.name}* — ${s.unlimited?'illimité':s.qty}\n`;
         });
         vendorBot.sendMessage(userId,m,{parse_mode:'Markdown'}); return;
       }
@@ -761,6 +772,9 @@ app.post('/sellers/:id/add-stock',auth,async(req,res)=>{
   if(existing){
     existing.qty+=item.qty;
     existing.name=item.name;existing.cat=item.cat;existing.price=item.price;existing.puffs=item.puffs;
+    // ✅ MODIF — on garde aussi les infos d'origine, d'illimité, de goût et de photo
+    ['origin','originLabel','unlimited','flavor','image','cost','carton','cartonQty','cartonPrice','description','taux']
+      .forEach(k=>{ if(item[k]!==undefined) existing[k]=item[k]; });
   } else {
     v.stock.push({...item,enVente:false});
   }
@@ -1021,6 +1035,7 @@ async function checkSellerStockAlerts(seller) {
   if(settings.alertsEnabled===false) return;
   const threshold=settings.globalThreshold||5;
   const lowItems=(seller.stock||[]).filter(s=>{
+    if(s.unlimited) return false; // ✅ MODIF — pas d'alerte sur le stock illimité (Chine)
     if(s.qty<=0) return false;
     const t=settings.perItem?.[s.id]||s.alert||threshold;
     return s.qty<=t;
@@ -1238,13 +1253,26 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
   const items = [];
   shopItemsArr.forEach(item => {
     const s = stockArr.find(x => x.id === item.stockId);
-    if (!s || s.qty <= 0) return;
+    if (!s) return;
+    // ✅ MODIF — goût indisponible chez le fournisseur → masqué ; stock illimité → toujours visible
+    if (s.supplierOut) return;
+    const unlimited = !!(s.unlimited || item.unlimited);
+    if (!unlimited && s.qty <= 0) return;
+
+    // ✅ MODIF — infos transmises à la boutique Telegram (catégorie d'expédition, goût, modèle…)
+    const extra = {
+      category  : item.category || s.originLabel || '',
+      origin    : item.origin   || s.origin      || '',
+      flavor    : item.flavor   || s.flavor      || '',
+      model     : item.model    || s.model       || '',
+      unlimited,
+    };
 
     const isCarton = (item.carton === true) || (item.payload || '').startsWith('carton_');
 
     if (isCarton) {
       const cqty = item.cartonQty || s.cartonQty || 1;
-      const cartonsLeft = Math.floor(s.qty / cqty);
+      const cartonsLeft = unlimited ? 999 : Math.floor(s.qty / cqty);
       if (cartonsLeft <= 0) return;
       const cp = item.cartonPrice
         ? parseFloat(item.cartonPrice)
@@ -1266,6 +1294,7 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
         carton      : true,
         cartonQty   : cqty,
         cartonPrice : cp,
+        ...extra,
       });
     } else {
       items.push({
@@ -1275,7 +1304,7 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
         image       : item.image || s.image || '',
         description : item.description || '',
         price       : parseFloat(item.price || 0),
-        qty         : s.qty,
+        qty         : unlimited ? 999 : s.qty,
         puffs       : s.puffs || 0,
         cat         : s.cat   || '',
         taux        : s.taux  || '',
@@ -1286,9 +1315,13 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
         bundle      : s.bundle      || false,
         bundleQty   : s.bundleQty   || 0,
         bundlePrice : s.bundlePrice || 0,
+        ...extra,
       });
     }
   });
+  // ✅ MODIF — France d'abord, puis Europe, puis Chine
+  const ord = o => o==='FR'?0:o==='EU'?1:o==='CN'?2:3;
+  items.sort((a,b)=>ord(a.origin)-ord(b.origin));
   return items;
 }
 
@@ -1317,8 +1350,9 @@ app.get('/marketplace', async(req,res) => {
 app.get('/stock-public', async(req,res) => {
   const sellers = await getSellers();
   const all = [];
-  stock.filter(s=>s.enVente&&s.qty>0).forEach(s=>all.push({id:s.id,name:s.name,cat:s.cat,price:s.price,qty:s.qty,puffs:s.puffs||0,sellerId:'admin'}));
-  sellers.filter(v=>v.active).forEach(v=>(v.stock||[]).filter(s=>s.enVente&&s.qty>0).forEach(s=>all.push({id:s.id,name:s.name,cat:s.cat,price:s.price,qty:s.qty,puffs:s.puffs||0,sellerId:v.id,sellerName:v.name})));
+  const ok = s => s.enVente && !s.supplierOut && (s.unlimited || s.qty>0);
+  stock.filter(ok).forEach(s=>all.push({id:s.id,name:s.name,cat:s.cat,price:s.price,qty:s.unlimited?999:s.qty,unlimited:!!s.unlimited,origin:s.origin||'',puffs:s.puffs||0,sellerId:'admin'}));
+  sellers.filter(v=>v.active).forEach(v=>(v.stock||[]).filter(ok).forEach(s=>all.push({id:s.id,name:s.name,cat:s.cat,price:s.price,qty:s.unlimited?999:s.qty,unlimited:!!s.unlimited,origin:s.origin||'',puffs:s.puffs||0,sellerId:v.id,sellerName:v.name})));
   res.json(all);
 });
 
@@ -1532,7 +1566,10 @@ app.post('/stripe-webhook', async(req,res) => {
 
       if(ci.sellerId==='admin'||!ci.sellerId){
         const s=stock.find(x=>x.id===ci.id);
-        if(s&&s.qty>0){
+        // ✅ MODIF — le stock illimité (Chine) n'est jamais décompté
+        if(s&&s.unlimited){
+          addLog('info',`Admin ${s.name} → ∞ (expédié par le fournisseur)`);
+        } else if(s&&s.qty>0){
           const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
           s.qty=Math.max(0,s.qty-unitsToDeduct);
           addLog('info',`Admin ${s.name} → ${s.qty}`);
@@ -1550,7 +1587,8 @@ app.post('/stripe-webhook', async(req,res) => {
           v.totalSales      =parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
           v.totalCommission =parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
           const s=(v.stock||[]).find(x=>x.id===ci.id);
-          if(s&&s.qty>0){
+          // ✅ MODIF — le stock illimité (Chine) n'est jamais décompté
+          if(s&&!s.unlimited&&s.qty>0){
             const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
             s.qty=Math.max(0,s.qty-unitsToDeduct);
             addLog('info',`${v.name} ${s.name} → ${s.qty}`);
@@ -1558,7 +1596,7 @@ app.post('/stripe-webhook', async(req,res) => {
           await saveSeller(v);
           if(v.telegramId&&vendorBot){
             const itemName=s?s.name:`Article #${ci.id}`;
-            const stockLeft=s?s.qty:'?';
+            const stockLeft=s?(s.unlimited?'∞':s.qty):'?';
             const c=order.client;
             const msg=`🛍 *Nouvelle vente !*\n\n`
               +`📦 ${qty}x *${itemName}*${ci.isCarton?' (carton x'+(ci.cartonQty||1)+')':''}\n`
