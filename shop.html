@@ -415,6 +415,25 @@ function stockLabelOf(p){
 }
 function unitLabel(g){ return g.isCarton?'/ carton':(g.cartonInfo?'/ carton':''); }
 
+// ✅ MODIF — PRIX DÉGRESSIFS : remise selon le nombre de cartons du même modèle dans le panier
+function tiersOf(p){ return Array.isArray(p&&p.tiers)?p.tiers.filter(t=>t.min>=2&&t.pct>0).sort((a,b)=>a.min-b.min):[]; }
+function pctFor(p,count){ let pct=0; tiersOf(p).forEach(t=>{ if(count>=t.min) pct=t.pct; }); return pct; }
+function groupCountInCart(p,excludeKey){
+  const g=groupKey(p); let n=0;
+  Object.entries(cart).forEach(([k,{product:q,qty}])=>{ if(k===excludeKey||q.isBundle) return; if(groupKey(q)===g) n+=qty; });
+  return n;
+}
+function unitPrice(p){ if(p.isBundle) return p.price; const pct=pctFor(p,groupCountInCart(p)); return Math.round(p.price*(1-pct/100)*100)/100; }
+function tiersHTML(p,highlightCount){
+  const t=tiersOf(p); if(!t.length) return '';
+  const cur=pctFor(p,highlightCount||0);
+  const row=(label,price,on)=>'<div style="display:flex;justify-content:space-between;padding:5px 9px;border-radius:7px;font-size:12px;'+(on?'background:rgba(240,180,41,.14);color:var(--gold);font-weight:800;':'color:var(--t2);')+'"><span>'+label+'</span><span style="font-family:DM Mono,monospace;">'+price.toFixed(2)+'€</span></div>';
+  let h='<div style="margin:0 0 14px;padding:10px 12px;background:var(--bg2);border:1px solid rgba(240,180,41,.25);border-radius:var(--r);">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:6px;">💶 Prix dégressif · tous goûts confondus</div>';
+  h+=row('1 à '+(t[0].min-1)+' carton'+(t[0].min>2?'s':''),p.price,cur===0);
+  t.forEach((x,i)=>{ const next=t[i+1]; h+=row((next?x.min+' à '+(next.min-1):x.min+' et +')+' cartons · −'+x.pct+'%',p.price*(1-x.pct/100),cur===x.pct); });
+  return h+'</div>';
+}
 function buildGroups(products){
   const map={};
   products.forEach(p=>{
@@ -586,6 +605,7 @@ function buildModelCard(g,favs){
     +'<div class="model-brand">'+groupSub(g)+(g.isCarton?' · Carton':'')+'</div>'
     +'<div class="model-name">'+groupTitle(g)+'</div>'
     +'<div class="model-flavors-row">'+g.items.map(p=>'<div class="mfchip'+(!p.unlimited&&p.qty<=0?' oos':'')+'" onclick="event.stopPropagation();openDetailFlavor(\''+k+'\',\''+pKey(p)+'\')">'+( p.emj||'💨')+'</div>').join('')+'</div>'
+    +(tiersOf(g.items[0]).length?'<div style="font-size:9px;font-weight:700;color:var(--green);margin-bottom:3px;">💶 dès '+(g.price*(1-tiersOf(g.items[0]).slice(-1)[0].pct/100)).toFixed(2)+'€ en quantité</div>':'')
     +'<div class="model-footer"><div class="model-price">'+parseFloat(g.price).toFixed(2)+'€'+(unitLabel(g)?' <small>'+unitLabel(g)+'</small>':'')+'</div>'
     +'<div class="add-btn'+(inCartCount?' in-cart':'')+'" onclick="event.stopPropagation();openDetail(\''+k+'\')">'+( inCartCount||'+')+'</div>'
     +'</div></div></div>';
@@ -642,6 +662,7 @@ function openDetail(gKey){
   if(g.taux) tags+='<div class="dtag gold">💧 '+g.taux+'</div>';
   document.getElementById('dTags').innerHTML=tags;
   renderFlavorPicker();
+  renderTiersBox();
   fetchReviews(g.items[0]?.id||g.gKey).then(()=>renderReviews(g.gKey));
   // Charger aussi les avis vendeur si c'est un vendeur (pas admin)
   const sid = String(g.sellerId||'');
@@ -650,6 +671,14 @@ function openDetail(gKey){
   updateDetDisplay();
   document.getElementById('detOv').classList.add('open');
   document.getElementById('detSh').classList.add('open');
+}
+function renderTiersBox(){
+  let box=document.getElementById('tiersBox');
+  if(!box){ box=document.createElement('div'); box.id='tiersBox'; const fs=document.getElementById('flavorSection'); fs.parentNode.insertBefore(box,fs); }
+  const p=detailFlavor||detailGroup?.items[0];
+  if(!p){ box.innerHTML=''; return; }
+  const count=groupCountInCart(p,detailFlavor?pKey(detailFlavor):null)+(detailFlavor?detailQty:0);
+  box.innerHTML=tiersHTML(p,count);
 }
 function openDetailFlavor(gKey,pk){
   openDetail(gKey);
@@ -675,8 +704,14 @@ function selectFlavor(pkOrProd){
 }
 function toggleFavFromDetail(){if(!detailGroup)return;const k=detailGroup.gKey;toggleFav(k);document.getElementById('dFavBtn').textContent=getFavs().includes(k)?'❤️':'🤍';}
 function maxQtyOf(p){ return p.unlimited?99:p.qty; }
+function detailUnit(){
+  const p=detailFlavor; if(!p) return detailGroup?.price||0;
+  const count=groupCountInCart(p,pKey(p))+detailQty;
+  return Math.round(p.price*(1-pctFor(p,count)/100)*100)/100;
+}
 function updateDetDisplay(){
-  const price=detailFlavor?detailFlavor.price*detailQty:(detailGroup?.price*detailQty||0);
+  const price=detailFlavor?detailUnit()*detailQty:(detailGroup?.price*detailQty||0);
+  renderTiersBox();
   document.getElementById('dQty').textContent=detailQty;
   document.getElementById('dPrice').innerHTML=price.toFixed(2)+'<small>€'+(detailGroup&&unitLabel(detailGroup)&&detailQty===1?' '+unitLabel(detailGroup):'')+'</small>';
   const btn=document.getElementById('dAddBtn');
@@ -925,7 +960,8 @@ function getShippingLabel(country){
   if(fee===0) return '✓ Livraison offerte';
   return `🚚 Livraison : ${fee.toFixed(2)}€`;
 }
-function getSubtotal(){ return Object.values(cart).reduce((s,{product:p,qty})=>s+p.price*qty,0); }
+function getSubtotal(){ return Object.values(cart).reduce((s,{product:p,qty})=>s+unitPrice(p)*qty,0); }
+function getTierSavings(){ return Object.values(cart).reduce((s,{product:p,qty})=>s+(p.price-unitPrice(p))*qty,0); }
 function getCartSellerId(){ const first=Object.values(cart)[0]; return first?String(first.product.sellerId):''; }
 
 // ════════════════════════════════════════════════
@@ -1057,6 +1093,8 @@ function renderCartSummary(){
   } else {
     summaryRows = `<div class="cr"><span class="l">${nb} article(s)</span><span class="v">${sub.toFixed(2)}€</span></div>`;
   }
+  const tierSave=getTierSavings();
+  if(tierSave>0.004) summaryRows += `<div class="cr discount"><span class="l">💶 Prix dégressif</span><span class="v">-${tierSave.toFixed(2)}€ inclus</span></div>`;
   // Ligne livraison
   summaryRows += shipping > 0
     ? `<div class="cr"><span class="l">🚚 Livraison</span><span class="v">+${shipping.toFixed(2)}€</span></div>`
@@ -1085,7 +1123,8 @@ function renderCart(){
     s.items.forEach(({p,qty})=>{
       const c=countryOf(p);
       const sub=[p.model||'', c?COUNTRIES[c]:'', p.puffs?fmtPuffs(p.puffs)+' puffs':'', p.isCarton?'Carton ×'+p.cartonQty:(p.cartonInfo?'Carton de '+p.cartonInfo:'')].filter(Boolean).join(' · ')||(p.cat||'');
-      html+='<div class="ci"><div class="ci-ic">'+(p.image?'<img src="'+p.image+'">':(p.emj||'💨'))+'</div><div class="ci-inf"><div class="ci-name">'+(p.isBundle?p.title:flavorName(p))+'</div><div class="ci-sub">'+sub+'</div></div><div class="ci-r"><div class="ci-price">'+(p.price*qty).toFixed(2)+'€</div><div class="ci-qty"><div class="cqb" onclick="cqty(\''+pKey(p)+'\',-1)">−</div><div class="cqn">'+qty+'</div><div class="cqb" onclick="cqty(\''+pKey(p)+'\',1)">+</div></div></div></div>';
+      const up=unitPrice(p), disc=up<p.price;
+      html+='<div class="ci"><div class="ci-ic">'+(p.image?'<img src="'+p.image+'">':(p.emj||'💨'))+'</div><div class="ci-inf"><div class="ci-name">'+(p.isBundle?p.title:flavorName(p))+'</div><div class="ci-sub">'+sub+'</div>'+(disc?'<div style="font-size:10px;color:var(--green);font-weight:700;margin-top:2px;">💶 '+up.toFixed(2)+'€ / carton au lieu de '+p.price.toFixed(2)+'€</div>':'')+'</div><div class="ci-r"><div class="ci-price">'+(up*qty).toFixed(2)+'€</div><div class="ci-qty"><div class="cqb" onclick="cqty(\''+pKey(p)+'\',-1)">−</div><div class="cqn">'+qty+'</div><div class="cqb" onclick="cqty(\''+pKey(p)+'\',1)">+</div></div></div></div>';
     });
   });
   iEl.innerHTML = html;
@@ -1120,7 +1159,7 @@ async function placeOrder(){
     id         : p.id,
     title      : p.title,
     description: (p.isCarton?'Carton ×'+p.cartonQty+' · ':(p.cartonInfo?'Carton de '+p.cartonInfo+' pièces · ':''))+(p.cat||'')+(p.puffs?' · '+fmtPuffs(p.puffs)+' puffs':''),
-    price      : (p.price*qty).toFixed(2),
+    price      : (unitPrice(p)*qty).toFixed(2),
     qty,
     payload    : (p.isCarton?'carton_':'stock_')+p.id,
     isCarton   : p.isCarton||false,
