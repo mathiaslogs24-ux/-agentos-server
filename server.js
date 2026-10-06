@@ -14,7 +14,7 @@ const Redis      = require('ioredis');
 //  ANTI-SPAM (Redis, repli en mémoire si indisponible)
 // ─────────────────────────────────────────
 const SPAM = {
-  burstMax   : 5,    // messages max...
+  burstMax   : 3,    // messages max...
   burstSec   : 10,   // ...sur cette fenêtre (secondes)
   minuteMax  : 20,   // messages max par minute
   banSec     : 60,   // durée du blocage temporaire après dépassement
@@ -66,6 +66,24 @@ async function setBan(key, sec) {
   return true;
 }
 function isBannedMem(key) { const e = memBans.get(key); return !!e && e > Date.now(); }
+
+// Verrou "un message à la fois" (expire seul après `sec` si jamais il n'est pas libéré)
+const memLocks = new Map();
+async function acquireLock(key, sec) {
+  if (redis && redis.status === 'ready') {
+    try { return (await redis.set(key, '1', 'EX', sec, 'NX')) === 'OK'; } catch (e) { /* repli */ }
+  }
+  const exp = memLocks.get(key);
+  if (exp && exp > Date.now()) return false;
+  memLocks.set(key, Date.now() + sec * 1000);
+  return true;
+}
+async function releaseLock(key) {
+  memLocks.delete(key);
+  if (redis && redis.status === 'ready') {
+    try { await redis.del(key); } catch (e) { /* expire seul */ }
+  }
+}
 
 // Retourne { blocked, notify } — notify = true une seule fois, au moment du blocage
 async function spamGuard(scope, userId) {
@@ -461,6 +479,9 @@ function startBot() {
         return;
       }
       addLog('info',`@${userName}: ${text.slice(0,60)}`);
+      // un seul message à la fois par utilisateur : on ignore ceux qui arrivent pendant qu'on répond
+      const lockKey=`spam:lock:client:${userId}`;
+      if(!(await acquireLock(lockKey,30))) return;
       try {
         await bot.sendChatAction(msg.chat.id,'typing');
         const reply=await callClaude(userId,userName,text);
@@ -468,6 +489,8 @@ function startBot() {
       }catch(e){
         addLog('err',`@${userName}: ${e.message}`);
         bot.sendMessage(msg.chat.id,'⚠️ Une erreur est survenue.');
+      }finally{
+        await releaseLock(lockKey);
       }
     });
     bot.on('polling_error',err=>addLog('err','Polling: '+(err.message||String(err))));
