@@ -74,6 +74,13 @@ async function initDB() {
     data JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
+  // ✅ MODIF — photos du catalogue stockées sur le serveur (servies par /img/…)
+  await db(`CREATE TABLE IF NOT EXISTS images (
+    key TEXT PRIMARY KEY,
+    mime TEXT NOT NULL,
+    data BYTEA NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
   await db(`CREATE TABLE IF NOT EXISTS logs (
     id SERIAL PRIMARY KEY,
     type TEXT,
@@ -594,6 +601,49 @@ app.get('/conversations',auth,(req,res)=>res.json(history.slice(0,50)));
 app.delete('/conversation/:uid',auth,(req,res)=>{delete conversations[req.params.uid];res.json({ok:true});});
 app.delete('/conversations',auth,(req,res)=>{const c=Object.keys(conversations).length;conversations={};res.json({ok:true,cleared:c});});
 app.post('/stats/reset',auth,(req,res)=>{stats={day:0,month:0,msgs:0,input:0,output:0,lastReset:today()};history=[];res.json({ok:true});});
+
+// ─────────────────────────────────────────
+//  ✅ MODIF — IMAGES HÉBERGÉES
+//  Le dashboard envoie chaque photo une seule fois ; la boutique la charge par son adresse /img/<clé>
+// ─────────────────────────────────────────
+const IMG_KEY_RE=/^[a-f0-9]{16,64}$/;
+function parseDataUrl(u){
+  const m=/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/.exec(String(u||''));
+  return m?{mime:m[1],buf:Buffer.from(m[2],'base64')}:null;
+}
+// Quelles images le serveur a déjà ? (évite de renvoyer les mêmes)
+app.post('/img/check',auth,async(req,res)=>{
+  const keys=(Array.isArray(req.body?.keys)?req.body.keys:[]).filter(k=>IMG_KEY_RE.test(k)).slice(0,2000);
+  if(!keys.length) return res.json({have:[]});
+  try{ const r=await db('SELECT key FROM images WHERE key = ANY($1)',[keys]); res.json({have:r.rows.map(x=>x.key)}); }
+  catch(e){ res.status(500).json({error:e.message}); }
+});
+// Envoi d'un lot d'images : {items:[{key, dataUrl}]}
+app.post('/img/batch',auth,async(req,res)=>{
+  const items=Array.isArray(req.body?.items)?req.body.items:[];
+  let saved=0;
+  try{
+    for(const it of items){
+      if(!IMG_KEY_RE.test(it?.key||'')) continue;
+      const d=parseDataUrl(it.dataUrl); if(!d||d.buf.length>5*1024*1024) continue;
+      await db('INSERT INTO images(key,mime,data) VALUES($1,$2,$3) ON CONFLICT(key) DO NOTHING',[it.key,d.mime,d.buf]);
+      saved++;
+    }
+    res.json({ok:true,saved});
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+// Lecture publique d'une image (mise en cache longue : la clé change si l'image change)
+app.get('/img/:key',async(req,res)=>{
+  const key=String(req.params.key||'').replace(/\.(jpe?g|png|webp|gif)$/i,'');
+  if(!IMG_KEY_RE.test(key)) return res.sendStatus(404);
+  try{
+    const r=await db('SELECT mime,data FROM images WHERE key=$1',[key]);
+    if(!r.rows.length) return res.sendStatus(404);
+    res.set('Content-Type',r.rows[0].mime);
+    res.set('Cache-Control','public, max-age=31536000, immutable');
+    res.send(r.rows[0].data);
+  }catch(e){ res.sendStatus(500); }
+});
 
 // ─────────────────────────────────────────
 //  ROUTES ADMIN — STOCK
@@ -1265,6 +1315,9 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
       origin    : item.origin   || s.origin      || '',
       flavor    : item.flavor   || s.flavor      || '',
       model     : item.model    || s.model       || '',
+      brand     : item.brand    || '',
+      productImage: item.productImage || '',
+      cartonInfo: s.carton ? (s.cartonQty||10) : 0,
       unlimited,
     };
 
