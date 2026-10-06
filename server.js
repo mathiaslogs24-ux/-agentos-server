@@ -19,6 +19,7 @@ const SPAM = {
   minuteMax  : 20,   // messages max par minute
   banSec     : 60,   // durée du blocage temporaire après dépassement
 };
+const STALE_MSG_SEC = 60; // un message plus vieux que ça (file Telegram après redémarrage) n'est pas traité
 
 let redis = null;
 if (process.env.REDIS_URL) {
@@ -441,6 +442,7 @@ function startBot() {
     bot.on('message',async(msg)=>{
       const userId=msg.from.id,userName=msg.from.username||msg.from.first_name||String(userId),text=msg.text;
       if(!text) return;
+      if(Date.now()/1000-msg.date>STALE_MSG_SEC) return; // message en attente avant redémarrage → ignoré
       const guard=await spamGuard('client',userId);
       if(guard.blocked){
         if(guard.notify){
@@ -495,6 +497,7 @@ function startVendorBot() {
       const userId = msg.from.id;
       const text   = msg.text||'';
       if(!text) return;
+      if(Date.now()/1000 - msg.date > STALE_MSG_SEC) return; // message en attente avant redémarrage → ignoré
       const guard = await spamGuard('vendor', userId);
       if(guard.blocked) {
         if(guard.notify) vendorBot.sendMessage(userId,`⏳ Trop de messages d'un coup. Réessayez dans ${SPAM.banSec} secondes.`).catch(()=>{});
