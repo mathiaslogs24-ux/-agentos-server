@@ -24,7 +24,10 @@ const STALE_MSG_SEC = 60; // un message plus vieux que ça (file Telegram après
 let redis = null;
 if (process.env.REDIS_URL) {
   redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 2, enableOfflineQueue: false });
+  redis.on('ready', () => console.log('[redis] connecté ✓ — anti-spam partagé actif'));
   redis.on('error', e => console.warn('[redis]', e.message));
+} else {
+  console.warn('[redis] REDIS_URL absent — anti-spam en mémoire uniquement');
 }
 
 const memHits = new Map(); // key -> { n, exp }
@@ -516,7 +519,7 @@ function startVendorBot() {
       addLog('ok','Bot vendeur démarré ✓ @'+vendorBotUsername);
     }).catch(()=>{ addLog('ok','Bot vendeur démarré ✓'); });
 
-    vendorBot.on('message', async(msg)=>{
+    const handleVendorMsg = async(msg)=>{
       const userId = msg.from.id;
       const text   = msg.text||'';
       if(!text) return;
@@ -616,6 +619,16 @@ function startVendorBot() {
       }
 
       vendorBot.sendMessage(userId,'Commandes : /commandes · /solde · /stock · /retrait');
+    };
+
+    // un seul message à la fois par vendeur (évite aussi un double /virement)
+    vendorBot.on('message', async(msg)=>{
+      if(!msg.from) return;
+      const lockKey = `spam:lock:vendor:${msg.from.id}`;
+      if(!(await acquireLock(lockKey, 30))) return;
+      try { await handleVendorMsg(msg); }
+      catch(e){ addLog('err','VendorBot message: '+(e.message||e)); }
+      finally { await releaseLock(lockKey); }
     });
 
     vendorBot.on('polling_error', err=>addLog('err','VendorBot: '+(err.message||String(err))));
@@ -1846,5 +1859,17 @@ async function main() {
 }
 
 main().catch(e=>{ console.error('Startup error:', e); process.exit(1); });
-process.on('SIGTERM',()=>{stopBot();process.exit(0);});
-process.on('SIGINT', ()=>{stopBot();process.exit(0);});
+// Arrêt propre : on coupe le polling de TOUS les bots avant de quitter, pour que la
+// nouvelle instance prenne le relais sans conflit Telegram (409) au redéploiement.
+let shuttingDown = false;
+async function shutdown(){
+  if(shuttingDown) return; shuttingDown = true;
+  stopBot();
+  for(const b of [vendorBot, adminBot, reviewBot]){
+    if(b){ try{ await b.stopPolling({cancel:true}); }catch(e){} }
+  }
+  try{ if(redis) redis.disconnect(); }catch(e){}
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT',  shutdown);
