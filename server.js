@@ -1998,7 +1998,8 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     // 🔔 Notification admin : chaque commande payée est envoyée sur le bot admin
     try{
       const adminId = process.env.ADMIN_TELEGRAM_ID || cfg.adminTelegramId;
-      if(adminBot && adminId){
+      const notifBot = vendorBot || adminBot; // 🔔 envoyé par le bot vendeur (choix de Nolan)
+      if(notifBot && adminId){
         const c=order.client;
         const txt='🛍 Nouvelle commande payée !\n\n'
           +'📦 '+(productNames.join(', ')||'Commande')+'\n'
@@ -2012,8 +2013,12 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           +'📞 '+(c.phone||'—')+'\n'
           +'📧 '+(c.email||'—')+'\n'
           +(userName?'💬 Telegram : @'+userName:'');
-        await adminBot.sendMessage(adminId, txt);
-      } else addLog('warn','Notif commande admin : bot admin ou ID admin manquant');
+        try{ await notifBot.sendMessage(adminId, txt); }
+        catch(e){
+          addLog('warn','Notif commande (bot vendeur): '+e.message);
+          if(adminBot && notifBot!==adminBot) await adminBot.sendMessage(adminId, txt); // secours
+        }
+      } else addLog('warn','Notif commande : bot ou ID admin manquant');
     }catch(e){ addLog('warn','Notif commande admin: '+e.message); }
     if(meta.promoCode){
       try{await markPromoUsed(meta.promoCode,userId);}
