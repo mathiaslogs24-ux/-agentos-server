@@ -154,11 +154,23 @@ body.nav-open .nav-ov{display:block}
   .menu-btn{display:none}
   .side-nav{position:static;transform:none;height:100%;flex-shrink:0}
   .nav-ov{display:none!important}
-  .bulk-bar{left:250px!important}
   #panel-stock .stats-grid{grid-template-columns:repeat(4,1fr)}
 }
+/* ── barre de sélection (en bas) */
+.p-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--bg1);border-top:2px solid var(--gold);box-shadow:0 -8px 30px rgba(0,0,0,.6);padding:10px 12px calc(10px + var(--safe-b));transform:translateY(110%);transition:transform .18s ease}
+.p-bar.show{transform:none}
+.p-bar-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}.p-bar-top b{flex:1;color:var(--gold);font-size:14px}
+.p-bar-main{display:grid;grid-template-columns:1fr 1fr;gap:8px}.p-bar-main .btn{justify-content:center;padding:13px 10px;font-size:14px}
+.p-bar-more{display:none;gap:6px;margin-top:8px}.p-bar-more.open{display:flex}.p-bar-more .fld-input{margin:0;flex:1;min-width:0}
+.p-selall{margin:0 2px 8px;font-size:12.5px;font-weight:700;color:var(--t2)}.p-selall label{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.p-chk{width:22px!important;height:22px!important}
+.p-gact{display:flex;gap:4px;flex-shrink:0}
+.p-mini{padding:6px 9px;border-radius:8px;font-size:11.5px;font-weight:800;border:1px solid var(--gb);background:var(--bg2);white-space:nowrap}
+.p-mini.on{color:var(--green);border-color:var(--grbdr)}.p-mini.off{color:var(--red);border-color:var(--rbdr)}
+.p-row .p-state{color:var(--green)}
+@media(min-width:900px){.p-bar{left:250px}}
 /* ── outils produits */
-.p-tools{display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px}
+.p-tools{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:8px}@media(min-width:700px){.p-tools{grid-template-columns:2fr 1fr}.p-tools #pSearch{grid-column:auto!important}}
 .p-tools .fld-input,.p-tools .fld-select{margin-bottom:0}
 .p-tools #pSearch{grid-column:1/-1}
 .p-tools .btn{justify-content:center}
@@ -258,27 +270,26 @@ body.nav-open .nav-ov{display:block}
         <button class="btn primary full" onclick="pfOpen()" style="justify-content:center;padding:13px;font-size:14px;margin-bottom:12px;">＋ Ajouter des produits</button>
         <div class="p-orig" id="pOrigins"></div>
         <div class="p-tools">
-          <input type="search" id="pSearch" class="fld-input" placeholder="🔍 Modèle ou goût…" oninput="renderStock()">
+          <input type="search" id="pSearch" class="fld-input" placeholder="🔍 Modèle ou goût…" oninput="pLimit=150;renderStock()">
           <select id="pBrandSel" class="fld-select" onchange="pSetBrand(this.value)"></select>
-          <button class="btn" id="pSelBtn" onclick="pSelMode(!pSelecting)">☑ Sélectionner</button>
         </div>
         <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="pChips"></div>
-        <div class="p-selbar" id="pSelBar">
-          <b id="pSelN">0 sélectionné</b>
-          <button class="btn xs" onclick="pSelAllVisible(true)">Tout</button>
-          <button class="btn xs" onclick="pSelAllVisible(false)">Aucun</button>
-          <button class="btn xs primary" onclick="pSelMode(false)">Terminer</button>
-        </div>
+        <div class="p-selall"><label><input type="checkbox" id="pAllChk" class="p-chk" onchange="pSelAllVisible(this.checked)"> <span id="pAllLbl">Tout cocher</span></label></div>
         <div class="p-sync" id="pSync"></div>
         <div id="stockList"></div>
         <div id="pMore" style="text-align:center;margin:10px 0;"></div>
-        <div class="bulk-bar" id="pBulk">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
-            <button class="btn sm success" onclick="pBulk('on')" style="justify-content:center;">✓ Mettre en vente</button>
-            <button class="btn sm" onclick="pBulk('off')" style="justify-content:center;">⛔ Retirer de la vente</button>
+        <div class="p-bar" id="pBulk">
+          <div class="p-bar-top">
+            <b id="pSelN">0 sélectionné</b>
+            <button class="btn xs" onclick="pMoreToggle()" id="pMoreBtn">⋯ Plus</button>
+            <button class="btn xs" onclick="pSelClear()">✕</button>
           </div>
-          <div style="display:flex;gap:6px;">
-            <input id="pBulkVal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="valeur" class="fld-input" style="margin-bottom:0;flex:1;min-width:0;">
+          <div class="p-bar-main">
+            <button class="btn success" onclick="pBulk('on')">✓ Mettre en vente</button>
+            <button class="btn danger" onclick="pBulk('off')">⛔ Retirer</button>
+          </div>
+          <div class="p-bar-more" id="pBarMore">
+            <input id="pBulkVal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="valeur" class="fld-input">
             <button class="btn sm" onclick="pBulk('price')">€ Prix carton</button>
             <button class="btn sm" onclick="pBulk('stock')">📦 Stock</button>
             <button class="btn sm danger" onclick="pBulk('del')">🗑</button>
@@ -847,7 +858,7 @@ function checkLocalAlerts(){
 }
 
 // ── liste : Marque › Modèle › Goûts
-let pBrand='all', pSelecting=false, pLimit=150;
+let pBrand='all', pLimit=150, pDirty=new Map();
 function pBrandOf(s){ return (extractBrand(s.cat)||String(pModel(s)).split(' ')[0]||'Autres').toUpperCase(); }
 function pFiltered(skip){
   const q=(document.getElementById('pSearch')?.value||'').toLowerCase().trim();
@@ -893,8 +904,6 @@ function renderStock(){
   const pool=pFiltered('state'), c=f=>{ const k=pFilter; pFilter=f; const n=pFiltered().length; pFilter=k; return n; };
   document.getElementById('pChips').innerHTML=[['all','Tous'],['on','✓ En vente'],['off','Pas en vente'],['low','Stock bas'],['out','Rupture']]
     .map(([f,l])=>`<div class="fchip ${pFilter===f?'active':''}" onclick="pSetFilter('${f}')">${l} <span style="opacity:.6;">${c(f)}</span></div>`).join('');
-  document.getElementById('pSelBtn').classList.toggle('primary',pSelecting);
-  document.getElementById('pSelBar').style.display=pSelecting?'flex':'none';
   const items=pFiltered();
   const more=document.getElementById('pMore'); more.innerHTML='';
   if(!stock.length){ list.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Aucun produit</div><div class="empty-sub">Appuie sur « Ajouter des produits » pour commencer</div></div>'; pRenderBulk(); return; }
@@ -903,6 +912,10 @@ function renderStock(){
   const oRank=o=>({FR:0,EU:1,CN:2}[o]??3);
   const sorted=[...items].sort((a,b)=>oRank(a.origin)-oRank(b.origin)||pBrandOf(a).localeCompare(pBrandOf(b))||pModel(a).localeCompare(pModel(b))||String(a.taux||'').localeCompare(String(b.taux||''))||pFlavor(a).localeCompare(pFlavor(b)));
   const shown=sorted.slice(0,pLimit);
+  // groupes complets (y compris les produits pas encore affichés)
+  const gB=new Map(), gM=new Map();
+  sorted.forEach(s=>{ const bk=(s.origin||'none')+'|'+pBrandOf(s), mk=bk+'|'+pModel(s)+'|'+(s.taux||'');
+    if(!gB.has(bk)) gB.set(bk,[]); gB.get(bk).push(s); if(!gM.has(mk)) gM.set(mk,[]); gM.get(mk).push(s); });
   // regroupement
   const brands=[];
   shown.forEach(s=>{
@@ -917,33 +930,33 @@ function renderStock(){
     if(pOrigin==='all'&&B.origin!==lastO){ lastO=B.origin;
       const inO=items.filter(s=>(s.origin||'none')===B.origin);
       html+=`<div class="p-osec"><span>${B.origin==='none'?'📦 Sans origine':P_ORIG[B.origin].label}</span><small>${B.origin==='CN'?'stock illimité':inO.filter(s=>!isUnl(s)).reduce((a,s)=>a+ctn(s),0)+' cartons'}</small></div>`; }
-    const all=B.models.flatMap(M=>M.items), bIds=all.map(s=>s.id).join(','), bSel=all.every(s=>pSel.has(s.id)), bOn=all.every(s=>s.enVente);
+    const all=gB.get(B.key)||B.models.flatMap(M=>M.items), bIds=all.map(s=>s.id).join(','), bSel=all.every(s=>pSel.has(s.id)), bOn=all.every(s=>s.enVente);
     html+=`<div class="p-brand">
-      <div class="p-bhead">${pSelecting?`<input type="checkbox" class="p-chk" ${bSel?'checked':''} onchange="pSelIds('${bIds}',this.checked)">`:''}
-        <div style="flex:1;min-width:0;"><div class="p-bname">${esc(B.brand)}</div><div class="p-gsub">${B.models.length} modèle${B.models.length>1?'s':''} · ${all.length} goût${all.length>1?'s':''} · ${all.filter(s=>s.enVente).length} en vente</div></div>
-        ${pSelecting?'':`<label class="sw" title="Toute la marque en vente"><input type="checkbox" ${bOn?'checked':''} onchange="pGroupSale('${bIds}',this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>`}
+      <div class="p-bhead">
+        <input type="checkbox" class="p-chk" data-grp="${bIds}" ${bSel?'checked':''} onchange="pSelIds('${bIds}',this.checked)">
+        <div style="flex:1;min-width:0;"><div class="p-bname">${esc(B.brand)}</div><div class="p-gsub">${[...gM.keys()].filter(k=>k.startsWith(B.key+'|')).length} modèle(s) · ${all.length} goût${all.length>1?'s':''} · <b style="color:var(--green);">${all.filter(s=>s.enVente).length} en vente</b></div></div>
+        <div class="p-gact"><button class="p-mini on" onclick="pGroupSale('${bIds}',true)" title="Tout mettre en vente">✓ Tout</button><button class="p-mini off" onclick="pGroupSale('${bIds}',false)" title="Tout retirer">✕ Tout</button></div>
       </div>`;
     B.models.forEach(M=>{
-      const f=M.items[0], ids=M.items.map(s=>s.id).join(','), mSel=M.items.every(s=>pSel.has(s.id)), mOn=M.items.every(s=>s.enVente);
-      const prices=[...new Set(M.items.map(s=>ctnPrice(s).toFixed(2)))];
-      html+=`<div class="p-ghead">${pSelecting?`<input type="checkbox" class="p-chk" ${mSel?'checked':''} onchange="pSelIds('${ids}',this.checked)">`:''}
+      const MI=gM.get(B.key+'|'+M.key)||M.items, f=MI[0], ids=MI.map(s=>s.id).join(','), mSel=MI.every(s=>pSel.has(s.id));
+      const prices=[...new Set(MI.map(s=>ctnPrice(s).toFixed(2)))], nOn=MI.filter(s=>s.enVente).length;
+      html+=`<div class="p-ghead">
+        <input type="checkbox" class="p-chk" data-grp="${ids}" ${mSel?'checked':''} onchange="pSelIds('${ids}',this.checked)">
         <div style="flex:1;min-width:0;"><div class="p-gname">${esc(pModel(f))}${f.taux?` <span class="p-taux">${esc(f.taux)}</span>`:''}</div>
-        <div class="p-gsub">${[M.items.length+' goût'+(M.items.length>1?'s':''),prices.length===1?prices[0]+' € / carton':'prix variés','carton de '+cq(f)].map(esc).join(' · ')}</div></div>
-        ${pSelecting?'':`<label class="sw"><input type="checkbox" ${mOn?'checked':''} onchange="pGroupSale('${ids}',this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>`}
+        <div class="p-gsub">${[MI.length+' goût'+(MI.length>1?'s':''),nOn+' en vente',prices.length===1?prices[0]+' € / carton':'prix variés'].map(esc).join(' · ')}</div></div>
+        <div class="p-gact"><button class="p-mini on" onclick="pGroupSale('${ids}',true)">✓</button><button class="p-mini off" onclick="pGroupSale('${ids}',false)">✕</button></div>
       </div>`;
       M.items.forEach(s=>{
         const n=ctn(s), unl=isUnl(s), sel=pSel.has(s.id);
         const qc=unl?'var(--green)':n<=0?'var(--red)':n<=2?'#FB923C':'var(--text)';
         const photo=s.image?`<img src="${s.image}" alt="" loading="lazy">`:`<span>${emoji(pFlavor(s))}</span>`;
         const warn=s.enVente&&!unl&&n<=0?'<div class="p-warn">⚠ stock 0 → pas visible</div>':'';
-        const tap=pSelecting?`pSelOne(${s.id},${!sel})`:`pfOpen(${s.id})`;
-        html+=`<div class="p-row ${sel?'sel':''} ${s.enVente?'on':''}">
-          ${pSelecting?`<input type="checkbox" class="p-chk" ${sel?'checked':''} onchange="pSelOne(${s.id},this.checked)">`:''}
-          <div class="p-ph" onclick="${tap}">${photo}</div>
-          <div class="p-info" onclick="${tap}"><div class="p-fl">${esc(pFlavor(s))}</div><div class="p-pr">${ctnPrice(s).toFixed(2)} €${s.enVente?' · <span style="color:var(--green);">en vente</span>':''}</div>${warn}</div>
-          ${pSelecting?`<div class="p-qty"><span style="color:${qc};">${unl?'∞':n}</span></div>`
-          :`<div class="p-qty">${unl?'<span class="p-inf">∞</span>':`<button class="p-qbtn" onclick="pQty(${s.id},-1)">−</button><span style="color:${qc};">${n}</span><button class="p-qbtn" onclick="pQty(${s.id},1)">+</button>`}</div>
-          <label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="pSale(${s.id},this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>`}
+        html+=`<div class="p-row ${sel?'sel':''} ${s.enVente?'on':''}" id="pr${s.id}">
+          <input type="checkbox" class="p-chk" data-id="${s.id}" ${sel?'checked':''} onchange="pSelOne(${s.id},this.checked)">
+          <div class="p-ph" onclick="pfOpen(${s.id})">${photo}</div>
+          <div class="p-info" onclick="pSelOne(${s.id},!pSel.has(${s.id}))"><div class="p-fl">${esc(pFlavor(s))}</div><div class="p-pr">${ctnPrice(s).toFixed(2)} €</div>${warn}</div>
+          <div class="p-qty">${unl?'<span class="p-inf">∞</span>':`<button class="p-qbtn" onclick="pQty(${s.id},-1)">−</button><span style="color:${qc};">${n}</span><button class="p-qbtn" onclick="pQty(${s.id},1)">+</button>`}</div>
+          <label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="pSale(${s.id},this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>
         </div>`;
       });
     });
@@ -955,39 +968,58 @@ function renderStock(){
 }
 function pResetFilters(){ pFilter='all'; pBrand='all'; pOrigin='all'; const q=document.getElementById('pSearch'); if(q) q.value=''; renderStock(); }
 function pFind(id){ return stock.find(s=>s.id===id); }
-function pQty(id,d){ const s=pFind(id); if(!s||isUnl(s)) return; s.qty=Math.max(0,(ctn(s)+d)*cq(s)); pChanged(); renderStock(); }
-function pSale(id,on){ const s=pFind(id); if(!s) return; s.enVente=!!on; s.enVenteCarton=!!on; pChanged(); renderStock(); }
-function pGroupSale(ids,on){ ids.split(',').forEach(id=>{ const s=pFind(+id); if(s){ s.enVente=!!on; s.enVenteCarton=!!on; } }); pChanged(); renderStock(); showToast(on?'✓ Mis en vente':'Retiré de la vente'); }
+function pMark(s,...fields){ if(!s) return; const f=pDirty.get(s.id)||new Set(); fields.forEach(x=>f.add(x)); pDirty.set(s.id,f); }
+function pQty(id,d){ const s=pFind(id); if(!s||isUnl(s)) return; s.qty=Math.max(0,(ctn(s)+d)*cq(s)); pMark(s,'qty'); pChanged(); renderStock(); }
+function pSale(id,on){ const s=pFind(id); if(!s) return; s.enVente=!!on; s.enVenteCarton=!!on; pMark(s,'enVente','enVenteCarton'); pChanged(); pPaintRow(s); updateGlobalStats(); }
+function pGroupSale(ids,on){
+  let n=0; ids.split(',').forEach(id=>{ const s=pFind(+id); if(s&&!!s.enVente!==!!on){ s.enVente=!!on; s.enVenteCarton=!!on; pMark(s,'enVente','enVenteCarton'); n++; } });
+  pChanged(); renderStock(); showToast(n?(on?'✓ '+n+' mis en vente':n+' retiré(s) de la vente'):'Déjà '+(on?'en vente':'retirés'));
+}
+// une ligne seulement (pas de rechargement de la liste)
+function pPaintRow(s){
+  const r=document.getElementById('pr'+s.id); if(!r) return;
+  r.classList.toggle('on',!!s.enVente); r.classList.toggle('sel',pSel.has(s.id));
+  const c=r.querySelector('.p-chk'); if(c) c.checked=pSel.has(s.id);
+  const sw=r.querySelector('.sw input'); if(sw) sw.checked=!!s.enVente;
+}
 // ── sélection multiple
-function pSelMode(on){ pSelecting=!!on; if(!on) pSel.clear(); renderStock(); }
-function pSelOne(id,on){ on?pSel.add(id):pSel.delete(id); renderStock(); }
-function pSelIds(ids,on){ ids.split(',').forEach(id=>on?pSel.add(+id):pSel.delete(+id)); renderStock(); }
+function pSelOne(id,on){ on?pSel.add(id):pSel.delete(id); const s=pFind(id); if(s) pPaintRow(s); pSyncGroups(); pRenderBulk(); }
+function pSelIds(ids,on){ ids.split(',').forEach(id=>{ id=+id; on?pSel.add(id):pSel.delete(id); const s=pFind(id); if(s) pPaintRow(s); }); pSyncGroups(); pRenderBulk(); }
 function pSelAllVisible(on){ pFiltered().forEach(s=>on?pSel.add(s.id):pSel.delete(s.id)); renderStock(); }
 function pSelClear(){ pSel.clear(); renderStock(); }
+function pSyncGroups(){
+  document.querySelectorAll('#stockList .p-chk[data-grp]').forEach(c=>{ const ids=c.dataset.grp.split(',').map(Number); const k=ids.filter(id=>pSel.has(id)).length; c.checked=k===ids.length; c.indeterminate=k>0&&k<ids.length; });
+}
+function pMoreToggle(){ const m=document.getElementById('pBarMore'); m.classList.toggle('open'); }
 function pRenderBulk(){
   [...pSel].forEach(id=>{ if(!pFind(id)) pSel.delete(id); });
   const b=document.getElementById('pBulk'); if(!b) return;
-  const show=pSelecting&&pSel.size>0;
-  b.style.display=show?'block':'none';
-  const n=document.getElementById('pSelN'); if(n) n.textContent=pSel.size+' sélectionné'+(pSel.size>1?'s':'');
-  const l=document.getElementById('stockList'); if(l) l.style.paddingBottom=show?'130px':'';
+  const show=pSel.size>0;
+  b.classList.toggle('show',show);
+  if(!show) document.getElementById('pBarMore').classList.remove('open');
+  document.getElementById('pSelN').textContent=pSel.size+' sélectionné'+(pSel.size>1?'s':'');
+  const vis=pFiltered(), k=vis.filter(s=>pSel.has(s.id)).length, all=document.getElementById('pAllChk');
+  if(all){ all.checked=vis.length>0&&k===vis.length; all.indeterminate=k>0&&k<vis.length; }
+  const lbl=document.getElementById('pAllLbl'); if(lbl) lbl.textContent=`Tout cocher (${vis.length} affiché${vis.length>1?'s':''})`;
+  const l=document.getElementById('stockList'); if(l) l.style.paddingBottom=show?'170px':'';
 }
 function pBulk(action){
   const items=stock.filter(s=>pSel.has(s.id)); if(!items.length) return;
   const v=parseFloat(String(document.getElementById('pBulkVal').value).replace(',','.'));
-  if(action==='on'||action==='off') items.forEach(s=>{ s.enVente=action==='on'; s.enVenteCarton=s.enVente; });
-  if(action==='price'){ if(!(v>0)){ showToast('⚠ Tape le prix du carton dans la case','err'); return; } items.forEach(s=>{ s.cartonPrice=+v.toFixed(2); s.price=+(v/cq(s)).toFixed(2); }); }
-  if(action==='stock'){ if(!(v>=0)){ showToast('⚠ Tape le nombre de cartons dans la case','err'); return; } items.forEach(s=>{ if(!isUnl(s)) s.qty=Math.round(v)*cq(s); }); }
-  if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; items.forEach(s=>pDeleted.add(s.id)); stock=stock.filter(s=>!pSel.has(s.id)); }
+  if(action==='on'||action==='off') items.forEach(s=>{ s.enVente=action==='on'; s.enVenteCarton=s.enVente; pMark(s,'enVente','enVenteCarton'); });
+  if(action==='price'){ if(!(v>0)){ showToast('⚠ Tape le prix du carton dans la case','err'); return; } items.forEach(s=>{ s.cartonPrice=+v.toFixed(2); s.price=+(v/cq(s)).toFixed(2); pMark(s,'cartonPrice','price'); }); }
+  if(action==='stock'){ if(!(v>=0)){ showToast('⚠ Tape le nombre de cartons dans la case','err'); return; } items.forEach(s=>{ if(!isUnl(s)){ s.qty=Math.round(v)*cq(s); pMark(s,'qty'); } }); }
+  if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; items.forEach(s=>{ pDeleted.add(s.id); pDirty.delete(s.id); }); stock=stock.filter(s=>!pSel.has(s.id)); }
   const n=items.length; document.getElementById('pBulkVal').value='';
-  pSel.clear(); pSelecting=false; pChanged(); renderStock();
+  pSel.clear(); pChanged(); renderStock();
   showToast('✓ '+n+' produit(s) '+({on:'mis en vente',off:'retirés de la vente',price:'au nouveau prix',stock:'mis à jour',del:'supprimés'}[action]));
 }
 
 // ── enregistrement automatique (stock + boutique)
 function pChanged(){
+  if(!pDirty.size&&!pDeleted.size) return;
   const el=document.getElementById('pSync'); if(el){ el.textContent='⏳ Enregistrement…'; el.className='p-sync'; }
-  clearTimeout(pSyncTimer); pSyncTimer=setTimeout(pSyncNow,1000);
+  clearTimeout(pSyncTimer); pSyncTimer=setTimeout(pSyncNow,800);
 }
 function shopItemsFromStock(){
   return stock.filter(pOnSale).map(s=>{
@@ -1003,25 +1035,33 @@ async function pSyncNow(){
   pSyncTimer=null;
   if(pSyncing){ pSyncAgain=true; return; }
   pSyncing=true; const el=document.getElementById('pSync');
+  const dirty=pDirty; pDirty=new Map(); const removed=[...pDeleted];
+  const upsert=[...dirty.entries()].map(([id,f])=>{ const s=pFind(id); if(!s) return null;
+    if(f.has('*')) return {...s};
+    const o={id}; f.forEach(k=>o[k]=s[k]); return o; }).filter(Boolean);
   try{
-    // reprendre les ventes faites entre-temps (le serveur décompte le stock à chaque commande)
-    try{
-      const srv=await api('GET','/seller/me'), sm=new Map((srv.stock||[]).map(x=>[x.id,x]));
-      stock.forEach(s=>{ const r=sm.get(s.id); if(r&&pBase.get(s.id)===s.qty&&typeof r.qty==='number'){ s.qty=r.qty; if(r.unlimited) s.unlimited=true; } });
-      // articles reçus entre-temps (envoi de stock par l'admin)
-      const mine=new Set(stock.map(s=>s.id));
-      (srv.stock||[]).forEach(r=>{ if(!mine.has(r.id)&&!pDeleted.has(r.id)) stock.push(r); });
-      normalizeStock();
-      seller={...seller,balance:srv.balance,totalSales:srv.totalSales};
-    }catch(_){}
-    await api('POST','/seller/stock',stock); if(seller) seller.stock=stock;
-    pBase=new Map(stock.map(s=>[s.id,s.qty]));
-    await api('POST','/seller/shop',shopItemsFromStock());
-    updateGlobalStats(); renderStock();
+    let r=null;
+    try{ r=await api('POST','/seller/stock-patch',{upsert,remove:removed}); }
+    catch(e){ if(!/404|introuvable|Cannot POST/i.test(e.message)) throw e; r=null; }
+    if(r){
+      pDeleted.clear();
+      // quantités à jour côté serveur (ventes) + produits reçus entre-temps
+      const sm=new Map((r.qty||[]).map(x=>[x.id,x.qty]));
+      stock.forEach(s=>{ if(sm.has(s.id)&&!pDirty.has(s.id)&&!isUnl(s)) s.qty=sm.get(s.id); });
+      if(r.newItems&&r.newItems.length){ stock.push(...r.newItems); normalizeStock(); }
+      if(r.balance!==undefined) seller={...seller,balance:r.balance,totalSales:r.totalSales};
+    } else {
+      // ancien serveur : envoi complet
+      await api('POST','/seller/stock',stock); await api('POST','/seller/shop',shopItemsFromStock());
+    }
+    updateGlobalStats();
     if(el){ el.textContent='✓ Enregistré · '+activeCount()+' produit(s) visibles sur la boutique'; el.className='p-sync ok'; }
-  }catch(e){ if(el){ el.innerHTML='⚠ Pas enregistré : '+esc(e.message)+' <button class="btn xs" onclick="pSyncNow()">Réessayer</button>'; el.className='p-sync err'; } }
+  }catch(e){
+    dirty.forEach((f,id)=>{ const cur=pDirty.get(id)||new Set(); f.forEach(x=>cur.add(x)); pDirty.set(id,cur); });
+    if(el){ el.innerHTML='⚠ Pas enregistré : '+esc(e.message)+' <button class="btn xs" onclick="pSyncNow()">Réessayer</button>'; el.className='p-sync err'; }
+  }
   pSyncing=false;
-  if(pSyncAgain){ pSyncAgain=false; pSyncNow(); }
+  if(pSyncAgain||pDirty.size){ pSyncAgain=false; if(pDirty.size||pDeleted.size) pSyncTimer=setTimeout(pSyncNow,400); }
 }
 
 // ── formulaire ajout / modification
@@ -1083,21 +1123,21 @@ function pfSave(){
   const nm=f=>[model,f].join(' · ');
   if(pfEditId){
     const s=pFind(pfEditId); if(!s){ pfClose(); return; }
-    Object.assign(s,common,{flavor:flavors[0],name:nm(flavors[0])}); if(pfImg) s.image=pfImg;
+    Object.assign(s,common,{flavor:flavors[0],name:nm(flavors[0])}); if(pfImg) s.image=pfImg; pMark(s,'*');
     showToast('✓ Produit modifié');
   } else {
     const added=flavors.map(f=>Object.assign({id:nid++,flavor:f,name:nm(f),image:pfImg||''},common));
-    stock.push(...added);
+    stock.push(...added); added.forEach(s=>pMark(s,'*'));
     pFilter='all'; if(pOrigin!=='all') pOrigin=origin; const q=$('pSearch'); if(q) q.value='';
     showToast('✓ '+added.length+' produit(s) ajouté(s)');
   }
   pfClose(); pChanged(); renderStock();
 }
-function pfDelete(){ const s=pFind(pfEditId); if(!s||!confirm('Supprimer « '+pFlavor(s)+' » ?')) return; pDeleted.add(pfEditId); stock=stock.filter(x=>x.id!==pfEditId); pfClose(); pChanged(); renderStock(); showToast('Produit supprimé'); }
+function pfDelete(){ const s=pFind(pfEditId); if(!s||!confirm('Supprimer « '+pFlavor(s)+' » ?')) return; pDeleted.add(pfEditId); pDirty.delete(pfEditId); stock=stock.filter(x=>x.id!==pfEditId); pfClose(); pChanged(); renderStock(); showToast('Produit supprimé'); }
 function pfDuplicate(){
   const s=pFind(pfEditId); if(!s) return;
   const copy=JSON.parse(JSON.stringify(s)); copy.id=nid++; copy.flavor=pFlavor(s)+' (copie)'; copy.name=pModel(s)+' · '+copy.flavor; copy.enVente=false; copy.enVenteCarton=false;
-  stock.push(copy); pChanged(); pfOpen(copy.id); showToast('⧉ Copie créée — change le goût');
+  stock.push(copy); pMark(copy,'*'); pChanged(); pfOpen(copy.id); showToast('⧉ Copie créée — change le goût');
 }
 // compatibilité avec le reste de l'appli
 function renderCatalogue(){ renderStock(); }

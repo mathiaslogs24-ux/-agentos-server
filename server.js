@@ -1132,6 +1132,45 @@ app.post('/seller/stock',sellerAuth,async(req,res)=>{
   res.json({ok:true,count:req.body.length});
 });
 
+// ✅ MODIF — mise à jour partielle du stock vendeur : on n'envoie que les produits modifiés,
+//  le serveur refait la vitrine lui-même (avant : tout le stock + toute la vitrine à chaque clic)
+function buildSellerShop(stockArr){
+  const cqOf=s=>Math.max(1,parseInt(s.cartonQty)||10);
+  const cpOf=s=>s.cartonPrice?parseFloat(s.cartonPrice):parseFloat(s.price||0)*cqOf(s);
+  const brandOf=s=>{ let c=String(s.cat||''); if(c.includes('·')) c=c.split('·').pop(); return c.trim().split(' ')[0]||''; };
+  return (stockArr||[]).filter(s=>{
+    if(!s.enVente||s.supplierOut) return false;
+    return s.unlimited||Math.floor((s.qty||0)/cqOf(s))>0;
+  }).map(s=>{
+    const cq=cqOf(s), cp=cpOf(s), unl=!!s.unlimited, flavor=(s.flavor||'').trim()||s.name||'';
+    const model=(s.model||'').trim()||[brandOf(s),s.puffs?Math.round(s.puffs/1000)+'K':''].filter(Boolean).join(' ');
+    return {title:s.model?[s.model,flavor].join(' · '):(s.name||flavor),image:s.image||'',
+      description:['Carton de '+cq+' pièces',s.puffs?Math.round(s.puffs/1000)+'K puffs':'',s.taux||''].filter(Boolean).join(' · '),
+      price:cp.toFixed(2),asset:'EUR',payload:'carton_'+s.id,stockId:s.id,cat:(s.cat||'')+(s.taux?' '+s.taux:''),
+      carton:true,cartonQty:cq,cartonPrice:cp.toFixed(2),qty:unl?999:Math.floor((s.qty||0)/cq),
+      origin:s.origin||'',category:s.originLabel||'',flavor,model,brand:brandOf(s),unlimited:unl};
+  });
+}
+app.post('/seller/stock-patch',sellerAuth,async(req,res)=>{
+  try{
+    const v=req.seller; v.stock=Array.isArray(v.stock)?v.stock:[];
+    const upsert=Array.isArray(req.body.upsert)?req.body.upsert:[];
+    const remove=new Set((Array.isArray(req.body.remove)?req.body.remove:[]).map(String));
+    const byId=new Map(v.stock.map(s=>[String(s.id),s]));
+    for(const it of upsert){
+      if(!it||it.id===undefined) continue;
+      const cur=byId.get(String(it.id));
+      if(cur) Object.assign(cur,it); else { v.stock.push(it); byId.set(String(it.id),it); }
+    }
+    if(remove.size) v.stock=v.stock.filter(s=>!remove.has(String(s.id)));
+    v.shopItems=buildSellerShop(v.stock);
+    await saveSeller(v);
+    Promise.resolve(checkSellerStockAlerts(v)).catch(()=>{});
+    res.json({ok:true,onSale:v.shopItems.length,balance:v.balance,totalSales:v.totalSales,
+      qty:v.stock.filter(s=>!s.unlimited).map(s=>({id:s.id,qty:s.qty}))});
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+
 app.post('/seller/shop',sellerAuth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
   req.seller.shopItems=req.body;await saveSeller(req.seller);
