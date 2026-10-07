@@ -770,7 +770,7 @@ function switchTab(tab,el){
 // ─────────────────────────────────────────
 const P_ORIG={FR:{label:'🇫🇷 Expédition depuis la France',short:'🇫🇷 France'},EU:{label:'🇪🇺 Expédition depuis l\'Europe',short:'🇪🇺 Europe'},CN:{label:'🇨🇳 Expédition depuis la Chine',short:'🇨🇳 Chine'}};
 const P_UNL=9999;
-let pOrigin='all', pBase=new Map(), pFilter='all', pSel=new Set(), pSyncTimer=null, pSyncing=false, pSyncAgain=false;
+let pDeleted=new Set(), pOrigin='all', pBase=new Map(), pFilter='all', pSel=new Set(), pSyncTimer=null, pSyncing=false, pSyncAgain=false;
 function cq(s){ return Math.max(1,parseInt(s.cartonQty)||10); }
 function ctn(s){ return isUnl(s)?Infinity:Math.floor((s.qty||0)/cq(s)); }
 function ctnPrice(s){ return s.cartonPrice?parseFloat(s.cartonPrice):parseFloat(s.price||0)*cq(s); }
@@ -905,7 +905,7 @@ function pBulk(action){
   if(action==='on'||action==='off') items.forEach(s=>{ s.enVente=action==='on'; s.enVenteCarton=s.enVente; });
   if(action==='price'){ if(!(v>0)){ showToast('⚠ Tape le prix du carton dans la case','err'); return; } items.forEach(s=>{ s.cartonPrice=+v.toFixed(2); s.price=+(v/cq(s)).toFixed(2); }); }
   if(action==='stock'){ if(!(v>=0)){ showToast('⚠ Tape le nombre de cartons dans la case','err'); return; } items.forEach(s=>{ if(!isUnl(s)) s.qty=Math.round(v)*cq(s); }); }
-  if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; stock=stock.filter(s=>!pSel.has(s.id)); }
+  if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; items.forEach(s=>pDeleted.add(s.id)); stock=stock.filter(s=>!pSel.has(s.id)); }
   const n=items.length; pSel.clear(); document.getElementById('pBulkVal').value='';
   pChanged(); renderStock();
   showToast('✓ '+n+' produit(s) '+({on:'mis en vente',off:'retirés de la vente',price:'au nouveau prix',stock:'mis à jour',del:'supprimés'}[action]));
@@ -934,7 +934,11 @@ async function pSyncNow(){
     // reprendre les ventes faites entre-temps (le serveur décompte le stock à chaque commande)
     try{
       const srv=await api('GET','/seller/me'), sm=new Map((srv.stock||[]).map(x=>[x.id,x]));
-      stock.forEach(s=>{ const r=sm.get(s.id); if(r&&!isUnl(s)&&pBase.get(s.id)===s.qty&&typeof r.qty==='number') s.qty=r.qty; });
+      stock.forEach(s=>{ const r=sm.get(s.id); if(r&&pBase.get(s.id)===s.qty&&typeof r.qty==='number'){ s.qty=r.qty; if(r.unlimited) s.unlimited=true; } });
+      // articles reçus entre-temps (envoi de stock par l'admin)
+      const mine=new Set(stock.map(s=>s.id));
+      (srv.stock||[]).forEach(r=>{ if(!mine.has(r.id)&&!pDeleted.has(r.id)) stock.push(r); });
+      normalizeStock();
       seller={...seller,balance:srv.balance,totalSales:srv.totalSales};
     }catch(_){}
     await api('POST','/seller/stock',stock); if(seller) seller.stock=stock;
@@ -1016,7 +1020,7 @@ function pfSave(){
   }
   pfClose(); pChanged(); renderStock();
 }
-function pfDelete(){ const s=pFind(pfEditId); if(!s||!confirm('Supprimer « '+pFlavor(s)+' » ?')) return; stock=stock.filter(x=>x.id!==pfEditId); pfClose(); pChanged(); renderStock(); showToast('Produit supprimé'); }
+function pfDelete(){ const s=pFind(pfEditId); if(!s||!confirm('Supprimer « '+pFlavor(s)+' » ?')) return; pDeleted.add(pfEditId); stock=stock.filter(x=>x.id!==pfEditId); pfClose(); pChanged(); renderStock(); showToast('Produit supprimé'); }
 function pfDuplicate(){
   const s=pFind(pfEditId); if(!s) return;
   const copy=JSON.parse(JSON.stringify(s)); copy.id=nid++; copy.flavor=pFlavor(s)+' (copie)'; copy.name=pModel(s)+' · '+copy.flavor; copy.enVente=false; copy.enVenteCarton=false;
