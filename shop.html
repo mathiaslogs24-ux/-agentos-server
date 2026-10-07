@@ -194,6 +194,17 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 </style>
 </head>
 <body>
+<div id="ageGate" style="position:fixed;inset:0;z-index:99999;background:#0A0A0B;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="max-width:340px;width:100%;text-align:center;">
+    <div style="font-size:48px;margin-bottom:14px;">🔞</div>
+    <div id="ageTitle" style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px;">Avez-vous 18 ans ou plus ?</div>
+    <div id="ageText" style="font-size:13px;color:#9a9aa5;line-height:1.5;margin-bottom:22px;">Les produits de cette boutique contiennent de la nicotine et sont réservés aux personnes majeures.</div>
+    <div id="ageBtns" style="display:flex;gap:10px;">
+      <button onclick="ageNo()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:#18181C;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">Non</button>
+      <button onclick="ageYes()" style="flex:1;padding:13px;border-radius:12px;border:none;background:#F0B429;color:#000;font-size:15px;font-weight:800;cursor:pointer;">Oui, j'ai 18 ans</button>
+    </div>
+  </div>
+</div>
 <div id="app">
   <div class="header">
     <div class="header-top">
@@ -1242,7 +1253,19 @@ async function placeOrder(){
 let tt;
 function showToast(m){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),2200); }
 
-init();
+// 🔞 Vérification d'âge : la boutique ne se charge qu'après un « Oui »
+function ageOk(){ try{ return localStorage.getItem('age18_ok')==='1'; }catch(e){ return false; } }
+function ageYes(){
+  try{ localStorage.setItem('age18_ok','1'); }catch(e){}
+  document.getElementById('ageGate').style.display='none';
+  if(!window.__shopStarted){ window.__shopStarted=true; init(); }
+}
+function ageNo(){
+  document.getElementById('ageTitle').textContent='Accès refusé';
+  document.getElementById('ageText').textContent="Cette boutique est réservée aux personnes de 18 ans et plus. Tu ne peux pas y accéder.";
+  document.getElementById('ageBtns').style.display='none';
+}
+if(ageOk()){ document.getElementById('ageGate').style.display='none'; window.__shopStarted=true; init(); }
 </script>
 </body>
 </html>
