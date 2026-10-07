@@ -125,7 +125,10 @@ app.use((req,res,next)=>{
   next();
 });
 // ✅ MODIF — limite passée de 2 Mo à 50 Mo (le catalogue part avec un visuel par goût)
-app.use(express.json({limit:'50mb'}));
+// Le webhook Stripe doit recevoir le corps brut (nécessaire pour vérifier la signature)
+app.use((req,res,next)=> req.originalUrl==='/stripe-webhook'
+  ? next()
+  : express.json({limit:'50mb'})(req,res,next));
 // ✅ MODIF — si un envoi dépasse quand même la limite, on répond en JSON (lisible par le dashboard)
 app.use((err,req,res,next)=>{
   if(err && err.type==='entity.too.large') return res.status(413).json({error:'Envoi trop lourd pour le serveur'});
@@ -1709,12 +1712,38 @@ app.post('/shop-checkout', async(req,res) => {
 // ─────────────────────────────────────────
 //  STRIPE WEBHOOK
 // ─────────────────────────────────────────
-app.post('/stripe-webhook', async(req,res) => {
-  const event=req.body;
+function verifyStripeSignature(rawBody, header, secret, toleranceSec = 300) {
+  if (!header || !secret || !Buffer.isBuffer(rawBody)) return false;
+  let t = null; const sigs = [];
+  for (const part of String(header).split(',')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    const k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
+    if (k === 't') t = v; else if (k === 'v1') sigs.push(v);
+  }
+  if (!t || !sigs.length) return false;
+  if (Math.abs(Date.now() / 1000 - parseInt(t, 10)) > toleranceSec) return false;
+  const expected = crypto.createHmac('sha256', secret)
+    .update(Buffer.concat([Buffer.from(t + '.'), rawBody])).digest('hex');
+  const eb = Buffer.from(expected);
+  return sigs.some(sg => { const sb = Buffer.from(sg); return sb.length === eb.length && crypto.timingSafeEqual(sb, eb); });
+}
+
+app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}), async(req,res) => {
+  if(!cfg.stripeWebhook){ addLog('err','STRIPE_WEBHOOK_SECRET manquant — webhook refusé'); return res.sendStatus(500); }
+  if(!verifyStripeSignature(req.body, req.headers['stripe-signature'], cfg.stripeWebhook)){
+    addLog('warn','Webhook Stripe rejeté : signature invalide');
+    return res.sendStatus(400);
+  }
+  let event; try{ event=JSON.parse(req.body.toString('utf8')); }catch(e){ return res.sendStatus(400); }
   if(!event||!event.type) return res.sendStatus(400);
   addLog('info',`Stripe webhook · ${event.type}`);
 
   if(event.type==='checkout.session.completed'){
+    if(event.data.object.payment_status!=='paid'){
+      addLog('warn','Webhook ignoré : paiement non confirmé ('+event.data.object.payment_status+')');
+      return res.sendStatus(200);
+    }
     const sessionId=event.data.object.id;
     const meta=event.data.object.metadata||{};
     const userId=meta.userId||'';
