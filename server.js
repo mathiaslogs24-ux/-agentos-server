@@ -2027,7 +2027,9 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     if(userId&&bot){
       bot.sendMessage(userId,
         `✅ *Commande confirmée !*\n\n🛍 ${productNames.join(', ')||'Votre commande'}\n💶 ${amount}€ payés\n\nMerci ! 🙏`,
-        {parse_mode:'Markdown'}).catch(()=>{});
+        {parse_mode:'Markdown'})
+        .then(m=>addLog('info',`Confirmation acheteur envoyée · msg ${m.message_id} · ${sessionId.slice(-8)} · instance ${process.env.RAILWAY_REPLICA_ID||process.pid}`))
+        .catch(e=>addLog('warn','Confirmation acheteur échec: '+e.message));
     }
   }
   res.sendStatus(200);
