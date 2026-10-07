@@ -143,6 +143,11 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
 .toast.ok{border-color:var(--grbdr);color:var(--green);}
 .toast.err{border-color:var(--rbdr);color:var(--red);}
 /* ── Produits (stock + catalogue) */
+.p-orig{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.p-otab{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--rs);padding:8px 4px;text-align:center;cursor:pointer;min-width:0}
+.p-otab b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.p-otab small{display:block;font-size:9.5px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-otab.on{background:var(--gdim);border-color:var(--gold)}.p-otab.on b{color:var(--gold)}
+.p-osec{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 8px;font-size:13px;font-weight:800}.p-osec small{font-size:11px;color:var(--t3);font-weight:600}
 .p-sync{font-size:11px;color:var(--t3);min-height:16px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.p-sync.ok{color:var(--green)}.p-sync.err{color:var(--red)}
 .p-group{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
 .p-ghead{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--bg3);border-bottom:1px solid var(--gb)}
@@ -210,6 +215,7 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
         </div>
         <button class="btn primary full" onclick="pfOpen()" style="justify-content:center;padding:13px;font-size:14px;margin-bottom:12px;">＋ Ajouter des produits</button>
         <input type="search" id="pSearch" class="fld-input" placeholder="🔍 Rechercher un modèle ou un goût…" oninput="renderStock()" style="margin-bottom:8px;">
+        <div class="p-orig" id="pOrigins"></div>
         <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="pChips"></div>
         <div class="p-sync" id="pSync"></div>
         <div id="stockList"></div>
@@ -764,7 +770,7 @@ function switchTab(tab,el){
 // ─────────────────────────────────────────
 const P_ORIG={FR:{label:'🇫🇷 Expédition depuis la France',short:'🇫🇷 France'},EU:{label:'🇪🇺 Expédition depuis l\'Europe',short:'🇪🇺 Europe'},CN:{label:'🇨🇳 Expédition depuis la Chine',short:'🇨🇳 Chine'}};
 const P_UNL=9999;
-let pBase=new Map(), pFilter='all', pSel=new Set(), pSyncTimer=null, pSyncing=false, pSyncAgain=false;
+let pOrigin='all', pBase=new Map(), pFilter='all', pSel=new Set(), pSyncTimer=null, pSyncing=false, pSyncAgain=false;
 function cq(s){ return Math.max(1,parseInt(s.cartonQty)||10); }
 function ctn(s){ return isUnl(s)?Infinity:Math.floor((s.qty||0)/cq(s)); }
 function ctnPrice(s){ return s.cartonPrice?parseFloat(s.cartonPrice):parseFloat(s.price||0)*cq(s); }
@@ -802,6 +808,7 @@ function checkLocalAlerts(){
 function pFiltered(){
   const q=(document.getElementById('pSearch')?.value||'').toLowerCase().trim();
   return stock.filter(s=>{
+    if(pOrigin!=='all'&&(s.origin||'none')!==pOrigin) return false;
     if(pFilter==='on'&&!pOnSale(s)) return false;
     if(pFilter==='off'&&s.enVente) return false;
     if(pFilter==='out'&&(isUnl(s)||ctn(s)>0)) return false;
@@ -811,9 +818,21 @@ function pFiltered(){
   });
 }
 function pSetFilter(f){ pFilter=f; renderStock(); }
+function pSetOrigin(o){ pOrigin=o; pSel.clear(); renderStock(); }
+function pOriginBar(){
+  const cnt=o=>stock.filter(s=>o==='all'||(s.origin||'none')===o).length;
+  const ctns=o=>stock.filter(s=>(s.origin||'none')===o&&!isUnl(s)).reduce((a,s)=>a+ctn(s),0);
+  const opts=[['all','Tout',''],['FR','🇫🇷 France',''],['EU','🇪🇺 Europe',''],['CN','🇨🇳 Chine','']];
+  if(cnt('none')) opts.push(['none','📦 Sans origine','']);
+  document.getElementById('pOrigins').innerHTML=opts.map(([o,l])=>{
+    const sub=o==='all'?cnt(o)+' produits':o==='CN'?cnt(o)+' · ∞ illimité':cnt(o)+' · '+ctns(o)+' ctn';
+    return `<div class="p-otab ${pOrigin===o?'on':''}" onclick="pSetOrigin('${o}')"><b>${l}</b><small>${sub}</small></div>`;
+  }).join('');
+}
 function renderStock(){
   updateGlobalStats();
   const list=document.getElementById('stockList'); if(!list) return;
+  pOriginBar();
   const c=f=>{ const k=pFilter; pFilter=f; const n=pFiltered().length; pFilter=k; return n; };
   document.getElementById('pChips').innerHTML=[['all','Tous'],['on','✓ En vente'],['off','Pas en vente'],['low','Stock bas'],['out','Rupture']]
     .map(([f,l])=>`<div class="fchip ${pFilter===f?'active':''}" onclick="pSetFilter('${f}')">${l} <span style="opacity:.6;">${c(f)}</span></div>`).join('');
@@ -823,8 +842,13 @@ function renderStock(){
   // regroupement par modèle
   const groups=new Map();
   items.forEach(s=>{ const k=pModel(s)+'|'+(s.taux||'')+'|'+(s.origin||''); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(s); });
-  let html='';
-  [...groups.values()].sort((a,b)=>pModel(a[0]).localeCompare(pModel(b[0]))).forEach(g=>{
+  let html='', lastO=null;
+  const oRank=o=>({FR:0,EU:1,CN:2}[o]??3);
+  [...groups.values()].sort((a,b)=>oRank(a[0].origin)-oRank(b[0].origin)||pModel(a[0]).localeCompare(pModel(b[0]))).forEach(g=>{
+    const o=g[0].origin||'none';
+    if(pOrigin==='all'&&o!==lastO){ lastO=o;
+      const inO=items.filter(s=>(s.origin||'none')===o), lim=inO.filter(s=>!isUnl(s));
+      html+=`<div class="p-osec"><span>${o==='none'?'📦 Sans origine':P_ORIG[o].label}</span><small>${o==='CN'?'stock illimité':lim.reduce((a,s)=>a+ctn(s),0)+' cartons en stock'}</small></div>`; }
     g.sort((a,b)=>pFlavor(a).localeCompare(pFlavor(b)));
     const f=g[0], allOn=g.every(s=>s.enVente), ids=g.map(s=>s.id).join(',');
     const prices=[...new Set(g.map(s=>ctnPrice(s).toFixed(2)))];
@@ -941,7 +965,7 @@ function pfOpen(id){
   $('pfFlavors').value=s?pFlavor(s):''; $('pfFlavors').rows=s?1:3;
   $('pfBrand').value=s?extractBrand(s.cat):(stock.length?extractBrand(stock[stock.length-1].cat):'');
   $('pfPuffs').value=s?.puffs||'';
-  pfSeg('pfTaux',s?.taux||''); pfSeg('pfOrigin',s?.origin||(stock.length?stock[stock.length-1].origin||'CN':'CN'));
+  pfSeg('pfTaux',s?.taux||''); pfSeg('pfOrigin',s?.origin||(['FR','EU','CN'].includes(pOrigin)?pOrigin:(stock.length?stock[stock.length-1].origin||'CN':'CN')));
   $('pfPrice').value=s?ctnPrice(s):''; $('pfCq').value=s?cq(s):10;
   $('pfUnl').checked=s?isUnl(s):pfSegVal('pfOrigin')==='CN';
   $('pfQty').value=s&&!isUnl(s)?ctn(s):0; pfSyncUnl();
@@ -987,7 +1011,7 @@ function pfSave(){
   } else {
     const added=flavors.map(f=>Object.assign({id:nid++,flavor:f,name:nm(f),image:pfImg||''},common));
     stock.push(...added);
-    pFilter='all'; const q=$('pSearch'); if(q) q.value='';
+    pFilter='all'; if(pOrigin!=='all') pOrigin=origin; const q=$('pSearch'); if(q) q.value='';
     showToast('✓ '+added.length+' produit(s) ajouté(s)');
   }
   pfClose(); pChanged(); renderStock();
