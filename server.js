@@ -278,6 +278,12 @@ async function saveOrder(order) {
   await db('INSERT INTO orders(id,data) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET data=$2',
     [order.id, JSON.stringify(order)]);
 }
+// 🔒 Anti-doublon : une session Stripe ne doit créer qu'une seule commande
+const processingSessions = new Set();
+async function orderExistsForSession(sessionId) {
+  const r = await db("SELECT 1 FROM orders WHERE data->>'invoiceId'=$1 LIMIT 1",[sessionId]);
+  return r.rows.length>0;
+}
 async function deleteOrder(id) {
   await db('DELETE FROM orders WHERE id=$1',[id]);
 }
@@ -1842,6 +1848,22 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
       addLog('warn','Webhook ignoré : paiement non confirmé ('+event.data.object.payment_status+')');
       return res.sendStatus(200);
     }
+    // 🔒 Stripe peut renvoyer le même message : on ne traite chaque paiement qu'une fois
+    const dupId=event.data.object.id;
+    if(processingSessions.has(dupId)){ return res.sendStatus(200); }
+    processingSessions.add(dupId);
+    setTimeout(()=>processingSessions.delete(dupId),60000); // filet de sécurité si le traitement plante
+    try{
+      if(await orderExistsForSession(dupId)){
+        addLog('info','Webhook doublon ignoré · '+dupId);
+        processingSessions.delete(dupId);
+        return res.sendStatus(200);
+      }
+    }catch(e){
+      processingSessions.delete(dupId);
+      addLog('err','Vérif doublon: '+e.message);
+      return res.sendStatus(500); // Stripe réessaiera
+    }
     const sessionId=event.data.object.id;
     const meta=event.data.object.metadata||{};
     const userId=meta.userId||'';
@@ -1911,6 +1933,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
       },
     };
     await saveOrder(order);
+    processingSessions.delete(dupId);
 
     const sellers=await getSellers();
     for(const ci of cartItems){
