@@ -113,6 +113,9 @@ try {
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+// Adresse publique du serveur (liens Telegram, retours Stripe). Sans variable : la production actuelle.
+// Un environnement de test définit PUBLIC_URL pour ne jamais renvoyer vers la production.
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://agentos-server-production-a5b4.up.railway.app').replace(/\/+$/,'');
 
 app.use((req,res,next)=>{
   res.header('Access-Control-Allow-Origin','*');
@@ -473,7 +476,7 @@ function startBot() {
         return;
       }
       if(text.startsWith('/start')||text.startsWith('/shop')){
-        const shopUrl=`https://agentos-server-production-a5b4.up.railway.app/shop-app`;
+        const shopUrl=`${PUBLIC_URL}/shop-app`;
         bot.sendMessage(msg.chat.id,
           `👋 Bienvenue ${msg.from.first_name||''} sur le Marketplace !\n\n🛍 Découvrez nos produits.`,
           {reply_markup:{inline_keyboard:[[{text:'🛍 Ouvrir le Marketplace',web_app:{url:shopUrl}}]]}}
@@ -537,7 +540,7 @@ function startVendorBot() {
           vendorBot.sendMessage(userId,`👋 Bonjour !\n\nCe bot est réservé aux vendeurs du marketplace.\nContactez l'administrateur pour obtenir votre accès.`);
           return;
         }
-        const appUrl = `https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`;
+        const appUrl = `${PUBLIC_URL}/seller-dashboard`;
         vendorBot.sendMessage(userId,
           `👋 Bonjour *${seller.shopName||seller.name}* !\n\n`
           +`🛍 Accédez à votre espace vendeur :\n\n`
@@ -933,7 +936,7 @@ app.post('/sellers',auth,async(req,res)=>{
     try{
       await vendorBot.sendMessage(telegramId,
         `🎉 *Bienvenue sur le Marketplace !*\n\nBonjour ${name}, votre espace vendeur est prêt.\n\n🔑 Votre clé secrète :\n\`${seller.secret}\`\n\n👇 Accédez à votre dashboard :`,
-        {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🛍 Ouvrir mon dashboard vendeur',url:`https://agentos-server-production-a5b4.up.railway.app/seller-dashboard`}]]}}
+        {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🛍 Ouvrir mon dashboard vendeur',url:`${PUBLIC_URL}/seller-dashboard`}]]}}
       );
     }catch(e){addLog('warn',`Notif vendeur: ${e.message}`);}
   }
@@ -1623,7 +1626,7 @@ app.post('/shop-checkout', async(req,res) => {
       if(!promoResult.ok) return res.status(400).json({error:'Code promo : '+promoResult.error});
       addLog('info',`Promo "${promoCode}" appliquée · -${promoResult.discount}€`);
     }
-    const serverUrl=`https://agentos-server-production-a5b4.up.railway.app`;
+    const serverUrl=PUBLIC_URL;
     const params=new URLSearchParams();
     params.append('payment_method_types[]','card');
     params.append('mode','payment');

@@ -290,7 +290,11 @@ html,body{height:100%;background:var(--dark);color:var(--text);font-family:'Syne
 
 <script>
 'use strict';
-const SERVER = 'https://agentos-server-production-a5b4.up.railway.app';
+// La boutique est servie par le serveur lui-même (/shop-app) : elle appelle son propre serveur.
+// Hors d'un domaine Railway (ouverture ailleurs), on retombe sur la production.
+const SERVER = /^https:\/\/[a-z0-9-]+\.up\.railway\.app$/.test(location.origin)
+  ? location.origin
+  : 'https://agentos-server-production-a5b4.up.railway.app';
 const tg = window.Telegram?.WebApp;
 if(tg){ tg.ready(); tg.expand(); tg.setHeaderColor('#111113'); tg.setBackgroundColor('#0A0A0B'); }
 const USER_ID = tg?.initDataUnsafe?.user?.id || 'guest';
