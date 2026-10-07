@@ -1995,6 +1995,26 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
       }
     }
     addLog('ok',`Stripe · @${userName} · ${amount}€ · com:${commission}€`);
+    // 🔔 Notification admin : chaque commande payée est envoyée sur le bot admin
+    try{
+      const adminId = process.env.ADMIN_TELEGRAM_ID || cfg.adminTelegramId;
+      if(adminBot && adminId){
+        const c=order.client;
+        const txt='🛍 Nouvelle commande payée !\n\n'
+          +'📦 '+(productNames.join(', ')||'Commande')+'\n'
+          +'🔢 '+nbItems+' article(s) · 💶 '+amount+'€\n'
+          +(meta.promoCode?'🏷 Code promo : '+meta.promoCode+'\n':'')
+          +'\n━━━━━━━━━━━━━━━\n'
+          +'👤 '+(c.name||'—')+'\n'
+          +'📍 '+(c.address||'—')+'\n'
+          +'📮 '+(c.postal||'—')+' '+(c.city||'')+'\n'
+          +'🌍 '+(c.country||'—')+'\n'
+          +'📞 '+(c.phone||'—')+'\n'
+          +'📧 '+(c.email||'—')+'\n'
+          +(userName?'💬 Telegram : @'+userName:'');
+        await adminBot.sendMessage(adminId, txt);
+      } else addLog('warn','Notif commande admin : bot admin ou ID admin manquant');
+    }catch(e){ addLog('warn','Notif commande admin: '+e.message); }
     if(meta.promoCode){
       try{await markPromoUsed(meta.promoCode,userId);}
       catch(e){addLog('warn','markPromoUsed: '+e.message);}
