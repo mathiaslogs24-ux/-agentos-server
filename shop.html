@@ -1176,6 +1176,7 @@ async function placeOrder(){
     userId   : user?.id   || '',
     userName : user?.username || user?.first_name || '',
     shipping : shippingFee,
+    initData : tg?.initData || '',
   };
 
   if(promoState.applied && promoState.code){

@@ -769,7 +769,7 @@ async function initAuth(){
     if(tgUser?.id){
       document.getElementById('loginSub').textContent='🔐 Connexion automatique…';
       try{
-        const r=await fetch(SERVER+'/seller/tg-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegramId:tgUser.id})});
+        const r=await fetch(SERVER+'/seller/tg-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData})});
         if(r.ok){ const data=await r.json(); secret=data.secret; loadSellerData(data.seller); bootDashboard(); return; }
       }catch(e){}
     }
