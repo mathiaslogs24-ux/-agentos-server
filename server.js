@@ -4,6 +4,7 @@
 'use strict';
 const crypto     = require('crypto');
 const express    = require('express');
+const zlib       = require('zlib');
 const TelegramBot= require('node-telegram-bot-api');
 const { Pool }   = require('pg');
 const fs         = require('fs');
@@ -129,6 +130,19 @@ app.use((req,res,next)=>{
 app.use((req,res,next)=> req.originalUrl==='/stripe-webhook'
   ? next()
   : express.json({limit:'50mb'})(req,res,next));
+// ✅ MODIF — réponses JSON compressées (gzip) : stock, catalogue, vendeurs… 5 à 10× plus légers à télécharger
+app.use((req,res,next)=>{
+  if(!/\bgzip\b/.test(req.headers['accept-encoding']||'')) return next();
+  const orig=res.json.bind(res);
+  res.json=(obj)=>{
+    const body=Buffer.from(JSON.stringify(obj));
+    if(body.length<8192) return orig(obj);
+    res.set('Content-Type','application/json; charset=utf-8');
+    res.set('Content-Encoding','gzip'); res.set('Vary','Accept-Encoding');
+    return res.send(zlib.gzipSync(body,{level:6}));
+  };
+  next();
+});
 // ✅ MODIF — si un envoi dépasse quand même la limite, on répond en JSON (lisible par le dashboard)
 app.use((err,req,res,next)=>{
   if(err && err.type==='entity.too.large') return res.status(413).json({error:'Envoi trop lourd pour le serveur'});
@@ -716,8 +730,11 @@ function auth(req,res,next){
 }
 async function sellerAuth(req,res,next){
   const s=req.headers['x-secret'];
-  const sellers=await getSellers();
-  const seller=sellers.find(v=>v.secret===s&&v.active);
+  if(!s) return res.status(401).json({error:'Vendeur non autorisé'});
+  // ✅ MODIF — on ne charge que CE vendeur (avant : tous les vendeurs avec tout leur stock, à chaque requête)
+  let seller=null;
+  try{ const r=await db("SELECT data FROM sellers WHERE data->>'secret'=$1 LIMIT 1",[String(s)]); seller=r.rows[0]?.data||null; }catch(e){ return res.status(500).json({error:e.message}); }
+  if(seller&&!seller.active) seller=null;
   if(!seller) return res.status(401).json({error:'Vendeur non autorisé'});
   req.seller=seller;
   next();
@@ -1104,7 +1121,8 @@ app.post('/seller/tg-auth', async(req,res)=>{
   res.json({ok:true, seller, secret:seller.secret});
 });
 
-app.get('/seller/me',sellerAuth,(req,res)=>res.json(req.seller));
+// ✅ MODIF — sans la vitrine (le dashboard vendeur la reconstruit à partir du stock)
+app.get('/seller/me',sellerAuth,(req,res)=>res.json({...req.seller,shopItems:undefined}));
 
 app.post('/seller/stock',sellerAuth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});

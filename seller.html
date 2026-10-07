@@ -44,12 +44,6 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
 .panel{display:none;animation:fadeIn .18s ease;}.panel.active{display:block;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-.bottom-nav{flex-shrink:0;background:var(--bg1);border-top:1px solid var(--gb);height:calc(var(--nav-h) + var(--safe-b));padding-bottom:var(--safe-b);display:flex;z-index:10;}
-.bnav{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:none;color:var(--t3);cursor:pointer;padding:6px 2px;position:relative;transition:color .15s;}
-.bnav.active{color:var(--gold);}
-.bnav-icon{font-size:19px;line-height:1;}
-.bnav-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
-.bnav .nbadge{position:absolute;top:5px;right:calc(50% - 16px);background:var(--red);color:#fff;font-size:8px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 3px;}
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
 .stat-card{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:11px 13px;}
 .stat-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px;}
@@ -90,7 +84,7 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
 .price-filter label{font-size:10px;font-weight:700;color:var(--t3);}
 .pf-inp{width:72px;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:monospace;font-size:12px;padding:6px 8px;border-radius:var(--rs);outline:none;text-align:center;}
 .pf-inp:focus{border-color:var(--gold);}
-.bulk-bar{display:none;position:fixed;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:20;padding:10px 12px;background:var(--bg2);border-top:2px solid var(--gold);box-shadow:0 -4px 20px rgba(0,0,0,.6);}
+.bulk-bar{display:none;position:fixed;bottom:var(--safe-b);left:0;right:0;z-index:20;padding:10px 12px;background:var(--bg2);border-top:2px solid var(--gold);box-shadow:0 -4px 20px rgba(0,0,0,.6);}
 .bulk-title{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px;}
 .bulk-fields{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;align-items:flex-end;scrollbar-width:none;}
 .bulk-fields::-webkit-scrollbar{display:none;}
@@ -142,6 +136,38 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
 .toast.show{transform:translateX(-50%) translateY(0);}
 .toast.ok{border-color:var(--grbdr);color:var(--green);}
 .toast.err{border-color:var(--rbdr);color:var(--red);}
+
+/* ── menu latéral */
+.menu-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--gb);background:var(--bg3);color:var(--text);font-size:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.app-body{display:flex;position:relative}
+.app-body .content{flex:1;min-width:0}
+.side-nav{position:fixed;top:0;bottom:0;left:0;width:250px;z-index:60;background:var(--bg1);border-right:1px solid var(--gb);padding:calc(14px + env(safe-area-inset-top,0px)) 10px calc(14px + var(--safe-b));display:flex;flex-direction:column;gap:3px;transform:translateX(-105%);transition:transform .22s ease;overflow-y:auto}
+body.nav-open .side-nav{transform:none;box-shadow:12px 0 40px rgba(0,0,0,.5)}
+.nav-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:55;display:none}
+body.nav-open .nav-ov{display:block}
+.sn-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);padding:12px 10px 6px}
+.snav{display:flex;align-items:center;gap:11px;width:100%;padding:11px 12px;border-radius:var(--rs);border:none;background:none;color:var(--t2);font-size:14px;font-weight:700;text-align:left;position:relative}
+.snav span{font-size:17px;width:22px;text-align:center}
+.snav.active{background:var(--gdim);color:var(--gold)}
+.snav .nbadge{position:static;margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-style:normal;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 5px}
+@media(min-width:900px){
+  .menu-btn{display:none}
+  .side-nav{position:static;transform:none;height:100%;flex-shrink:0}
+  .nav-ov{display:none!important}
+  .bulk-bar{left:250px!important}
+  #panel-stock .stats-grid{grid-template-columns:repeat(4,1fr)}
+}
+/* ── outils produits */
+.p-tools{display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px}
+.p-tools .fld-input,.p-tools .fld-select{margin-bottom:0}
+.p-tools #pSearch{grid-column:1/-1}
+.p-tools .btn{justify-content:center}
+.p-selbar{display:none;position:sticky;top:-12px;z-index:15;align-items:center;gap:6px;padding:9px 10px;margin:0 -2px 8px;background:var(--bg2);border:1px solid var(--gold);border-radius:var(--rs)}
+.p-selbar b{flex:1;font-size:13px;color:var(--gold)}
+.p-brand{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.p-bhead{display:flex;align-items:center;gap:10px;padding:12px;background:linear-gradient(90deg,var(--gdim),transparent);border-bottom:1px solid var(--gb)}
+.p-bname{font-size:16px;font-weight:800;letter-spacing:.02em}
+.p-brand .p-ghead{background:var(--bg3)}
 /* ── Produits (stock + catalogue) */
 .p-orig{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
 .p-otab{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--rs);padding:8px 4px;text-align:center;cursor:pointer;min-width:0}
@@ -194,6 +220,7 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
 <!-- DASHBOARD -->
 <div id="dashView">
   <div class="topbar">
+    <button class="menu-btn" onclick="navToggle()" aria-label="Menu">☰</button>
     <div class="topbar-logo">🛍 <span>Vendor</span>OS</div>
     <div class="seller-chip">
       <div class="seller-av" id="sellerAv">?</div>
@@ -203,6 +230,21 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
   </div>
 
   <div class="app-body">
+    <div id="navOv" class="nav-ov" onclick="navToggle(false)"></div>
+    <nav class="side-nav" id="sideNav">
+      <div class="sn-title">Mon espace</div>
+      <button class="snav active" id="nav-stock" onclick="switchTab('stock')"><span>📦</span>Produits</button>
+      <button class="snav" id="nav-orders" onclick="switchTab('orders')"><span>📋</span>Commandes<i class="nbadge" id="newOrdersBadge"></i></button>
+      <button class="snav" id="nav-stats" onclick="switchTab('stats')"><span>📊</span>Statistiques</button>
+      <button class="snav" id="nav-withdrawals" onclick="switchTab('withdrawals')"><span>💸</span>Retraits</button>
+      <div class="sn-title">Boutique</div>
+      <button class="snav" id="nav-promos" onclick="switchTab('promos')"><span>🏷</span>Codes promo</button>
+      <button class="snav" id="nav-clients" onclick="switchTab('clients')"><span>👥</span>Clients</button>
+      <button class="snav" id="nav-settings" onclick="switchTab('settings')"><span>⚙️</span>Paramètres</button>
+      <div style="flex:1"></div>
+      <button class="snav" onclick="doLogout()" style="color:var(--red);"><span>↩</span>Déconnexion</button>
+    </nav>
+    
     <div class="content" id="mainContent">
 
       <!-- PRODUITS (stock + catalogue réunis) -->
@@ -214,16 +256,23 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
           <div class="stat-card"><div class="stat-label">Ruptures</div><div class="stat-val" id="stOut">—</div></div>
         </div>
         <button class="btn primary full" onclick="pfOpen()" style="justify-content:center;padding:13px;font-size:14px;margin-bottom:12px;">＋ Ajouter des produits</button>
-        <input type="search" id="pSearch" class="fld-input" placeholder="🔍 Rechercher un modèle ou un goût…" oninput="renderStock()" style="margin-bottom:8px;">
         <div class="p-orig" id="pOrigins"></div>
+        <div class="p-tools">
+          <input type="search" id="pSearch" class="fld-input" placeholder="🔍 Modèle ou goût…" oninput="renderStock()">
+          <select id="pBrandSel" class="fld-select" onchange="pSetBrand(this.value)"></select>
+          <button class="btn" id="pSelBtn" onclick="pSelMode(!pSelecting)">☑ Sélectionner</button>
+        </div>
         <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="pChips"></div>
+        <div class="p-selbar" id="pSelBar">
+          <b id="pSelN">0 sélectionné</b>
+          <button class="btn xs" onclick="pSelAllVisible(true)">Tout</button>
+          <button class="btn xs" onclick="pSelAllVisible(false)">Aucun</button>
+          <button class="btn xs primary" onclick="pSelMode(false)">Terminer</button>
+        </div>
         <div class="p-sync" id="pSync"></div>
         <div id="stockList"></div>
+        <div id="pMore" style="text-align:center;margin:10px 0;"></div>
         <div class="bulk-bar" id="pBulk">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <span class="bulk-title" id="pBulkN">0 sélectionné(s)</span>
-            <button class="btn xs" onclick="pSelClear()">✕ Annuler</button>
-          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
             <button class="btn sm success" onclick="pBulk('on')" style="justify-content:center;">✓ Mettre en vente</button>
             <button class="btn sm" onclick="pBulk('off')" style="justify-content:center;">⛔ Retirer de la vente</button>
@@ -293,13 +342,6 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
         </div>
       </div>
 
-      <!-- PLUS -->
-      <div class="panel" id="panel-more">
-        <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Plus</div>
-        <div class="p-more" onclick="switchTab('promos')"><span>🏷</span><div><b>Codes promo</b><small>Créer des réductions pour tes clients</small></div><i>›</i></div>
-        <div class="p-more" onclick="switchTab('clients')"><span>👥</span><div><b>Mes clients</b><small>Qui a acheté chez toi</small></div><i>›</i></div>
-        <div class="p-more" onclick="switchTab('settings')"><span>⚙️</span><div><b>Paramètres</b><small>Livraison, alertes stock, boutique, réseaux</small></div><i>›</i></div>
-      </div>
       <!-- COMMANDES -->
       <div class="panel" id="panel-orders">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -514,13 +556,7 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
     </div>
   </div>
 
-  <div class="bottom-nav">
-    <button class="bnav active" id="nav-stock" onclick="switchTab('stock',this)"><span class="bnav-icon">📦</span><span class="bnav-label">Produits</span></button>
-    <button class="bnav" id="nav-orders" onclick="switchTab('orders',this)"><span class="bnav-icon">📋</span><span class="bnav-label">Commandes</span><span class="nbadge" id="newOrdersBadge"></span></button>
-    <button class="bnav" id="nav-stats" onclick="switchTab('stats',this)"><span class="bnav-icon">📊</span><span class="bnav-label">Stats</span></button>
-    <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)"><span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span></button>
-    <button class="bnav" id="nav-more" onclick="switchTab('more',this)"><span class="bnav-icon">☰</span><span class="bnav-label">Plus</span></button>
-  </div>
+  
 </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -719,7 +755,11 @@ async function doLogin(){
   if(!s){ err.textContent='Veuillez entrer votre clé secrète.'; err.style.display='block'; return; }
   btn.disabled=true; btn.textContent='Connexion…'; err.style.display='none';
   try{
-    const r=await fetch(SERVER+'/seller/me',{headers:{'x-secret':s,'Content-Type':'application/json'}});
+    btn.textContent='Connexion… (chargement de ton catalogue)';
+    const ac=new AbortController(), to=setTimeout(()=>ac.abort(),60000);
+    let r; try{ r=await fetch(SERVER+'/seller/me',{headers:{'x-secret':s,'Content-Type':'application/json'},signal:ac.signal}); }
+    catch(e){ throw new Error(e.name==='AbortError'?'Le serveur met trop de temps à répondre — réessaie dans un instant':'Serveur injoignable'); }
+    finally{ clearTimeout(to); }
     if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.error||'Clé incorrecte'); }
     secret=s; loadSellerData(await r.json()); bootDashboard();
   }catch(e){ err.textContent='⚠ '+e.message; err.style.display='block'; }
@@ -748,11 +788,13 @@ function doLogout(){
 }
 initAuth();
 
+function navToggle(on){ const open=on===undefined?!document.body.classList.contains('nav-open'):!!on; document.body.classList.toggle('nav-open',open); }
 function switchTab(tab,el){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.bnav').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+tab).classList.add('active');
-  (el||document.getElementById('nav-'+tab)||(['promos','clients','settings'].includes(tab)?document.getElementById('nav-more'):null))?.classList.add('active');
+  document.querySelectorAll('.snav').forEach(n=>n.classList.remove('active'));
+  document.getElementById('nav-'+tab)?.classList.add('active');
+  navToggle(false);
   if(tab==='stock') renderStock();
   if(tab==='orders') loadOrders();
   if(tab==='stats') loadStats();
@@ -804,100 +846,131 @@ function checkLocalAlerts(){
   if(low.length) showToast(`⚠ ${low.length} goût(s) bientôt en rupture`,'err');
 }
 
-// ── liste
-function pFiltered(){
+// ── liste : Marque › Modèle › Goûts
+let pBrand='all', pSelecting=false, pLimit=150;
+function pBrandOf(s){ return (extractBrand(s.cat)||String(pModel(s)).split(' ')[0]||'Autres').toUpperCase(); }
+function pFiltered(skip){
   const q=(document.getElementById('pSearch')?.value||'').toLowerCase().trim();
   return stock.filter(s=>{
-    if(pOrigin!=='all'&&(s.origin||'none')!==pOrigin) return false;
-    if(pFilter==='on'&&!pOnSale(s)) return false;
-    if(pFilter==='off'&&s.enVente) return false;
-    if(pFilter==='out'&&(isUnl(s)||ctn(s)>0)) return false;
-    if(pFilter==='low'&&(isUnl(s)||!(ctn(s)>0&&ctn(s)<=2))) return false;
-    if(q&&![pModel(s),pFlavor(s),s.cat,s.taux].join(' ').toLowerCase().includes(q)) return false;
+    if(skip!=='origin'&&pOrigin!=='all'&&(s.origin||'none')!==pOrigin) return false;
+    if(skip!=='brand'&&pBrand!=='all'&&pBrandOf(s)!==pBrand) return false;
+    if(skip!=='state'){
+      if(pFilter==='on'&&!pOnSale(s)) return false;
+      if(pFilter==='off'&&s.enVente) return false;
+      if(pFilter==='out'&&(isUnl(s)||ctn(s)>0)) return false;
+      if(pFilter==='low'&&(isUnl(s)||!(ctn(s)>0&&ctn(s)<=2))) return false;
+    }
+    if(q&&![pBrandOf(s),pModel(s),pFlavor(s),s.taux].join(' ').toLowerCase().includes(q)) return false;
     return true;
   });
 }
-function pSetFilter(f){ pFilter=f; renderStock(); }
-function pSetOrigin(o){ pOrigin=o; pSel.clear(); renderStock(); }
+function pSetFilter(f){ pFilter=f; pLimit=150; renderStock(); }
+function pSetOrigin(o){ pOrigin=o; pLimit=150; renderStock(); }
+function pSetBrand(b){ pBrand=b; pLimit=150; renderStock(); }
 function pOriginBar(){
-  const cnt=o=>stock.filter(s=>o==='all'||(s.origin||'none')===o).length;
-  const ctns=o=>stock.filter(s=>(s.origin||'none')===o&&!isUnl(s)).reduce((a,s)=>a+ctn(s),0);
-  const opts=[['all','Tout',''],['FR','🇫🇷 France',''],['EU','🇪🇺 Europe',''],['CN','🇨🇳 Chine','']];
-  if(cnt('none')) opts.push(['none','📦 Sans origine','']);
+  const pool=pFiltered('origin');
+  const cnt=o=>pool.filter(s=>o==='all'||(s.origin||'none')===o).length;
+  const ctns=o=>pool.filter(s=>(s.origin||'none')===o&&!isUnl(s)).reduce((a,s)=>a+ctn(s),0);
+  const opts=[['all','Tout'],['FR','🇫🇷 France'],['EU','🇪🇺 Europe'],['CN','🇨🇳 Chine']];
+  if(stock.some(s=>!s.origin)) opts.push(['none','📦 Sans origine']);
   document.getElementById('pOrigins').innerHTML=opts.map(([o,l])=>{
-    const sub=o==='all'?cnt(o)+' produits':o==='CN'?cnt(o)+' · ∞ illimité':cnt(o)+' · '+ctns(o)+' ctn';
+    const sub=o==='all'?cnt(o)+' produits':o==='CN'?cnt(o)+' · ∞':cnt(o)+' · '+ctns(o)+' ctn';
     return `<div class="p-otab ${pOrigin===o?'on':''}" onclick="pSetOrigin('${o}')"><b>${l}</b><small>${sub}</small></div>`;
   }).join('');
+}
+function pBrandBar(){
+  const pool=pFiltered('brand'), m=new Map();
+  pool.forEach(s=>{ const b=pBrandOf(s); m.set(b,(m.get(b)||0)+1); });
+  const brands=[...m.keys()].sort();
+  if(pBrand!=='all'&&!m.has(pBrand)) brands.unshift(pBrand);
+  document.getElementById('pBrandSel').innerHTML=`<option value="all">Toutes les marques (${pool.length})</option>`
+    +brands.map(b=>`<option value="${esc(b)}" ${pBrand===b?'selected':''}>${esc(b)} (${m.get(b)||0})</option>`).join('');
 }
 function renderStock(){
   updateGlobalStats();
   const list=document.getElementById('stockList'); if(!list) return;
-  pOriginBar();
-  const c=f=>{ const k=pFilter; pFilter=f; const n=pFiltered().length; pFilter=k; return n; };
+  pOriginBar(); pBrandBar();
+  const pool=pFiltered('state'), c=f=>{ const k=pFilter; pFilter=f; const n=pFiltered().length; pFilter=k; return n; };
   document.getElementById('pChips').innerHTML=[['all','Tous'],['on','✓ En vente'],['off','Pas en vente'],['low','Stock bas'],['out','Rupture']]
     .map(([f,l])=>`<div class="fchip ${pFilter===f?'active':''}" onclick="pSetFilter('${f}')">${l} <span style="opacity:.6;">${c(f)}</span></div>`).join('');
+  document.getElementById('pSelBtn').classList.toggle('primary',pSelecting);
+  document.getElementById('pSelBar').style.display=pSelecting?'flex':'none';
   const items=pFiltered();
+  const more=document.getElementById('pMore'); more.innerHTML='';
   if(!stock.length){ list.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Aucun produit</div><div class="empty-sub">Appuie sur « Ajouter des produits » pour commencer</div></div>'; pRenderBulk(); return; }
-  if(!items.length){ list.innerHTML='<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Aucun produit ne correspond</div><div class="empty-sub"><button class="btn sm" onclick="pFilter=\'all\';document.getElementById(\'pSearch\').value=\'\';renderStock()">Tout afficher</button></div></div>'; pRenderBulk(); return; }
-  // regroupement par modèle
-  const groups=new Map();
-  items.forEach(s=>{ const k=pModel(s)+'|'+(s.taux||'')+'|'+(s.origin||''); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(s); });
-  let html='', lastO=null;
+  if(!items.length){ list.innerHTML='<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Aucun produit ne correspond</div><div class="empty-sub"><button class="btn sm" onclick="pResetFilters()">Tout afficher</button></div></div>'; pRenderBulk(); return; }
+  // tri : origine › marque › modèle › goût
   const oRank=o=>({FR:0,EU:1,CN:2}[o]??3);
-  [...groups.values()].sort((a,b)=>oRank(a[0].origin)-oRank(b[0].origin)||pModel(a[0]).localeCompare(pModel(b[0]))).forEach(g=>{
-    const o=g[0].origin||'none';
-    if(pOrigin==='all'&&o!==lastO){ lastO=o;
-      const inO=items.filter(s=>(s.origin||'none')===o), lim=inO.filter(s=>!isUnl(s));
-      html+=`<div class="p-osec"><span>${o==='none'?'📦 Sans origine':P_ORIG[o].label}</span><small>${o==='CN'?'stock illimité':lim.reduce((a,s)=>a+ctn(s),0)+' cartons en stock'}</small></div>`; }
-    g.sort((a,b)=>pFlavor(a).localeCompare(pFlavor(b)));
-    const f=g[0], allOn=g.every(s=>s.enVente), ids=g.map(s=>s.id).join(',');
-    const prices=[...new Set(g.map(s=>ctnPrice(s).toFixed(2)))];
-    const allSel=g.every(s=>pSel.has(s.id));
-    html+=`<div class="p-group">
-      <div class="p-ghead">
-        <input type="checkbox" class="p-chk" ${allSel?'checked':''} onchange="pSelGroup('${ids}',this.checked)">
-        <div style="flex:1;min-width:0;">
-          <div class="p-gname">${esc(pModel(f))}${f.taux?` <span class="p-taux">${esc(f.taux)}</span>`:''}</div>
-          <div class="p-gsub">${[f.origin&&P_ORIG[f.origin]?P_ORIG[f.origin].short:'',g.length+' goût'+(g.length>1?'s':''),(prices.length===1?prices[0]+' € / carton':'prix variés'),'carton de '+cq(f)].filter(Boolean).map(esc).join(' · ')}</div>
-        </div>
-        <label class="sw" title="Tout le modèle en vente"><input type="checkbox" ${allOn?'checked':''} onchange="pGroupSale('${ids}',this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>
+  const sorted=[...items].sort((a,b)=>oRank(a.origin)-oRank(b.origin)||pBrandOf(a).localeCompare(pBrandOf(b))||pModel(a).localeCompare(pModel(b))||String(a.taux||'').localeCompare(String(b.taux||''))||pFlavor(a).localeCompare(pFlavor(b)));
+  const shown=sorted.slice(0,pLimit);
+  // regroupement
+  const brands=[];
+  shown.forEach(s=>{
+    const bk=(s.origin||'none')+'|'+pBrandOf(s);
+    let B=brands[brands.length-1]; if(!B||B.key!==bk){ B={key:bk,brand:pBrandOf(s),origin:s.origin||'none',models:[]}; brands.push(B); }
+    const mk=pModel(s)+'|'+(s.taux||'');
+    let M=B.models[B.models.length-1]; if(!M||M.key!==mk){ M={key:mk,items:[]}; B.models.push(M); }
+    M.items.push(s);
+  });
+  let html='', lastO=null;
+  brands.forEach(B=>{
+    if(pOrigin==='all'&&B.origin!==lastO){ lastO=B.origin;
+      const inO=items.filter(s=>(s.origin||'none')===B.origin);
+      html+=`<div class="p-osec"><span>${B.origin==='none'?'📦 Sans origine':P_ORIG[B.origin].label}</span><small>${B.origin==='CN'?'stock illimité':inO.filter(s=>!isUnl(s)).reduce((a,s)=>a+ctn(s),0)+' cartons'}</small></div>`; }
+    const all=B.models.flatMap(M=>M.items), bIds=all.map(s=>s.id).join(','), bSel=all.every(s=>pSel.has(s.id)), bOn=all.every(s=>s.enVente);
+    html+=`<div class="p-brand">
+      <div class="p-bhead">${pSelecting?`<input type="checkbox" class="p-chk" ${bSel?'checked':''} onchange="pSelIds('${bIds}',this.checked)">`:''}
+        <div style="flex:1;min-width:0;"><div class="p-bname">${esc(B.brand)}</div><div class="p-gsub">${B.models.length} modèle${B.models.length>1?'s':''} · ${all.length} goût${all.length>1?'s':''} · ${all.filter(s=>s.enVente).length} en vente</div></div>
+        ${pSelecting?'':`<label class="sw" title="Toute la marque en vente"><input type="checkbox" ${bOn?'checked':''} onchange="pGroupSale('${bIds}',this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>`}
       </div>`;
-    g.forEach(s=>{
-      const n=ctn(s), unl=isUnl(s), sel=pSel.has(s.id);
-      const qc=unl?'var(--green)':n<=0?'var(--red)':n<=2?'#FB923C':'var(--text)';
-      const photo=s.image?`<img src="${s.image}" alt="">`:`<span>${emoji(pFlavor(s))}</span>`;
-      const warn=s.enVente&&!unl&&n<=0?'<div class="p-warn">⚠ stock 0 → pas visible</div>':'';
-      html+=`<div class="p-row ${sel?'sel':''} ${s.enVente?'on':''}">
-        <input type="checkbox" class="p-chk" ${sel?'checked':''} onchange="pSelOne(${s.id},this.checked)">
-        <div class="p-ph" onclick="pfOpen(${s.id})">${photo}</div>
-        <div class="p-info" onclick="pfOpen(${s.id})">
-          <div class="p-fl">${esc(pFlavor(s))}</div>
-          <div class="p-pr">${ctnPrice(s).toFixed(2)} €</div>${warn}
-        </div>
-        <div class="p-qty">${unl?'<span class="p-inf" title="Illimité — expédié par toi depuis la Chine">∞</span>'
-          :`<button class="p-qbtn" onclick="pQty(${s.id},-1)">−</button><span style="color:${qc};">${n}</span><button class="p-qbtn" onclick="pQty(${s.id},1)">+</button>`}</div>
-        <label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="pSale(${s.id},this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>
+    B.models.forEach(M=>{
+      const f=M.items[0], ids=M.items.map(s=>s.id).join(','), mSel=M.items.every(s=>pSel.has(s.id)), mOn=M.items.every(s=>s.enVente);
+      const prices=[...new Set(M.items.map(s=>ctnPrice(s).toFixed(2)))];
+      html+=`<div class="p-ghead">${pSelecting?`<input type="checkbox" class="p-chk" ${mSel?'checked':''} onchange="pSelIds('${ids}',this.checked)">`:''}
+        <div style="flex:1;min-width:0;"><div class="p-gname">${esc(pModel(f))}${f.taux?` <span class="p-taux">${esc(f.taux)}</span>`:''}</div>
+        <div class="p-gsub">${[M.items.length+' goût'+(M.items.length>1?'s':''),prices.length===1?prices[0]+' € / carton':'prix variés','carton de '+cq(f)].map(esc).join(' · ')}</div></div>
+        ${pSelecting?'':`<label class="sw"><input type="checkbox" ${mOn?'checked':''} onchange="pGroupSale('${ids}',this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>`}
       </div>`;
+      M.items.forEach(s=>{
+        const n=ctn(s), unl=isUnl(s), sel=pSel.has(s.id);
+        const qc=unl?'var(--green)':n<=0?'var(--red)':n<=2?'#FB923C':'var(--text)';
+        const photo=s.image?`<img src="${s.image}" alt="" loading="lazy">`:`<span>${emoji(pFlavor(s))}</span>`;
+        const warn=s.enVente&&!unl&&n<=0?'<div class="p-warn">⚠ stock 0 → pas visible</div>':'';
+        const tap=pSelecting?`pSelOne(${s.id},${!sel})`:`pfOpen(${s.id})`;
+        html+=`<div class="p-row ${sel?'sel':''} ${s.enVente?'on':''}">
+          ${pSelecting?`<input type="checkbox" class="p-chk" ${sel?'checked':''} onchange="pSelOne(${s.id},this.checked)">`:''}
+          <div class="p-ph" onclick="${tap}">${photo}</div>
+          <div class="p-info" onclick="${tap}"><div class="p-fl">${esc(pFlavor(s))}</div><div class="p-pr">${ctnPrice(s).toFixed(2)} €${s.enVente?' · <span style="color:var(--green);">en vente</span>':''}</div>${warn}</div>
+          ${pSelecting?`<div class="p-qty"><span style="color:${qc};">${unl?'∞':n}</span></div>`
+          :`<div class="p-qty">${unl?'<span class="p-inf">∞</span>':`<button class="p-qbtn" onclick="pQty(${s.id},-1)">−</button><span style="color:${qc};">${n}</span><button class="p-qbtn" onclick="pQty(${s.id},1)">+</button>`}</div>
+          <label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="pSale(${s.id},this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>`}
+        </div>`;
+      });
     });
     html+='</div>';
   });
   list.innerHTML=html;
+  if(sorted.length>shown.length) more.innerHTML=`<button class="btn sm" onclick="pLimit+=150;renderStock()">Afficher plus (${shown.length} / ${sorted.length})</button>`;
   pRenderBulk();
 }
+function pResetFilters(){ pFilter='all'; pBrand='all'; pOrigin='all'; const q=document.getElementById('pSearch'); if(q) q.value=''; renderStock(); }
 function pFind(id){ return stock.find(s=>s.id===id); }
 function pQty(id,d){ const s=pFind(id); if(!s||isUnl(s)) return; s.qty=Math.max(0,(ctn(s)+d)*cq(s)); pChanged(); renderStock(); }
 function pSale(id,on){ const s=pFind(id); if(!s) return; s.enVente=!!on; s.enVenteCarton=!!on; pChanged(); renderStock(); }
-function pGroupSale(ids,on){ ids.split(',').forEach(id=>{ const s=pFind(+id); if(s){ s.enVente=!!on; s.enVenteCarton=!!on; } }); pChanged(); renderStock(); showToast(on?'✓ Modèle mis en vente':'Modèle retiré de la vente'); }
+function pGroupSale(ids,on){ ids.split(',').forEach(id=>{ const s=pFind(+id); if(s){ s.enVente=!!on; s.enVenteCarton=!!on; } }); pChanged(); renderStock(); showToast(on?'✓ Mis en vente':'Retiré de la vente'); }
 // ── sélection multiple
+function pSelMode(on){ pSelecting=!!on; if(!on) pSel.clear(); renderStock(); }
 function pSelOne(id,on){ on?pSel.add(id):pSel.delete(id); renderStock(); }
-function pSelGroup(ids,on){ ids.split(',').forEach(id=>on?pSel.add(+id):pSel.delete(+id)); renderStock(); }
+function pSelIds(ids,on){ ids.split(',').forEach(id=>on?pSel.add(+id):pSel.delete(+id)); renderStock(); }
+function pSelAllVisible(on){ pFiltered().forEach(s=>on?pSel.add(s.id):pSel.delete(s.id)); renderStock(); }
 function pSelClear(){ pSel.clear(); renderStock(); }
 function pRenderBulk(){
   [...pSel].forEach(id=>{ if(!pFind(id)) pSel.delete(id); });
   const b=document.getElementById('pBulk'); if(!b) return;
-  b.style.display=pSel.size?'block':'none';
-  document.getElementById('pBulkN').textContent=pSel.size+' sélectionné(s)';
-  const l=document.getElementById('stockList'); if(l) l.style.paddingBottom=pSel.size?'150px':'';
+  const show=pSelecting&&pSel.size>0;
+  b.style.display=show?'block':'none';
+  const n=document.getElementById('pSelN'); if(n) n.textContent=pSel.size+' sélectionné'+(pSel.size>1?'s':'');
+  const l=document.getElementById('stockList'); if(l) l.style.paddingBottom=show?'130px':'';
 }
 function pBulk(action){
   const items=stock.filter(s=>pSel.has(s.id)); if(!items.length) return;
@@ -906,8 +979,8 @@ function pBulk(action){
   if(action==='price'){ if(!(v>0)){ showToast('⚠ Tape le prix du carton dans la case','err'); return; } items.forEach(s=>{ s.cartonPrice=+v.toFixed(2); s.price=+(v/cq(s)).toFixed(2); }); }
   if(action==='stock'){ if(!(v>=0)){ showToast('⚠ Tape le nombre de cartons dans la case','err'); return; } items.forEach(s=>{ if(!isUnl(s)) s.qty=Math.round(v)*cq(s); }); }
   if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; items.forEach(s=>pDeleted.add(s.id)); stock=stock.filter(s=>!pSel.has(s.id)); }
-  const n=items.length; pSel.clear(); document.getElementById('pBulkVal').value='';
-  pChanged(); renderStock();
+  const n=items.length; document.getElementById('pBulkVal').value='';
+  pSel.clear(); pSelecting=false; pChanged(); renderStock();
   showToast('✓ '+n+' produit(s) '+({on:'mis en vente',off:'retirés de la vente',price:'au nouveau prix',stock:'mis à jour',del:'supprimés'}[action]));
 }
 
