@@ -995,11 +995,34 @@ app.post('/sellers/:id/add-stock',auth,async(req,res)=>{
 // ─────────────────────────────────────────
 //  ROUTES VENDEUR
 // ─────────────────────────────────────────
+// 🔒 Vérifie la signature Telegram (initData) : prouve que la personne est bien celle qu'elle prétend être.
+// Telegram signe avec le jeton du bot qui a ouvert la mini-app → on essaie nos bots.
+function verifyTelegramInitData(initData, maxAgeSec = 86400){
+  if(!initData || typeof initData!=='string' || initData.length>4096) return null;
+  const params = new URLSearchParams(initData);
+  const hash = params.get('hash');
+  if(!hash || !/^[0-9a-f]{64}$/i.test(hash)) return null;
+  params.delete('hash');
+  const dataCheck = [...params.entries()].sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,v])=>`${k}=${v}`).join('\n');
+  const tokens = [process.env.VENDOR_BOT_TOKEN, process.env.ADMIN_BOT_TOKEN, cfg.telegramToken, process.env.REVIEW_BOT_TOKEN].filter(Boolean);
+  const hb = Buffer.from(hash.toLowerCase(), 'hex');
+  for(const token of tokens){
+    const secretKey = crypto.createHmac('sha256','WebAppData').update(token).digest();
+    const calc = crypto.createHmac('sha256', secretKey).update(dataCheck).digest();
+    if(calc.length===hb.length && crypto.timingSafeEqual(calc, hb)){
+      const authDate = parseInt(params.get('auth_date'),10);
+      if(!authDate || Math.abs(Date.now()/1000 - authDate) > maxAgeSec) return null;
+      try{ const u = JSON.parse(params.get('user')||'null'); return (u && u.id) ? u : null; }catch(e){ return null; }
+    }
+  }
+  return null;
+}
+
 app.post('/seller/tg-auth', async(req,res)=>{
-  const{telegramId}=req.body;
-  if(!telegramId) return res.status(400).json({error:'Telegram ID manquant'});
+  const tgUser = verifyTelegramInitData(req.body && req.body.initData);
+  if(!tgUser){ addLog('warn','tg-auth refusé : signature Telegram absente ou invalide'); return res.status(401).json({error:'Connexion Telegram invalide'}); }
   const sellers=await getSellers();
-  const seller=sellers.find(v=>String(v.telegramId)===String(telegramId)&&v.active);
+  const seller=sellers.find(v=>String(v.telegramId)===String(tgUser.id)&&v.active);
   if(!seller) return res.status(401).json({error:'Vendeur non trouvé'});
   res.json({ok:true, seller, secret:seller.secret});
 });
@@ -1682,7 +1705,12 @@ async function validateCart(rawCart){
 }
 
 app.post('/shop-checkout', async(req,res) => {
-  const{userId,userName,promoCode}=req.body;
+  const{promoCode}=req.body;
+  // 🔒 Identité Telegram : on utilise celle prouvée par la signature quand elle est présente
+  const tgVerified = verifyTelegramInitData(req.body.initData);
+  let userId = req.body.userId, userName = req.body.userName;
+  if(tgVerified){ userId = tgVerified.id; userName = tgVerified.username || tgVerified.first_name || ''; }
+  else addLog('warn','Checkout : identité Telegram non vérifiée (initData absent ou invalide)');
   if(!req.body.cart||!req.body.cart.length) return res.status(400).json({error:'Panier vide'});
   if(!cfg.stripeKey)       return res.status(400).json({error:'Stripe non configuré'});
   try {
