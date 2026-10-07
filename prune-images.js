@@ -30,8 +30,9 @@ async function tokens(sql) {
 }
 
 (async () => {
-  const imgs = (await pool.query('SELECT key, length(data) AS n FROM images')).rows;
+  const imgs = (await pool.query('SELECT key, length(data) AS n, created_at FROM images')).rows;
   const size = new Map(imgs.map(r => [r.key, Number(r.n)]));
+  const when = new Map(imgs.map(r => [r.key, r.created_at]));
 
   const catalogue  = await tokens('SELECT value::text AS t FROM config');
   const historique = new Set([
@@ -52,6 +53,19 @@ async function tokens(sql) {
   console.log(`[prune] utilisées par le catalogue : ${g.catalogue.length} (${mo(sum(g.catalogue))}) → gardées`);
   console.log(`[prune] seulement dans l'historique (commandes/avis/vendeurs) : ${g.historique.length} (${mo(sum(g.historique))}) → gardées`);
   console.log(`[prune] INUTILISÉES : ${g.inutilisee.length} (${mo(sum(g.inutilisee))}) → supprimables`);
+
+  // Dates d'ajout (aide à comprendre d'où viennent les inutilisées : anciennes versions ?)
+  const range = ks => {
+    if (!ks.length) return '—';
+    const t = ks.map(k => +new Date(when.get(k))).sort((a, b) => a - b);
+    return `${new Date(t[0]).toISOString().slice(0, 16)} → ${new Date(t[t.length - 1]).toISOString().slice(0, 16)}`;
+  };
+  console.log(`[prune] dates d'ajout, catalogue    : ${range(g.catalogue)}`);
+  console.log(`[prune] dates d'ajout, inutilisées  : ${range(g.inutilisee)}`);
+  const day = k => new Date(when.get(k)).toISOString().slice(0, 10);
+  const byDay = {};
+  for (const k of g.inutilisee) byDay[day(k)] = (byDay[day(k)] || 0) + 1;
+  console.log('[prune] inutilisées par jour d\'ajout : ' + JSON.stringify(byDay));
 
   if (g.catalogue.length === 0) throw new Error('le catalogue ne référence aucune photo — arrêt par sécurité');
 
