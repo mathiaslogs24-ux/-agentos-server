@@ -921,9 +921,16 @@ app.post('/orders/:id/note', auth, async(req,res)=>{
 // ─────────────────────────────────────────
 //  ROUTES ADMIN — VENDEURS
 // ─────────────────────────────────────────
+// ✅ MODIF — liste allégée (sans photos ni vitrine) : avant, tout le stock de chaque vendeur
+//  partait avec ses images → réponse énorme et chargement sans fin dans le dashboard
 app.get('/sellers',auth,async(req,res)=>{
-  const sellers=await getSellers();
-  res.json(sellers.map(s=>({...s,secret:undefined})));
+  try{
+    const sellers=await getSellers();
+    res.json(sellers.map(s=>({...s,secret:undefined,
+      stock:(s.stock||[]).map(x=>({id:x.id,name:x.name,model:x.model,flavor:x.flavor,qty:x.qty,price:x.price,
+        cartonQty:x.cartonQty,cartonPrice:x.cartonPrice,unlimited:!!x.unlimited,origin:x.origin,enVente:!!x.enVente})),
+      shopItems:undefined, shopCount:(s.shopItems||[]).length})));
+  }catch(e){ res.status(500).json({error:e.message}); }
 });
 app.get('/sellers/:id',auth,async(req,res)=>{
   const v=await getSeller(req.params.id);
@@ -977,6 +984,70 @@ app.delete('/sellers/:id',auth,async(req,res)=>{
   await deleteSeller(req.params.id);
   res.json({ok:true});
 });
+// ✅ MODIF — envoi de stock (en cartons) de l'admin vers un vendeur, plusieurs articles d'un coup
+//  body : { items:[{ id, model, flavor, name, cat, taux, puffs, origin, originLabel, unlimited,
+//                    cartons, cartonQty, cartonPrice, image }], enVente:true|false }
+app.post('/sellers/:id/transfer',auth,async(req,res)=>{
+  try{
+    const v=await getSeller(req.params.id);
+    if(!v) return res.status(404).json({error:'Vendeur introuvable'});
+    const list=Array.isArray(req.body.items)?req.body.items:[];
+    if(!list.length) return res.status(400).json({error:'Aucun article'});
+    const onSale=!!req.body.enVente;
+    v.stock=v.stock||[]; v.shopItems=v.shopItems||[];
+    const norm=x=>String(x||'').trim().toLowerCase();
+    let nextId=Math.max(Date.now(),...v.stock.map(s=>Number(s.id)||0))+1;
+    const done=[];
+    for(const it of list){
+      const cq=Math.max(1,parseInt(it.cartonQty)||10);
+      const unl=!!it.unlimited;
+      const cartons=Math.max(0,parseInt(it.cartons)||0);
+      if(!unl&&!cartons) continue;
+      const cp=Math.max(0,parseFloat(it.cartonPrice)||0);
+      // même produit déjà chez le vendeur ? (même modèle + goût + origine)
+      let s=v.stock.find(x=>x.fromAdminId===it.id)
+        ||v.stock.find(x=>norm(x.model)===norm(it.model)&&norm(x.flavor)===norm(it.flavor)&&(x.origin||'')===(it.origin||'')&&norm(x.model));
+      if(!s){
+        s={id:nextId++,fromAdminId:it.id,enVente:false,alert:cq*2};
+        v.stock.push(s);
+      }
+      Object.assign(s,{
+        model:it.model||s.model||'', flavor:it.flavor||s.flavor||'', name:it.name||s.name||'',
+        cat:it.cat||s.cat||'', taux:it.taux||s.taux||'', puffs:parseInt(it.puffs)||s.puffs||0,
+        origin:it.origin||s.origin||'', originLabel:it.originLabel||s.originLabel||'',
+        carton:true, cartonQty:cq, cartonPrice:cp||s.cartonPrice||0, price:+((cp||s.cartonPrice||0)/cq).toFixed(2),
+        image:it.image||s.image||'', unlimited:unl,
+      });
+      s.qty=unl?9999:(s.unlimited?0:(parseInt(s.qty)||0))+cartons*cq;
+      if(onSale){ s.enVente=true; s.enVenteCarton=true; }
+      done.push(s);
+    }
+    // mettre à jour la vitrine du vendeur pour les articles en vente
+    const ctnLeft=s=>s.unlimited?999:Math.floor((s.qty||0)/(s.cartonQty||10));
+    for(const s of done){
+      v.shopItems=v.shopItems.filter(i=>i.stockId!==s.id);
+      if(s.enVente&&ctnLeft(s)>0){
+        const cp=parseFloat(s.cartonPrice||0);
+        v.shopItems.push({title:[s.model,s.flavor].filter(Boolean).join(' · ')||s.name,image:s.image||'',
+          description:['Carton de '+s.cartonQty+' pièces',s.puffs?Math.round(s.puffs/1000)+'K puffs':'',s.taux||''].filter(Boolean).join(' · '),
+          price:cp.toFixed(2),asset:'EUR',payload:'carton_'+s.id,stockId:s.id,cat:(s.cat||'')+(s.taux?' '+s.taux:''),
+          carton:true,cartonQty:s.cartonQty,cartonPrice:cp.toFixed(2),qty:ctnLeft(s),
+          origin:s.origin||'',category:s.originLabel||'',flavor:s.flavor||'',model:s.model||'',brand:(s.cat||'').split(' ')[0].toUpperCase(),unlimited:!!s.unlimited});
+      }
+    }
+    await saveSeller(v);
+    const totalCtn=list.reduce((a,i)=>a+(i.unlimited?0:(parseInt(i.cartons)||0)),0);
+    addLog('ok',`📤 Envoi → ${v.name} · ${done.length} article(s)${totalCtn?' · '+totalCtn+' carton(s)':''}`);
+    if(v.telegramId&&vendorBot){
+      try{
+        const lines=done.slice(0,15).map(s=>`• ${[s.model,s.flavor].filter(Boolean).join(' · ')||s.name} — ${s.unlimited?'∞':Math.floor(s.qty/s.cartonQty)+' ctn'}`).join('\n');
+        await vendorBot.sendMessage(v.telegramId,`📦 *Nouveau stock reçu !*\n\n${lines}${done.length>15?`\n… +${done.length-15} autres`:''}\n\n${onSale?'✅ Déjà en vente sur ta boutique.':'👉 Ouvre ton dashboard pour les mettre en vente.'}`,{parse_mode:'Markdown'});
+      }catch(e){ addLog('warn','Notif envoi stock: '+e.message); }
+    }
+    res.json({ok:true,count:done.length});
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+
 app.post('/sellers/:id/add-stock',auth,async(req,res)=>{
   const v=await getSeller(req.params.id);
   if(!v) return res.status(404).json({error:'Vendeur introuvable'});
