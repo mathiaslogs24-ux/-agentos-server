@@ -780,7 +780,7 @@ function renderReviews(k){
   if(avg) html+='<span class="avg-rating">★ '+avg+'</span><span style="color:var(--t3);font-size:11px;">('+reviews.length+' avis)</span>';
   else    html+='<span style="color:var(--t3);font-size:11px;">Aucun avis</span>';
   html+='</div>';
-  if(reviews.length) html+='<div class="reviews-list">'+reviews.map(r=>'<div class="review-item"><div class="review-stars">'+'★'.repeat(r.stars)+'☆'.repeat(5-r.stars)+'</div>'+(r.text?'<div class="review-text">'+r.text+'</div>':'')+'<div class="review-date">'+r.date+'</div></div>').join('')+'</div>';
+  if(reviews.length) html+='<div class="reviews-list">'+reviews.map(r=>'<div class="review-item"><div class="review-stars">'+'★'.repeat(r.stars)+'☆'.repeat(5-r.stars)+'</div>'+(r.text?'<div class="review-text">'+escH(r.text)+'</div>':'')+'<div class="review-date">'+r.date+'</div></div>').join('')+'</div>';
   selectedStars=0;
   html+='<div class="add-review" style="margin-top:10px;"><div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Laisser un avis</div><div class="star-select" id="starSelect">'+[1,2,3,4,5].map(i=>'<span onclick="selectStar('+i+')" data-s="'+i+'">★</span>').join('')+'</div><textarea class="review-input" id="reviewText" rows="2" placeholder="Votre avis (optionnel)…"></textarea><button style="margin-top:6px;width:100%;padding:9px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:Syne,sans-serif;font-size:12px;font-weight:700;cursor:pointer;" onclick="submitReview(\''+k+'\')">Publier</button></div>';
   document.getElementById('ratingsSection').innerHTML=html;
@@ -839,7 +839,7 @@ function renderSellerReviewSection(sellerId, sellerName){
     reviews.slice(0,2).forEach(r=>{
       html += '<div style="background:var(--bg3);border-radius:var(--rs);padding:8px 10px;">'
         +'<div style="font-size:11px;color:var(--gold);">'+'★'.repeat(r.stars)+'<span style="opacity:.3;">'+'★'.repeat(5-r.stars)+'</span></div>'
-        +(r.text?'<div style="font-size:11px;color:var(--t2);margin-top:3px;line-height:1.4;">'+r.text+'</div>':'')
+        +(r.text?'<div style="font-size:11px;color:var(--t2);margin-top:3px;line-height:1.4;">'+escH(r.text)+'</div>':'')
         +'<div style="font-size:10px;color:var(--t3);margin-top:3px;">'+r.date+'</div>'
         +'</div>';
     });
@@ -909,7 +909,7 @@ function openSellerReviews(sellerId, sellerName){
       +'</div>'
       +reviews.map(r=>'<div class="order-item-h">'
         +'<div style="font-size:12px;color:var(--gold);margin-bottom:3px;">'+'★'.repeat(r.stars)+'<span style="opacity:.3;">'+'★'.repeat(5-r.stars)+'</span></div>'
-        +(r.text?'<div style="font-size:13px;font-weight:500;margin-bottom:3px;">'+r.text+'</div>':'')
+        +(r.text?'<div style="font-size:13px;font-weight:500;margin-bottom:3px;">'+escH(r.text)+'</div>':'')
         +'<div class="order-date">'+r.date+'</div>'
         +'</div>').join('');
   }
@@ -1253,6 +1253,8 @@ async function placeOrder(){
 let tt;
 function showToast(m){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),2200); }
 
+// 🔒 Neutralise le HTML dans les textes venant d'autres personnes (avis…)
+function escH(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // 🔞 Vérification d'âge : la boutique ne se charge qu'après un « Oui »
 function ageOk(){ try{ return localStorage.getItem('age18_ok')==='1'; }catch(e){ return false; } }
 function ageYes(){
