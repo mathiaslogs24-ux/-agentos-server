@@ -69,6 +69,29 @@ async function tokens(sql) {
 
   if (g.catalogue.length === 0) throw new Error('le catalogue ne référence aucune photo — arrêt par sécurité');
 
+  // ── Mode automatique (cron de nuit) : node prune-images.js --auto ──────────────
+  // - ne touche qu'aux photos inutilisées depuis plus de PRUNE_GRACE_HOURS (24 h par défaut) :
+  //   le dashboard envoie les photos AVANT d'enregistrer le catalogue, une photo toute neuve
+  //   n'est pas encore "utilisée" ;
+  // - refuse si ça ferait plus que max(PRUNE_MAX_ABS=50, PRUNE_MAX_RATIO=20 % des photos) :
+  //   un tel écart ressemble à un catalogue abîmé, pas à un simple ménage.
+  if (process.argv.includes('--auto')) {
+    const graceH   = parseFloat(process.env.PRUNE_GRACE_HOURS || '24');
+    const cutoff   = Date.now() - graceH * 3600 * 1000;
+    const eligible = g.inutilisee.filter(k => +new Date(when.get(k)) < cutoff);
+    const recent   = g.inutilisee.length - eligible.length;
+    const maxDel   = Math.max(parseInt(process.env.PRUNE_MAX_ABS || '50', 10),
+                              Math.floor(parseFloat(process.env.PRUNE_MAX_RATIO || '0.2') * imgs.length));
+    console.log(`[prune] AUTO : ${eligible.length} à supprimer (+${recent} trop récentes, gardées ${graceH} h) — plafond ${maxDel}`);
+    if (eligible.length > maxDel) throw new Error(`${eligible.length} suppressions dépassent le plafond de ${maxDel} — rien supprimé, vérification manuelle nécessaire`);
+    let n = 0;
+    for (let i = 0; i < eligible.length; i += 200) {
+      n += (await pool.query('DELETE FROM images WHERE key = ANY($1)', [eligible.slice(i, i + 200)])).rowCount;
+    }
+    console.log(`[prune] AUTO : ${n} photos supprimées, ${imgs.length - n} restantes.`);
+    return;
+  }
+
   if (process.env.PRUNE_APPLY !== '1') { console.log('[prune] SIMULATION : rien supprimé.'); return; }
   if (String(g.inutilisee.length) !== String(process.env.PRUNE_EXPECT)) {
     throw new Error(`PRUNE_EXPECT=${process.env.PRUNE_EXPECT} ne correspond pas aux ${g.inutilisee.length} photos trouvées — arrêt`);
