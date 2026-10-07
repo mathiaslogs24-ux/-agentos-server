@@ -142,6 +142,31 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
 .toast.show{transform:translateX(-50%) translateY(0);}
 .toast.ok{border-color:var(--grbdr);color:var(--green);}
 .toast.err{border-color:var(--rbdr);color:var(--red);}
+/* ── Produits (stock + catalogue) */
+.p-sync{font-size:11px;color:var(--t3);min-height:16px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.p-sync.ok{color:var(--green)}.p-sync.err{color:var(--red)}
+.p-group{background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.p-ghead{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--bg3);border-bottom:1px solid var(--gb)}
+.p-gname{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-taux{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:var(--gold);background:var(--gdim);border:1px solid var(--gborder);padding:1px 5px;border-radius:5px;vertical-align:middle}
+.p-gsub{font-size:10.5px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-row{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid var(--gb)}.p-row:last-child{border-bottom:none}
+.p-row.sel{background:rgba(240,180,41,.07)}
+.p-chk{width:18px;height:18px;accent-color:var(--gold);flex-shrink:0;cursor:pointer}
+.p-ph{width:38px;height:38px;border-radius:9px;background:var(--bg3);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden;flex-shrink:0;cursor:pointer}.p-ph img{width:100%;height:100%;object-fit:cover}
+.p-info{flex:1;min-width:0;cursor:pointer}
+.p-fl{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-row:not(.on) .p-fl{color:var(--t2)}
+.p-pr{font-family:'DM Mono',monospace;font-size:11px;color:var(--gold);margin-top:1px}
+.p-warn{font-size:10px;color:var(--red);margin-top:1px}
+.p-qty{display:flex;align-items:center;gap:5px;flex-shrink:0}.p-qty span{font-family:'DM Mono',monospace;font-size:14px;font-weight:800;min-width:22px;text-align:center}
+.p-qbtn{width:28px;height:28px;border-radius:8px;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-size:15px;display:flex;align-items:center;justify-content:center;padding:0}
+.p-qbtn.big{width:46px;height:46px;border-radius:13px;font-size:22px;flex-shrink:0}
+.p-inf{font-size:19px!important;color:var(--green);padding:0 18px}
+.p-seg{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.p-seg button{flex:1;min-width:60px;padding:9px 6px;border-radius:var(--rs);border:1px solid var(--gb);background:var(--bg3);color:var(--t2);font-size:12.5px;font-weight:700}
+.p-seg button.on{background:var(--gdim);color:var(--gold);border-color:var(--gold)}
+.p-more{display:flex;align-items:center;gap:13px;background:var(--bg2);border:1px solid var(--gb);border-radius:var(--r);padding:15px 14px;margin-bottom:9px;cursor:pointer}
+.p-more>span{font-size:22px}.p-more>div{flex:1}.p-more b{display:block;font-size:14px}.p-more small{font-size:11.5px;color:var(--t3)}.p-more i{font-style:normal;font-size:22px;color:var(--t3)}
 </style>
 </head>
 <body>
@@ -175,193 +200,100 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
   <div class="app-body">
     <div class="content" id="mainContent">
 
-      <!-- STOCK -->
+      <!-- PRODUITS (stock + catalogue réunis) -->
       <div class="panel active" id="panel-stock">
         <div class="stats-grid" style="margin-bottom:12px;">
           <div class="stat-card"><div class="stat-label">Solde</div><div class="stat-val gold" id="stBal">—</div></div>
           <div class="stat-card"><div class="stat-label">Ventes</div><div class="stat-val green" id="stSales">—</div></div>
-          <div class="stat-card"><div class="stat-label">Val. stock</div><div class="stat-val blue" id="stVal">—</div></div>
           <div class="stat-card"><div class="stat-label">En vente</div><div class="stat-val" id="stActive">—</div></div>
+          <div class="stat-card"><div class="stat-label">Ruptures</div><div class="stat-val" id="stOut">—</div></div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;">
-          <div style="display:flex;gap:7px;">
-            <button class="btn sm primary" onclick="openAddWizard()">+ Ajouter</button>
-            <button class="btn sm primary" onclick="pushStock()">🖥 Stock</button>
-            <button class="btn sm success" onclick="pushAll()">🖥 Tout</button>
-          </div>
-          <input type="text" id="vStockSearch" placeholder="Rechercher…"
-            style="background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:8px 12px;border-radius:var(--rs);outline:none;width:130px;"
-            onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'" oninput="renderStock()">
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-          <span class="bx bl" id="vStCount">0</span>
-          <span class="bx rd" id="vStAlerts">0 alertes</span>
-          <span class="bx gd" id="vStVal"></span>
-        </div>
-        <div style="margin-bottom:10px;">
-          <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;" id="stockBrandChips"></div>
-          <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;margin-top:5px;" id="stockPuffsChips"></div>
-          <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-top:5px;" id="stockStatusChips"></div>
-        </div>
+        <button class="btn primary full" onclick="pfOpen()" style="justify-content:center;padding:13px;font-size:14px;margin-bottom:12px;">＋ Ajouter des produits</button>
+        <input type="search" id="pSearch" class="fld-input" placeholder="🔍 Rechercher un modèle ou un goût…" oninput="renderStock()" style="margin-bottom:8px;">
+        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="pChips"></div>
+        <div class="p-sync" id="pSync"></div>
         <div id="stockList"></div>
-        <div class="bulk-bar" id="vBulkBar">
+        <div class="bulk-bar" id="pBulk">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <span class="bulk-title" id="vBulkCount">0 sélectionné(s)</span>
-            <div style="display:flex;gap:6px;">
-              <button class="btn xs" onclick="vBulkDuplicate()" style="background:var(--bdim);color:var(--blue);border-color:var(--bbdr);">📋</button>
-              <button class="btn xs danger" onclick="vBulkDelete()">🗑</button>
-              <button class="btn xs" onclick="vDeselectAll()">✕</button>
-            </div>
+            <span class="bulk-title" id="pBulkN">0 sélectionné(s)</span>
+            <button class="btn xs" onclick="pSelClear()">✕ Annuler</button>
           </div>
-          <div class="bulk-fields">
-            <div class="bulk-field"><label>Marque</label><input id="vBulkCat" placeholder="JNR" style="width:80px;"></div>
-            <div class="bulk-field"><label>Prix €</label><input id="vBulkPrice" type="number" placeholder="15" style="width:70px;"></div>
-            <div class="bulk-field"><label>Puffs K</label><input id="vBulkPuffs" type="number" placeholder="18" style="width:70px;"></div>
-            <div class="bulk-field"><label>Seuil</label><input id="vBulkAlert" type="number" placeholder="5" style="width:65px;"></div>
-            <div class="bulk-field"><label>Qté</label>
-              <div style="display:flex;gap:5px;">
-                <select id="vBulkQtyMode" style="width:70px;font-size:12px;padding:7px 6px;background:rgba(255,255,255,.06);border:1px solid var(--gb);color:var(--text);border-radius:var(--rs);outline:none;">
-                  <option value="set">= Qté</option><option value="add">+ Ajout</option><option value="sub">− Retrait</option>
-                </select>
-                <input id="vBulkQty" type="number" placeholder="0" style="width:60px;">
-              </div>
-            </div>
-            <button class="btn sm primary" onclick="vBulkApplyAll()" style="align-self:flex-end;">✓</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+            <button class="btn sm success" onclick="pBulk('on')" style="justify-content:center;">✓ Mettre en vente</button>
+            <button class="btn sm" onclick="pBulk('off')" style="justify-content:center;">⛔ Retirer de la vente</button>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input id="pBulkVal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="valeur" class="fld-input" style="margin-bottom:0;flex:1;min-width:0;">
+            <button class="btn sm" onclick="pBulk('price')">€ Prix carton</button>
+            <button class="btn sm" onclick="pBulk('stock')">📦 Stock</button>
+            <button class="btn sm danger" onclick="pBulk('del')">🗑</button>
           </div>
         </div>
       </div>
 
-      <!-- WIZARD -->
-      <div id="wizardOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;backdrop-filter:blur(4px);" onclick="closeWizard()"></div>
-      <div id="wizardSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:101;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--gb);max-height:92dvh;overflow-y:auto;padding-bottom:calc(20px + var(--safe-b,0px));">
-        <div style="width:36px;height:4px;background:var(--bg3);border-radius:2px;margin:12px auto 0;"></div>
-        <div style="padding:16px 18px 0;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-            <div><div style="font-size:17px;font-weight:800;" id="wizardTitle">Nouveau goût</div><div style="font-size:12px;color:var(--t2);margin-top:2px;" id="wizardStep">Étape 1 / 3</div></div>
-            <button class="btn xs" onclick="closeWizard()">✕</button>
-          </div>
-          <div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:20px;overflow:hidden;"><div id="wizardProgress" style="height:100%;background:var(--gold);border-radius:2px;transition:width .3s;width:33%;"></div></div>
-          <div id="wizStep1">
-            <div style="text-align:center;margin-bottom:20px;">
-              <div id="wizPhotoPreview" onclick="document.getElementById('wizPhotoInput').click()" style="width:96px;height:96px;border-radius:18px;background:var(--bg3);border:2px dashed var(--gb);display:inline-flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;margin-bottom:8px;overflow:hidden;">📷</div>
-              <input type="file" id="wizPhotoInput" accept="image/*" style="display:none" onchange="wizLoadPhoto(this)">
-              <div style="font-size:12px;color:var(--t3);">Cliquez pour ajouter une photo</div>
-            </div>
-            <label class="fld-label">Nom du goût *</label>
-            <input class="fld-input" id="wizName" type="text" placeholder="ex: Blue Razz Ice" autocomplete="off">
-          </div>
-          <div id="wizStep2" style="display:none;">
-            <div class="form-row" style="margin-bottom:12px;">
-              <div><label class="fld-label">Marque *</label><input class="fld-input" id="wizCat" type="text" placeholder="ex: JNR" style="margin-bottom:0;"></div>
-              <div>
-                <label class="fld-label">Taux de nicotine</label>
-                <div style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;">
-                  <button type="button" class="btn xs" onclick="setWizTaux('2%')" style="font-family:monospace;">2%</button>
-                  <button type="button" class="btn xs" onclick="setWizTaux('3%')" style="font-family:monospace;">3%</button>
-                  <button type="button" class="btn xs" onclick="setWizTaux('5%')" style="font-family:monospace;">5%</button>
-                  <button type="button" class="btn xs" onclick="setWizTaux('0%')" style="font-family:monospace;">0%</button>
-                </div>
-                <input class="fld-input" id="wizTaux" type="text" placeholder="ex: 2%" style="margin-bottom:0;">
-              </div>
-            </div>
-            <div class="form-row" style="margin-bottom:12px;">
-              <div><label class="fld-label">Prix (€) *</label><input class="fld-input" id="wizPrice" type="number" min="0" step="0.01" placeholder="15.00" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);"></div>
-              <div><label class="fld-label">Puffs (K)</label><input class="fld-input" id="wizPuffs" type="number" min="0" placeholder="18" style="margin-bottom:0;font-family:monospace;font-size:16px;color:var(--purple);"><span style="font-size:10px;color:var(--t3);">milliers</span></div>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;margin-bottom:12px;" onclick="document.getElementById('wizCarton').click()">
-              <label class="sw" onclick="event.stopPropagation()"><input type="checkbox" id="wizCarton" onchange="wizToggleCarton()"><span class="sw-t"></span><span class="sw-k"></span></label>
-              <div><div style="font-size:13px;font-weight:700;">📦 Carton complet</div><div style="font-size:11px;color:var(--t3);">Vente par carton entier — indiquez le nombre d'unités</div></div>
-            </div>
-            <div id="wizCartonBox" style="display:none;margin-bottom:12px;">
-              <div class="form-row" style="margin-bottom:8px;">
-                <div><label class="fld-label">Unités par carton</label><input class="fld-input" id="wizCartonQty" type="number" min="1" placeholder="10" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--blue);"></div>
-                <div><label class="fld-label">Prix carton (€)</label><input class="fld-input" id="wizCartonPrice" type="number" min="0" step="0.01" placeholder="120" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--blue);"></div>
-              </div>
-            </div>
-            <!-- BUNDLE -->
-            <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;margin-bottom:12px;" onclick="document.getElementById('wizBundle').click()">
-              <label class="sw" onclick="event.stopPropagation()"><input type="checkbox" id="wizBundle" onchange="wizToggleBundle()"><span class="sw-t"></span><span class="sw-k"></span></label>
-              <div><div style="font-size:13px;font-weight:700;">🎁 Bundle</div><div style="font-size:11px;color:var(--t3);">Offre groupée — ex: 3 pour le prix de 2</div></div>
-            </div>
-            <div id="wizBundleBox" style="display:none;margin-bottom:12px;">
-              <div class="form-row" style="margin-bottom:8px;">
-                <div><label class="fld-label">Quantité bundle</label><input class="fld-input" id="wizBundleQty" type="number" min="2" placeholder="3" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);"></div>
-                <div><label class="fld-label">Prix bundle (€)</label><input class="fld-input" id="wizBundlePrice" type="number" min="0" step="0.01" placeholder="ex: 30" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);"></div>
-              </div>
-              <div style="font-size:11px;color:var(--t3);">Le client peut choisir X goûts différents au prix bundle</div>
-            </div>
-          </div>
-          <div id="wizStep3" style="display:none;">
-            <label class="fld-label">Quantité en stock *</label>
-            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
-              <button onclick="wizChQty(-1)" style="width:52px;height:52px;border-radius:14px;background:var(--bg3);border:1px solid var(--gb);font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);">−</button>
-              <input type="number" id="wizQty" min="0" value="0" style="flex:1;font-family:monospace;font-size:32px;font-weight:800;color:var(--gold);text-align:center;background:transparent;border:none;border-bottom:2px solid var(--gborder);outline:none;padding:8px 0;">
-              <button onclick="wizChQty(1)" style="width:52px;height:52px;border-radius:14px;background:var(--bg3);border:1px solid var(--gb);font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);">+</button>
-            </div>
-            <label class="fld-label">Seuil d'alerte stock bas</label>
-            <input class="fld-input" id="wizAlert" type="number" min="1" value="5" placeholder="5" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--t2);">
-            <div style="font-size:11px;color:var(--t3);margin-top:-8px;margin-bottom:12px;">Tu recevras une alerte quand le stock passe sous ce nombre</div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;">Mettre en vente</div>
-            <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px 14px;margin-bottom:8px;">
-              <label class="sw"><input type="checkbox" id="wizEnVente"><span class="sw-t"></span><span class="sw-k"></span></label>
-              <div><div style="font-size:13px;font-weight:700;">À l'unité</div><div style="font-size:11px;color:var(--t3);">Vente pièce par pièce au prix unitaire</div></div>
-            </div>
-            <div id="wizEnVenteCartonBox" style="display:none;flex-direction:row;align-items:center;gap:12px;background:rgba(79,195,247,.06);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);padding:13px 14px;">
-              <label class="sw"><input type="checkbox" id="wizEnVenteCarton"><span class="sw-t"></span><span class="sw-k"></span></label>
-              <div><div style="font-size:13px;font-weight:700;color:var(--blue);">📦 En carton</div><div style="font-size:11px;color:var(--t3);">Vente par carton entier au prix carton</div></div>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;margin-top:20px;">
-            <button id="wizBtnPrev" class="btn full" onclick="wizPrev()" style="display:none;">← Retour</button>
-            <button id="wizBtnNext" class="btn primary full" onclick="wizNext()">Continuer →</button>
-          </div>
+      <!-- FORMULAIRE PRODUIT -->
+      <div id="pfOv" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;backdrop-filter:blur(4px);" onclick="pfClose()"></div>
+      <div id="pfSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:101;background:var(--bg1);border-radius:24px 24px 0 0;border-top:1px solid var(--gb);max-height:92dvh;overflow-y:auto;padding:0 18px calc(20px + var(--safe-b,0px));">
+        <div style="width:36px;height:4px;background:var(--bg3);border-radius:2px;margin:12px auto 14px;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="font-size:17px;font-weight:800;" id="pfTitle">Ajouter des produits</div>
+          <button class="btn xs" onclick="pfClose()">✕</button>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">
+          <div id="pfPhoto" onclick="document.getElementById('pfPhotoIn').click()" style="width:64px;height:64px;border-radius:14px;background:var(--bg3);border:2px dashed var(--gb);display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;overflow:hidden;flex-shrink:0;">📷</div>
+          <input type="file" id="pfPhotoIn" accept="image/*" style="display:none" onchange="pfLoadPhoto(this)">
+          <div style="font-size:12px;color:var(--t3);line-height:1.4;">Photo du produit<br>(facultatif)</div>
+        </div>
+        <label class="fld-label">Modèle *</label>
+        <input class="fld-input" id="pfModel" list="pfModels" placeholder="ex : JNR Falcon" autocomplete="off">
+        <datalist id="pfModels"></datalist>
+        <label class="fld-label" id="pfFlLabel">Goûts * <span style="text-transform:none;font-weight:400;color:var(--t3);">— un par ligne ou séparés par des virgules</span></label>
+        <textarea class="fld-input" id="pfFlavors" rows="3" placeholder="Mango Ice, Blue Razz, Watermelon" style="resize:vertical;"></textarea>
+        <div class="form-row" style="margin-bottom:12px;">
+          <div><label class="fld-label">Marque</label><input class="fld-input" id="pfBrand" placeholder="ex : JNR" style="margin-bottom:0;"></div>
+          <div><label class="fld-label">Puffs</label><input class="fld-input" id="pfPuffs" type="number" inputmode="numeric" min="0" placeholder="ex : 16000" style="margin-bottom:0;"></div>
+        </div>
+        <label class="fld-label">Nicotine</label>
+        <div class="p-seg" id="pfTaux">
+          <button type="button" data-v="0%">0%</button><button type="button" data-v="2%">2%</button><button type="button" data-v="3%">3%</button><button type="button" data-v="5%">5%</button>
+        </div>
+        <label class="fld-label">Expédié depuis</label>
+        <div class="p-seg" id="pfOrigin">
+          <button type="button" data-v="FR">🇫🇷 France</button><button type="button" data-v="EU">🇪🇺 Europe</button><button type="button" data-v="CN">🇨🇳 Chine</button>
+        </div>
+        <div class="form-row" style="margin-bottom:12px;">
+          <div><label class="fld-label">Prix du carton (€) *</label><input class="fld-input" id="pfPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="ex : 79" style="margin-bottom:0;font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);"></div>
+          <div><label class="fld-label">Pièces / carton</label><input class="fld-input" id="pfCq" type="number" inputmode="numeric" min="1" value="10" style="margin-bottom:0;font-family:monospace;font-size:16px;"></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <label class="fld-label" style="margin:0;">Stock (cartons)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--green);"><input type="checkbox" id="pfUnl" onchange="pfSyncUnl()" style="width:18px;height:18px;accent-color:var(--green);"> ∞ Illimité</label>
+        </div>
+        <div id="pfQtyBox" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <button type="button" class="p-qbtn big" onclick="pfQty(-1)">−</button>
+          <input id="pfQty" type="number" inputmode="numeric" min="0" value="0" style="flex:1;width:0;min-width:0;font-family:monospace;font-size:24px;font-weight:800;color:var(--gold);text-align:center;background:transparent;border:none;border-bottom:2px solid var(--gborder);outline:none;padding:4px 0;">
+          <button type="button" class="p-qbtn big" onclick="pfQty(1)">+</button>
+        </div>
+        <div id="pfUnlNote" style="display:none;font-size:11px;color:var(--t3);margin:-8px 0 14px;">Illimité = tu expédies depuis la Chine, pas de stock à gérer.</div>
+        <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:12px 14px;margin-bottom:6px;">
+          <label class="sw"><input type="checkbox" id="pfOn"><span class="sw-t"></span><span class="sw-k"></span></label>
+          <div><div style="font-size:13px;font-weight:700;">🛍 En vente sur la boutique</div><div style="font-size:11px;color:var(--t3);">Visible tout de suite par les clients</div></div>
+        </div>
+        <div id="pfErr" style="color:var(--red);font-size:12px;min-height:18px;margin:6px 0;"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn danger" id="pfDel" onclick="pfDelete()" style="display:none;">🗑</button>
+          <button class="btn" id="pfDup" onclick="pfDuplicate()" style="display:none;">⧉ Dupliquer</button>
+          <button class="btn primary full" id="pfSave" onclick="pfSave()" style="justify-content:center;">✓ Enregistrer</button>
         </div>
       </div>
 
-      <!-- CATALOGUE -->
-      <div class="panel" id="panel-catalogue">
-        <div class="card" style="margin-bottom:11px;">
-          <div style="padding:11px 13px;">
-            <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="brandFilterChips"></div>
-            <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;" id="puffsFilterChips"></div>
-            <div class="price-filter">
-              <label>Prix</label>
-              <input class="pf-inp" type="number" id="catPriceMin" placeholder="Min €" oninput="renderCatalogue()">
-              <span style="color:var(--t3);font-size:11px;">—</span>
-              <input class="pf-inp" type="number" id="catPriceMax" placeholder="Max €" oninput="renderCatalogue()">
-              <select class="sort-select" id="catSort" onchange="renderCatalogue()">
-                <option value="">Tri</option><option value="price_asc">Prix ↑</option><option value="price_desc">Prix ↓</option><option value="name_asc">A→Z</option>
-              </select>
-            </div>
-            <div style="display:flex;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gb);">
-              <button class="btn sm" onclick="catSelectAll(true)">Tout ✓</button>
-              <button class="btn sm" onclick="catSelectAll(false)">Tout ✗</button>
-              <button class="btn sm primary" onclick="pushCatalogue()" style="margin-left:auto;">🖥 Pousser</button>
-            </div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-          <div style="font-size:12px;color:var(--t2);" id="catActiveBadge"></div>
-          <!-- ✅ MODIF — barre d'actions cachée tant que rien n'est sélectionné -->
-          <div style="display:none;gap:6px;align-items:center;flex-wrap:wrap;" id="catBulkActions">
-            <span style="font-size:12px;font-weight:700;color:var(--gold);" id="catBulkCount"></span>
-            <button class="btn xs primary" onclick="catBulkToggle(true)">✓ Vente</button>
-            <button class="btn xs" onclick="catBulkToggle(false)">✗ Vente</button>
-            <button class="btn xs" onclick="catBulkPricePrompt()">Prix</button>
-            <button class="btn xs danger" onclick="catBulkDelete()">🗑</button>
-            <button class="btn xs" onclick="catDeselectAll()">✕</button>
-          </div>
-        </div>
-        <div class="cat-grid" id="catGrid"></div>
-        <div id="cartonSection" style="display:none;margin-top:12px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);">
-            <span style="font-size:18px;">📦</span>
-            <div><div style="font-size:12px;font-weight:700;color:var(--blue);">Vente par carton — toggle indépendant</div><div style="font-size:10px;color:var(--t3);margin-top:1px;">Cocher carton ne coche PAS unité</div></div>
-          </div>
-          <div class="cat-grid" id="cartonGrid"></div>
-        </div>
+      <!-- PLUS -->
+      <div class="panel" id="panel-more">
+        <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Plus</div>
+        <div class="p-more" onclick="switchTab('promos')"><span>🏷</span><div><b>Codes promo</b><small>Créer des réductions pour tes clients</small></div><i>›</i></div>
+        <div class="p-more" onclick="switchTab('clients')"><span>👥</span><div><b>Mes clients</b><small>Qui a acheté chez toi</small></div><i>›</i></div>
+        <div class="p-more" onclick="switchTab('settings')"><span>⚙️</span><div><b>Paramètres</b><small>Livraison, alertes stock, boutique, réseaux</small></div><i>›</i></div>
       </div>
-
       <!-- COMMANDES -->
       <div class="panel" id="panel-orders">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -577,14 +509,11 @@ button{font-family:inherit;cursor:pointer;}input,textarea,select{font-family:inh
   </div>
 
   <div class="bottom-nav">
-    <button class="bnav active" id="nav-stock" onclick="switchTab('stock',this)"><span class="bnav-icon">📦</span><span class="bnav-label">Stock</span></button>
-    <button class="bnav" id="nav-catalogue" onclick="switchTab('catalogue',this)"><span class="bnav-icon">🛍</span><span class="bnav-label">Catalogue</span></button>
+    <button class="bnav active" id="nav-stock" onclick="switchTab('stock',this)"><span class="bnav-icon">📦</span><span class="bnav-label">Produits</span></button>
     <button class="bnav" id="nav-orders" onclick="switchTab('orders',this)"><span class="bnav-icon">📋</span><span class="bnav-label">Commandes</span><span class="nbadge" id="newOrdersBadge"></span></button>
     <button class="bnav" id="nav-stats" onclick="switchTab('stats',this)"><span class="bnav-icon">📊</span><span class="bnav-label">Stats</span></button>
-    <button class="bnav" id="nav-promos" onclick="switchTab('promos',this)"><span class="bnav-icon">🏷</span><span class="bnav-label">Promos</span></button>
     <button class="bnav" id="nav-withdrawals" onclick="switchTab('withdrawals',this)"><span class="bnav-icon">💸</span><span class="bnav-label">Retraits</span></button>
-    <button class="bnav" id="nav-clients" onclick="switchTab('clients',this)"><span class="bnav-icon">👥</span><span class="bnav-label">Clients</span></button>
-    <button class="bnav" id="nav-settings" onclick="switchTab('settings',this)"><span class="bnav-icon">⚙️</span><span class="bnav-label">Config</span></button>
+    <button class="bnav" id="nav-more" onclick="switchTab('more',this)"><span class="bnav-icon">☰</span><span class="bnav-label">Plus</span></button>
   </div>
 </div>
 </div>
@@ -683,7 +612,7 @@ function renderPerItemThresholds(perItem={}){
   const list=stock.filter(s=>!isUnl(s));
   if(!list.length){ el.innerHTML='<div style="color:var(--t3);font-size:12px;">Ajoutez des goûts pour les configurer ici.</div>'; return; }
   el.innerHTML=list.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--gb);border-radius:var(--rs);margin-bottom:6px;">
-    <div><div style="font-size:12px;font-weight:700;">${esc(s.name||'Sans nom')}</div><div style="font-size:10px;color:var(--t3);">${s.qty} en stock</div></div>
+    <div><div style="font-size:12px;font-weight:700;">${esc(s.name||'Sans nom')}</div><div style="font-size:10px;color:var(--t3);">${ctn(s)} carton(s) en stock · seuil en pièces</div></div>
     <input type="number" class="per-item-input" data-id="${s.id}" min="1" max="100" placeholder="seuil" value="${perItem[s.id]||''}" style="width:65px;background:rgba(255,255,255,.05);border:1px solid var(--gb);color:var(--gold);font-family:monospace;font-size:13px;font-weight:700;padding:5px 8px;border-radius:var(--rs);outline:none;text-align:center;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)';saveSettings()">
   </div>`).join('');
 }
@@ -761,6 +690,7 @@ const tg=window.Telegram?.WebApp;
 function loadSellerData(s){
   seller=s; stock=s.stock||[]; promos=s.promos||[];
   nid=stock.length?Math.max(...stock.map(x=>x.id||0))+1:1;
+  normalizeStock(); pBase=new Map(stock.map(x=>[x.id,x.qty]));
 }
 async function initAuth(){
   if(tg){
@@ -769,7 +699,7 @@ async function initAuth(){
     if(tgUser?.id){
       document.getElementById('loginSub').textContent='🔐 Connexion automatique…';
       try{
-        const r=await fetch(SERVER+'/seller/tg-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData})});
+        const r=await fetch(SERVER+'/seller/tg-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData,telegramId:tgUser.id})});
         if(r.ok){ const data=await r.json(); secret=data.secret; loadSellerData(data.seller); bootDashboard(); return; }
       }catch(e){}
     }
@@ -797,7 +727,7 @@ function bootDashboard(){
   updateGlobalStats(); switchTab('stock'); refreshSellerData();
 }
 async function refreshSellerData(){
-  try{ loadSellerData(await api('GET','/seller/me')); updateGlobalStats(); renderStock(); }catch(e){}
+  try{ const d=await api('GET','/seller/me'); if(pSyncTimer||pSyncing) return; loadSellerData(d); updateGlobalStats(); renderStock(); }catch(e){}
 }
 function doLogout(){
   secret=''; seller=null; stock=[]; promos=[]; orders=[];
@@ -816,9 +746,8 @@ function switchTab(tab,el){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bnav').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+tab).classList.add('active');
-  (el||document.getElementById('nav-'+tab))?.classList.add('active');
+  (el||document.getElementById('nav-'+tab)||(['promos','clients','settings'].includes(tab)?document.getElementById('nav-more'):null))?.classList.add('active');
   if(tab==='stock') renderStock();
-  if(tab==='catalogue') renderCatalogue();
   if(tab==='orders') loadOrders();
   if(tab==='stats') loadStats();
   if(tab==='promos'){ renderPromos(); buildPromoCatOptions(); buildPromoFlavorOptions(); }
@@ -829,385 +758,249 @@ function switchTab(tab,el){
 }
 
 // ─────────────────────────────────────────
-//  STATISTIQUES DU STOCK
+//  PRODUITS — stock + catalogue au même endroit
+//  Vente au carton uniquement. En interne : qty = nombre de PIÈCES (compatible serveur),
+//  affiché en cartons = qty / cartonQty.
 // ─────────────────────────────────────────
-function stockValue(){ return stock.filter(x=>!isUnl(x)).reduce((s,x)=>s+(x.qty||0)*(x.price||0),0); }
-function activeCount(){ return stock.filter(x=>x.enVente&&(isUnl(x)||x.qty>0)).length; }
+const P_ORIG={FR:{label:'🇫🇷 Expédition depuis la France',short:'🇫🇷 France'},EU:{label:'🇪🇺 Expédition depuis l\'Europe',short:'🇪🇺 Europe'},CN:{label:'🇨🇳 Expédition depuis la Chine',short:'🇨🇳 Chine'}};
+const P_UNL=9999;
+let pBase=new Map(), pFilter='all', pSel=new Set(), pSyncTimer=null, pSyncing=false, pSyncAgain=false;
+function cq(s){ return Math.max(1,parseInt(s.cartonQty)||10); }
+function ctn(s){ return isUnl(s)?Infinity:Math.floor((s.qty||0)/cq(s)); }
+function ctnPrice(s){ return s.cartonPrice?parseFloat(s.cartonPrice):parseFloat(s.price||0)*cq(s); }
+function pModel(s){ return (s.model||'').trim()||[extractBrand(s.cat),s.puffs?fmtPuffs(s.puffs):''].filter(Boolean).join(' ')||'Autres'; }
+function pFlavor(s){ return (s.flavor||'').trim()||s.name||'Sans nom'; }
+function pOnSale(s){ return !!s.enVente&&!s.supplierOut&&(isUnl(s)||ctn(s)>0); }
+// anciens articles (vente à l'unité) → passés en carton, même prix par pièce
+function normalizeStock(){
+  stock.forEach(s=>{
+    if(!s.carton){ s.carton=true; s.cartonQty=s.cartonQty||10; s.cartonPrice=s.cartonPrice||+(parseFloat(s.price||0)*s.cartonQty).toFixed(2); }
+    if(s.enVenteCarton) s.enVente=true;
+    s.cartonQty=cq(s);
+    if(!s.model&&s.flavor===undefined){ s.flavor=s.name||''; }
+  });
+}
+
+// ── statistiques du haut
+function stockValue(){ return stock.filter(x=>!isUnl(x)).reduce((a,x)=>a+ctn(x)*ctnPrice(x),0); }
+function activeCount(){ return stock.filter(pOnSale).length; }
 function updateGlobalStats(){
-  const val=stockValue(), active=activeCount();
-  document.getElementById('stBal').textContent=parseFloat(seller.balance||0).toFixed(2)+'€';
-  document.getElementById('stSales').textContent=parseFloat(seller.totalSales||0).toFixed(2)+'€';
-  document.getElementById('stVal').textContent=val.toFixed(2)+'€';
-  document.getElementById('stActive').textContent=active;
-  document.getElementById('catActiveBadge').textContent=active+' en vente';
+  const set=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
+  set('stBal',parseFloat(seller?.balance||0).toFixed(2)+'€');
+  set('stSales',parseFloat(seller?.totalSales||0).toFixed(2)+'€');
+  set('stActive',activeCount());
+  const out=stock.filter(s=>!isUnl(s)&&ctn(s)<=0).length;
+  set('stOut',out); const o=document.getElementById('stOut'); if(o) o.style.color=out?'var(--red)':'';
 }
-function updateStockStats(){
-  const total=stock.length, val=stockValue(), active=activeCount();
-  const alerts=stock.filter(x=>!isUnl(x)&&x.qty>0&&x.qty<=(x.alert||5)).length;
-  document.getElementById('vStCount').textContent=total+' goût'+(total!==1?'s':'');
-  document.getElementById('vStAlerts').textContent=alerts+' alerte'+(alerts!==1?'s':'');
-  document.getElementById('vStVal').textContent=val.toFixed(2)+'€';
-  document.getElementById('catActiveBadge').textContent=active+' goût'+(active!==1?'s':'')+' en vente';
-  document.getElementById('stVal').textContent=val.toFixed(2)+'€';
-  document.getElementById('stActive').textContent=active;
-}
-function stockSt(q,a,unl){ if(unl) return['Illimité','tg']; if(q===0) return['Rupture','tr2']; if(q<=(a||5)) return['Stock bas','ta']; return['Dispo','tg']; }
-
-// ─────────────────────────────────────────
-//  ASSISTANT D'AJOUT
-// ─────────────────────────────────────────
-let wizStep=1, wizEditIdx=-1;
-function setWizTaux(val){ document.getElementById('wizTaux').value=val; }
-function wizToggleCarton(){
-  const on=document.getElementById('wizCarton').checked;
-  document.getElementById('wizCartonBox').style.display=on?'block':'none';
-  document.getElementById('wizEnVenteCartonBox').style.display=on?'flex':'none';
-  if(!on) document.getElementById('wizEnVenteCarton').checked=false;
-}
-function wizToggleBundle(){ document.getElementById('wizBundleBox').style.display=document.getElementById('wizBundle').checked?'block':'none'; }
-function openAddWizard(editIdx=-1){
-  wizEditIdx=editIdx; wizStep=1;
-  const s=editIdx>=0?stock[editIdx]:null;
-  document.getElementById('wizardTitle').textContent=s?'Modifier le goût':'Nouveau goût';
-  document.getElementById('wizName').value=s?.name||'';
-  document.getElementById('wizCat').value=s?.cat||'';
-  document.getElementById('wizTaux').value=s?.taux||'';
-  document.getElementById('wizPrice').value=s?.price||'';
-  document.getElementById('wizPuffs').value=s?.puffs?s.puffs/1000:'';
-  document.getElementById('wizQty').value=isUnl(s)?0:(s?.qty||0);
-  document.getElementById('wizAlert').value=s?.alert||5;
-  document.getElementById('wizEnVente').checked=s?.enVente||false;
-  document.getElementById('wizEnVenteCarton').checked=s?.enVenteCarton||false;
-  document.getElementById('wizCarton').checked=s?.carton||false;
-  document.getElementById('wizCartonQty').value=s?.cartonQty||'';
-  document.getElementById('wizCartonPrice').value=s?.cartonPrice||'';
-  document.getElementById('wizCartonBox').style.display=s?.carton?'block':'none';
-  document.getElementById('wizEnVenteCartonBox').style.display=s?.carton?'flex':'none';
-  document.getElementById('wizBundle').checked=s?.bundle||false;
-  document.getElementById('wizBundleQty').value=s?.bundleQty||'';
-  document.getElementById('wizBundlePrice').value=s?.bundlePrice||'';
-  document.getElementById('wizBundleBox').style.display=s?.bundle?'block':'none';
-  const prev=document.getElementById('wizPhotoPreview');
-  prev.innerHTML=s?.image?'<img src="'+s.image+'" style="width:100%;height:100%;object-fit:cover;">':'<span style="font-size:40px;">📷</span>';
-  wizUpdateUI();
-  document.getElementById('wizardOverlay').style.display='block';
-  document.getElementById('wizardSheet').style.display='block';
-  setTimeout(()=>document.getElementById('wizName').focus(),100);
-}
-function closeWizard(){ document.getElementById('wizardOverlay').style.display='none'; document.getElementById('wizardSheet').style.display='none'; }
-function wizUpdateUI(){
-  ['wizStep1','wizStep2','wizStep3'].forEach((id,i)=>{ document.getElementById(id).style.display=i===wizStep-1?'block':'none'; });
-  document.getElementById('wizardStep').textContent='Étape '+wizStep+' / 3';
-  document.getElementById('wizardProgress').style.width=(wizStep/3*100)+'%';
-  document.getElementById('wizBtnPrev').style.display=wizStep>1?'block':'none';
-  document.getElementById('wizBtnNext').textContent=wizStep===3?'✓ Enregistrer':'Continuer →';
-}
-function wizNext(){
-  if(wizStep===1){
-    if(!document.getElementById('wizName').value.trim()){ showToast('⚠ Nom du goût requis','err'); return; }
-    wizStep=2;
-  } else if(wizStep===2){
-    if(!document.getElementById('wizCat').value.trim()){ showToast('⚠ Marque requise','err'); return; }
-    if(!document.getElementById('wizPrice').value){ showToast('⚠ Prix requis','err'); return; }
-    wizStep=3;
-  } else {
-    const img=document.getElementById('wizPhotoPreview').querySelector('img');
-    const old=wizEditIdx>=0?stock[wizEditIdx]:{};
-    const entry=Object.assign({},old,{
-      id          : wizEditIdx>=0?old.id:nid++,
-      name        : document.getElementById('wizName').value.trim(),
-      cat         : document.getElementById('wizCat').value.trim(),
-      taux        : document.getElementById('wizTaux').value.trim(),
-      price       : parseFloat(document.getElementById('wizPrice').value)||0,
-      puffs       : (parseFloat(document.getElementById('wizPuffs').value)||0)*1000,
-      qty         : isUnl(old)?old.qty:(parseInt(document.getElementById('wizQty').value)||0),
-      alert       : parseInt(document.getElementById('wizAlert').value)||5,
-      enVente     : document.getElementById('wizEnVente').checked,
-      enVenteCarton: document.getElementById('wizEnVenteCarton').checked,
-      carton      : document.getElementById('wizCarton').checked,
-      cartonQty   : parseInt(document.getElementById('wizCartonQty').value)||0,
-      cartonPrice : parseFloat(document.getElementById('wizCartonPrice').value)||0,
-      bundle      : document.getElementById('wizBundle').checked,
-      bundleQty   : parseInt(document.getElementById('wizBundleQty').value)||0,
-      bundlePrice : parseFloat(document.getElementById('wizBundlePrice').value)||0,
-      image       : img?img.src:(old.image||''),
-    });
-    if(wizEditIdx>=0) stock[wizEditIdx]=entry; else stock.push(entry);
-    renderStock(); closeWizard();
-    showToast(wizEditIdx>=0?'✓ Goût modifié — pense à pousser le stock':'✓ Goût ajouté — pense à pousser le stock','ok');
-    return;
-  }
-  wizUpdateUI();
-}
-function wizPrev(){ if(wizStep>1){ wizStep--; wizUpdateUI(); } }
-function wizChQty(d){ const el=document.getElementById('wizQty'); el.value=Math.max(0,(parseInt(el.value)||0)+d); }
-function wizLoadPhoto(input){
-  const file=input.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=600, canvas=document.createElement('canvas'); let w=img.width, h=img.height;
-      if(w>max){ h=Math.round(h*max/w); w=max; } if(h>max){ w=Math.round(w*max/h); h=max; }
-      canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(img,0,0,w,h);
-      document.getElementById('wizPhotoPreview').innerHTML='<img src="'+canvas.toDataURL('image/jpeg',0.8)+'" style="width:100%;height:100%;object-fit:cover;">';
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
+function updateStockStats(){ updateGlobalStats(); }
+function checkLocalAlerts(){
+  const low=stock.filter(x=>!isUnl(x)&&x.qty>0&&x.qty<=(x.alert||cq(x)*2));
+  if(low.length) showToast(`⚠ ${low.length} goût(s) bientôt en rupture`,'err');
 }
 
-// ─────────────────────────────────────────
-//  STOCK
-// ─────────────────────────────────────────
-let stockFilterBrand='all', stockFilterPuffs='all', stockFilterStatus='all';
-function buildStockFilters(){
-  const brands=[...new Set(stock.map(s=>extractBrand(s.cat)).filter(Boolean))];
-  const puffsVals=[...new Set(stock.filter(s=>s.puffs).map(s=>puffsKey(s.puffs)))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
-  document.getElementById('stockBrandChips').innerHTML=`<div class="fchip ${stockFilterBrand==='all'?'active':''}" onclick="setStockFilter('brand','all')">Toutes</div>`
-    +brands.map(b=>`<div class="fchip ${stockFilterBrand===b?'ap':''}" onclick="setStockFilter('brand','${esc(b)}')">${esc(b)}</div>`).join('');
-  document.getElementById('stockPuffsChips').innerHTML=`<div class="fchip ${stockFilterPuffs==='all'?'active':''}" onclick="setStockFilter('puffs','all')">Tous</div>`
-    +puffsVals.map(v=>`<div class="fchip ${stockFilterPuffs===v?'ab':''}" onclick="setStockFilter('puffs','${v}')">${v}</div>`).join('');
-  const statuses=[{v:'all',l:'Tous'},{v:'vente',l:'En vente'},{v:'rupture',l:'Rupture'},{v:'bas',l:'Stock bas'}];
-  document.getElementById('stockStatusChips').innerHTML=statuses.map(st=>`<div class="fchip ${stockFilterStatus===st.v?'active':''}" onclick="setStockFilter('status','${st.v}')">${st.l}</div>`).join('');
-}
-function setStockFilter(type,val){ if(type==='brand') stockFilterBrand=val; if(type==='puffs') stockFilterPuffs=val; if(type==='status') stockFilterStatus=val; renderStock(); }
-function getFilteredStock(){
-  const q=(document.getElementById('vStockSearch')?.value||'').toLowerCase();
+// ── liste
+function pFiltered(){
+  const q=(document.getElementById('pSearch')?.value||'').toLowerCase().trim();
   return stock.filter(s=>{
-    if(stockFilterBrand!=='all'&&extractBrand(s.cat)!==stockFilterBrand) return false;
-    if(stockFilterPuffs!=='all'&&puffsKey(s.puffs)!==stockFilterPuffs) return false;
-    if(stockFilterStatus==='vente'&&!s.enVente&&!s.enVenteCarton) return false;
-    if(stockFilterStatus==='rupture'&&(isUnl(s)||s.qty>0)) return false;
-    if(stockFilterStatus==='bas'&&(isUnl(s)||!(s.qty>0&&s.qty<=(s.alert||5)))) return false;
-    if(q&&!(s.name||'').toLowerCase().includes(q)&&!(s.cat||'').toLowerCase().includes(q)) return false;
+    if(pFilter==='on'&&!pOnSale(s)) return false;
+    if(pFilter==='off'&&s.enVente) return false;
+    if(pFilter==='out'&&(isUnl(s)||ctn(s)>0)) return false;
+    if(pFilter==='low'&&(isUnl(s)||!(ctn(s)>0&&ctn(s)<=2))) return false;
+    if(q&&![pModel(s),pFlavor(s),s.cat,s.taux].join(' ').toLowerCase().includes(q)) return false;
     return true;
   });
 }
-function makeStockRowUnite(s,idx){
-  const isChk=vBulkSelected.has(s.id), unl=isUnl(s);
-  const [lbl,tc]=stockSt(s.qty,s.alert||5,unl);
-  const brand=(s.cat||'')+(s.taux?' - '+s.taux:'');
-  const puffsLbl=s.puffs?fmtPuffs(s.puffs)+' puffs':'';
-  const qC=unl?'var(--green)':s.qty<=0?'var(--red)':s.qty<=(s.alert||5)?'#FB923C':'var(--green)';
-  const border=isChk?'rgba(240,180,41,.4)':'var(--gb)';
-  const mb=(s.carton&&s.cartonQty>0&&!unl)?'2':'8';
-  const photo=s.image
-    ?'<img src="'+s.image+'" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;">'
-    :'<div style="width:44px;height:44px;border-radius:10px;background:var(--bg2);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">'+emoji(s.name)+'</div>';
-  const onVente=s.enVente?'<span style="font-size:9px;color:var(--green);font-weight:700;">Unité</span>':'';
-  const orig=originLabel(s)?'<span style="font-size:9px;color:var(--blue);font-weight:700;margin-left:4px;">'+esc(originLabel(s))+'</span>':'';
-  const qtyCtrl=unl
-    ?'<span title="Illimité — expédié par le fournisseur" style="font-family:monospace;font-size:18px;font-weight:800;color:var(--green);padding:0 18px;">∞</span>'
-    :'<button onclick="event.stopPropagation();chQty('+idx+',-1)" style="width:26px;height:26px;border-radius:7px;background:var(--bg2);border:1px solid var(--gb);font-size:14px;cursor:pointer;color:var(--text);">-</button>'
-     +'<span style="font-family:monospace;font-size:14px;font-weight:800;color:'+qC+';min-width:22px;text-align:center;">'+s.qty+'</span>'
-     +'<button onclick="event.stopPropagation();chQty('+idx+',1)" style="width:26px;height:26px;border-radius:7px;background:var(--bg2);border:1px solid var(--gb);font-size:14px;cursor:pointer;color:var(--text);">+</button>';
-  return '<div style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--bg3);border:1px solid '+border+';border-radius:var(--r);margin-bottom:'+mb+'px;">'
-    +'<input type="checkbox" '+(isChk?'checked':'')+' data-sid="'+s.id+'" onchange="vToggleRowEl(this)" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;">'
-    +photo
-    +'<div style="flex:1;min-width:0;" onclick="openAddWizard('+idx+')">'
-      +'<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(s.name||'Sans nom')+'</div>'
-      +'<div style="font-size:10px;color:var(--t3);margin-top:1px;">'+esc(brand?brand+' | ':'')+puffsLbl+'</div>'
-      +'<div style="margin-top:3px;"><span class="tag '+tc+'" style="font-size:9px;padding:2px 6px;">'+lbl+'</span> '+onVente+orig+'</div>'
-    +'</div>'
-    +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">'
-      +'<div style="font-size:13px;font-weight:800;color:var(--gold);">'+(s.price||0)+'€</div>'
-      +'<div style="display:flex;align-items:center;gap:5px;">'+qtyCtrl+'</div>'
-      +'<div style="display:flex;gap:4px;">'
-        +'<button onclick="event.stopPropagation();openAddWizard('+idx+')" style="padding:3px 7px;border-radius:5px;background:var(--gdim);border:1px solid var(--gborder);color:var(--gold);font-size:10px;cursor:pointer;">&#9998;</button>'
-        +'<button onclick="event.stopPropagation();duplicateStock('+idx+')" style="padding:3px 7px;border-radius:5px;background:var(--bdim);border:1px solid var(--bbdr);color:var(--blue);font-size:10px;cursor:pointer;">&#128203;</button>'
-        +'<button onclick="event.stopPropagation();delStock('+idx+')" style="padding:3px 7px;border-radius:5px;background:var(--rdim);border:1px solid var(--rbdr);color:var(--red);font-size:10px;cursor:pointer;">x</button>'
-      +'</div>'
-    +'</div>'
-  +'</div>';
-}
-function makeStockRowCarton(s,idx){
-  const ct=Math.floor(s.qty/s.cartonQty);
-  const cv=(s.qtyCartonVente!==undefined)?s.qtyCartonVente:ct;
-  const cp=s.cartonPrice?parseFloat(s.cartonPrice).toFixed(2):(parseFloat(s.price||0)*s.cartonQty).toFixed(2);
-  const qC=ct<=0?'var(--red)':'var(--blue)';
-  const border=s.enVenteCarton?'rgba(79,195,247,.4)':'rgba(79,195,247,.15)';
-  const onLabel=s.enVenteCarton?'<div style="font-size:9px;color:var(--blue);font-weight:700;">Carton on</div>':'<div style="font-size:9px;color:var(--t3);">Carton off</div>';
-  return '<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;background:rgba(79,195,247,.05);border:1px solid '+border+';border-radius:var(--r);margin-bottom:8px;margin-left:20px;">'
-    +'<div style="width:16px;flex-shrink:0;"></div>'
-    +'<div style="width:44px;height:36px;border-radius:8px;background:rgba(79,195,247,.1);border:1px solid rgba(79,195,247,.25);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128230;</div>'
-    +'<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--blue);">Carton x'+s.cartonQty+'</div><div style="font-size:10px;color:var(--t3);margin-top:1px;">'+ct+' cartons dispo - '+cp+'€/carton</div>'+onLabel+'</div>'
-    +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">'
-      +'<div style="font-size:12px;font-weight:800;color:var(--blue);">'+cp+'€</div><div style="font-size:10px;color:var(--t3);">Vente: '+cv+'</div>'
-      +'<div style="display:flex;align-items:center;gap:4px;">'
-        +'<button onclick="event.stopPropagation();chCartonVente('+idx+',-1)" style="width:22px;height:22px;border-radius:6px;background:var(--bg2);border:1px solid var(--gb);font-size:12px;cursor:pointer;color:var(--text);">-</button>'
-        +'<span style="font-family:monospace;font-size:12px;font-weight:800;color:'+qC+';min-width:20px;text-align:center;">'+cv+'</span>'
-        +'<button onclick="event.stopPropagation();chCartonVente('+idx+',1)" style="width:22px;height:22px;border-radius:6px;background:var(--bg2);border:1px solid var(--gb);font-size:12px;cursor:pointer;color:var(--text);">+</button>'
-      +'</div>'
-      +'<label class="sw" style="transform:scale(.8);"><input type="checkbox" '+(s.enVenteCarton?'checked':'')+' data-idx="'+idx+'" onchange="toggleCartonVente(this)"><span class="sw-t"></span><span class="sw-k"></span></label>'
-    +'</div>'
-  +'</div>';
-}
+function pSetFilter(f){ pFilter=f; renderStock(); }
 function renderStock(){
-  updateStockStats(); buildStockFilters();
-  const list=document.getElementById('stockList'), items=getFilteredStock();
-  if(!items.length){ list.innerHTML='<div class="empty-state"><div class="empty-title">Aucun goût</div><div class="empty-sub">+ Ajouter ou ajuster les filtres</div></div>'; return; }
+  updateGlobalStats();
+  const list=document.getElementById('stockList'); if(!list) return;
+  const c=f=>{ const k=pFilter; pFilter=f; const n=pFiltered().length; pFilter=k; return n; };
+  document.getElementById('pChips').innerHTML=[['all','Tous'],['on','✓ En vente'],['off','Pas en vente'],['low','Stock bas'],['out','Rupture']]
+    .map(([f,l])=>`<div class="fchip ${pFilter===f?'active':''}" onclick="pSetFilter('${f}')">${l} <span style="opacity:.6;">${c(f)}</span></div>`).join('');
+  const items=pFiltered();
+  if(!stock.length){ list.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Aucun produit</div><div class="empty-sub">Appuie sur « Ajouter des produits » pour commencer</div></div>'; pRenderBulk(); return; }
+  if(!items.length){ list.innerHTML='<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Aucun produit ne correspond</div><div class="empty-sub"><button class="btn sm" onclick="pFilter=\'all\';document.getElementById(\'pSearch\').value=\'\';renderStock()">Tout afficher</button></div></div>'; pRenderBulk(); return; }
+  // regroupement par modèle
+  const groups=new Map();
+  items.forEach(s=>{ const k=pModel(s)+'|'+(s.taux||'')+'|'+(s.origin||''); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(s); });
   let html='';
-  items.forEach(s=>{
-    const idx=stock.indexOf(s);
-    html+=makeStockRowUnite(s,idx);
-    if(s.carton&&s.cartonQty>0&&!isUnl(s)) html+=makeStockRowCarton(s,idx);
+  [...groups.values()].sort((a,b)=>pModel(a[0]).localeCompare(pModel(b[0]))).forEach(g=>{
+    g.sort((a,b)=>pFlavor(a).localeCompare(pFlavor(b)));
+    const f=g[0], allOn=g.every(s=>s.enVente), ids=g.map(s=>s.id).join(',');
+    const prices=[...new Set(g.map(s=>ctnPrice(s).toFixed(2)))];
+    const allSel=g.every(s=>pSel.has(s.id));
+    html+=`<div class="p-group">
+      <div class="p-ghead">
+        <input type="checkbox" class="p-chk" ${allSel?'checked':''} onchange="pSelGroup('${ids}',this.checked)">
+        <div style="flex:1;min-width:0;">
+          <div class="p-gname">${esc(pModel(f))}${f.taux?` <span class="p-taux">${esc(f.taux)}</span>`:''}</div>
+          <div class="p-gsub">${[f.origin&&P_ORIG[f.origin]?P_ORIG[f.origin].short:'',g.length+' goût'+(g.length>1?'s':''),(prices.length===1?prices[0]+' € / carton':'prix variés'),'carton de '+cq(f)].filter(Boolean).map(esc).join(' · ')}</div>
+        </div>
+        <label class="sw" title="Tout le modèle en vente"><input type="checkbox" ${allOn?'checked':''} onchange="pGroupSale('${ids}',this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>
+      </div>`;
+    g.forEach(s=>{
+      const n=ctn(s), unl=isUnl(s), sel=pSel.has(s.id);
+      const qc=unl?'var(--green)':n<=0?'var(--red)':n<=2?'#FB923C':'var(--text)';
+      const photo=s.image?`<img src="${s.image}" alt="">`:`<span>${emoji(pFlavor(s))}</span>`;
+      const warn=s.enVente&&!unl&&n<=0?'<div class="p-warn">⚠ stock 0 → pas visible</div>':'';
+      html+=`<div class="p-row ${sel?'sel':''} ${s.enVente?'on':''}">
+        <input type="checkbox" class="p-chk" ${sel?'checked':''} onchange="pSelOne(${s.id},this.checked)">
+        <div class="p-ph" onclick="pfOpen(${s.id})">${photo}</div>
+        <div class="p-info" onclick="pfOpen(${s.id})">
+          <div class="p-fl">${esc(pFlavor(s))}</div>
+          <div class="p-pr">${ctnPrice(s).toFixed(2)} €</div>${warn}
+        </div>
+        <div class="p-qty">${unl?'<span class="p-inf" title="Illimité — expédié par toi depuis la Chine">∞</span>'
+          :`<button class="p-qbtn" onclick="pQty(${s.id},-1)">−</button><span style="color:${qc};">${n}</span><button class="p-qbtn" onclick="pQty(${s.id},1)">+</button>`}</div>
+        <label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="pSale(${s.id},this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>
+      </div>`;
+    });
+    html+='</div>';
   });
   list.innerHTML=html;
+  pRenderBulk();
 }
-let vBulkSelected=new Set();
-function chQty(idx,d){ if(isUnl(stock[idx])) return; stock[idx].qty=Math.max(0,(stock[idx].qty||0)+d); renderStock(); }
-function delStock(idx){ if(!confirm('Supprimer "'+(stock[idx]?.name||'cet article')+'" ?')) return; stock.splice(idx,1); renderStock(); renderCatalogue(); }
-function chCartonVente(idx,d){
-  const s=stock[idx]; if(!s) return;
-  const ct=Math.floor(s.qty/s.cartonQty);
-  const cur=s.qtyCartonVente!==undefined?s.qtyCartonVente:ct;
-  s.qtyCartonVente=Math.max(0,Math.min(ct,cur+d)); renderStock();
+function pFind(id){ return stock.find(s=>s.id===id); }
+function pQty(id,d){ const s=pFind(id); if(!s||isUnl(s)) return; s.qty=Math.max(0,(ctn(s)+d)*cq(s)); pChanged(); renderStock(); }
+function pSale(id,on){ const s=pFind(id); if(!s) return; s.enVente=!!on; s.enVenteCarton=!!on; pChanged(); renderStock(); }
+function pGroupSale(ids,on){ ids.split(',').forEach(id=>{ const s=pFind(+id); if(s){ s.enVente=!!on; s.enVenteCarton=!!on; } }); pChanged(); renderStock(); showToast(on?'✓ Modèle mis en vente':'Modèle retiré de la vente'); }
+// ── sélection multiple
+function pSelOne(id,on){ on?pSel.add(id):pSel.delete(id); renderStock(); }
+function pSelGroup(ids,on){ ids.split(',').forEach(id=>on?pSel.add(+id):pSel.delete(+id)); renderStock(); }
+function pSelClear(){ pSel.clear(); renderStock(); }
+function pRenderBulk(){
+  [...pSel].forEach(id=>{ if(!pFind(id)) pSel.delete(id); });
+  const b=document.getElementById('pBulk'); if(!b) return;
+  b.style.display=pSel.size?'block':'none';
+  document.getElementById('pBulkN').textContent=pSel.size+' sélectionné(s)';
+  const l=document.getElementById('stockList'); if(l) l.style.paddingBottom=pSel.size?'150px':'';
 }
-function duplicateStock(idx){
-  const s=stock[idx]; if(!s) return;
-  const copy=JSON.parse(JSON.stringify(s)); copy.id=nid++; copy.name=s.name+' (copie)'; copy.enVente=false; copy.enVenteCarton=false;
-  stock.splice(idx+1,0,copy); renderStock(); renderCatalogue(); showToast('📋 '+s.name+' dupliqué');
+function pBulk(action){
+  const items=stock.filter(s=>pSel.has(s.id)); if(!items.length) return;
+  const v=parseFloat(String(document.getElementById('pBulkVal').value).replace(',','.'));
+  if(action==='on'||action==='off') items.forEach(s=>{ s.enVente=action==='on'; s.enVenteCarton=s.enVente; });
+  if(action==='price'){ if(!(v>0)){ showToast('⚠ Tape le prix du carton dans la case','err'); return; } items.forEach(s=>{ s.cartonPrice=+v.toFixed(2); s.price=+(v/cq(s)).toFixed(2); }); }
+  if(action==='stock'){ if(!(v>=0)){ showToast('⚠ Tape le nombre de cartons dans la case','err'); return; } items.forEach(s=>{ if(!isUnl(s)) s.qty=Math.round(v)*cq(s); }); }
+  if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; stock=stock.filter(s=>!pSel.has(s.id)); }
+  const n=items.length; pSel.clear(); document.getElementById('pBulkVal').value='';
+  pChanged(); renderStock();
+  showToast('✓ '+n+' produit(s) '+({on:'mis en vente',off:'retirés de la vente',price:'au nouveau prix',stock:'mis à jour',del:'supprimés'}[action]));
 }
-function vBulkDuplicate(){
-  const ids=[...vBulkSelected]; if(!ids.length) return;
-  const copies=[];
-  ids.forEach(id=>{ const s=stock.find(x=>x.id===id); if(!s) return; const copy=JSON.parse(JSON.stringify(s)); copy.id=nid++; copy.name=s.name+' (copie)'; copy.enVente=false; copy.enVenteCarton=false; copies.push(copy); });
-  const lastIdx=stock.findIndex(s=>s.id===ids[ids.length-1]);
-  stock.splice(lastIdx+1,0,...copies);
-  vBulkSelected.clear(); renderStock(); renderCatalogue(); vUpdateBulkBar();
-  showToast('📋 '+copies.length+' article(s) dupliqué(s)');
-}
-function vToggleRowEl(el){ const id=parseInt(el.dataset.sid); if(el.checked) vBulkSelected.add(id); else vBulkSelected.delete(id); vUpdateBulkBar(); }
-function toggleCartonVente(el){ const idx=parseInt(el.dataset.idx); if(stock[idx]) stock[idx].enVenteCarton=el.checked; renderStock(); }
-function vDeselectAll(){ vBulkSelected.clear(); renderStock(); vUpdateBulkBar(); }
-function vUpdateBulkBar(){ const n=vBulkSelected.size; document.getElementById('vBulkBar').style.display=n>0?'block':'none'; document.getElementById('vBulkCount').textContent=n+' sélectionné(s)'; }
-function vBulkApplyAll(){
-  const cat=document.getElementById('vBulkCat').value;
-  const price=parseFloat(document.getElementById('vBulkPrice').value);
-  const puffs=parseFloat(document.getElementById('vBulkPuffs').value);
-  const alert=parseInt(document.getElementById('vBulkAlert').value);
-  const qtyRaw=document.getElementById('vBulkQty').value;
-  if(cat) vBulkApply('cat');
-  if(price) vBulkApply('price');
-  if(puffs) vBulkApply('puffs');
-  if(alert) vBulkApply('alert');
-  if(qtyRaw!=='') vBulkApply('qty');
-}
-function vBulkApply(field){
-  const ids=[...vBulkSelected]; if(!ids.length) return;
-  ids.forEach(id=>{
-    const s=stock.find(x=>x.id===id); if(!s) return;
-    if(field==='cat') s.cat=document.getElementById('vBulkCat').value;
-    if(field==='price') s.price=parseFloat(document.getElementById('vBulkPrice').value)||0;
-    if(field==='puffs') s.puffs=(parseFloat(document.getElementById('vBulkPuffs').value)||0)*1000;
-    if(field==='alert') s.alert=parseInt(document.getElementById('vBulkAlert').value)||5;
-    if(field==='qty'&&!isUnl(s)){
-      const mode=document.getElementById('vBulkQtyMode').value, val=parseInt(document.getElementById('vBulkQty').value)||0;
-      if(mode==='set') s.qty=val;
-      if(mode==='add') s.qty=Math.max(0,(s.qty||0)+val);
-      if(mode==='sub') s.qty=Math.max(0,(s.qty||0)-val);
-    }
-  });
-  renderStock(); showToast(`✓ ${field} mis à jour`);
-}
-function vBulkDelete(){ if(!confirm(`Supprimer ${vBulkSelected.size} article(s) ?`)) return; stock=stock.filter(s=>!vBulkSelected.has(s.id)); vBulkSelected.clear(); renderStock(); renderCatalogue(); vUpdateBulkBar(); }
-async function pushStock(){ try{ await api('POST','/seller/stock',stock); seller.stock=stock; showToast('✓ Stock poussé · '+stock.length+' goûts'); checkLocalAlerts(); }catch(e){ showToast('⚠ '+e.message,'err'); } }
 
-// ─────────────────────────────────────────
-//  CATALOGUE
-// ─────────────────────────────────────────
-let catSelected=new Set();
-function inStock(s){ return isUnl(s)||s.qty>0; }
-function buildCatFilters(){
-  const brands=[...new Set(stock.filter(inStock).map(s=>extractBrand(s.cat)).filter(Boolean))];
-  const puffsVals=[...new Set(stock.filter(s=>inStock(s)&&s.puffs).map(s=>puffsKey(s.puffs)))].sort((a,b)=>parseInt(a)*1000-parseInt(b)*1000);
-  document.getElementById('brandFilterChips').innerHTML=`<div class="fchip ${catFilterBrand==='all'?'active':''}" onclick="setCatFilter('brand','all')">Toutes</div>`
-    +brands.map(b=>`<div class="fchip ${catFilterBrand===b?'ap':''}" onclick="setCatFilter('brand','${esc(b)}')">${esc(b)}</div>`).join('');
-  document.getElementById('puffsFilterChips').innerHTML=`<div class="fchip ${catFilterPuffs==='all'?'active':''}" onclick="setCatFilter('puffs','all')">Tous</div>`
-    +puffsVals.map(v=>`<div class="fchip ${catFilterPuffs===v?'ab':''}" onclick="setCatFilter('puffs','${v}')">💨 ${v}</div>`).join('');
+// ── enregistrement automatique (stock + boutique)
+function pChanged(){
+  const el=document.getElementById('pSync'); if(el){ el.textContent='⏳ Enregistrement…'; el.className='p-sync'; }
+  clearTimeout(pSyncTimer); pSyncTimer=setTimeout(pSyncNow,1000);
 }
-function setCatFilter(type,val){ if(type==='brand') catFilterBrand=val; if(type==='puffs') catFilterPuffs=val; buildCatFilters(); renderCatalogue(); }
-function renderCatalogue(){
-  buildCatFilters();
-  const minP=parseFloat(document.getElementById('catPriceMin')?.value)||0;
-  const maxP=parseFloat(document.getElementById('catPriceMax')?.value)||Infinity;
-  const sort=document.getElementById('catSort')?.value||'';
-  let items=stock.filter(inStock);
-  if(catFilterBrand!=='all') items=items.filter(s=>extractBrand(s.cat)===catFilterBrand);
-  if(catFilterPuffs!=='all') items=items.filter(s=>puffsKey(s.puffs)===catFilterPuffs);
-  items=items.filter(s=>parseFloat(s.price||0)>=minP&&parseFloat(s.price||0)<=maxP);
-  if(sort==='price_asc') items=[...items].sort((a,b)=>a.price-b.price);
-  if(sort==='price_desc') items=[...items].sort((a,b)=>b.price-a.price);
-  if(sort==='name_asc') items=[...items].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  document.getElementById('catActiveBadge').textContent=activeCount()+' en vente';
-  const grid=document.getElementById('catGrid');
-  if(!items.length){ grid.innerHTML='<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🔍</div><div class="empty-title">Aucun goût correspondant</div></div>'; }
-  else grid.innerHTML=items.map(s=>{
-    const idx=stock.indexOf(s), brand=extractBrand(s.cat), pf=s.puffs?fmtPuffs(s.puffs)+' puffs':'', isSel=catSelected.has(s.id);
-    return `<div class="cat-card ${s.enVente?'on':''} ${isSel?'selected':''}">
-      <div style="position:absolute;top:6px;left:6px;z-index:2;"><input type="checkbox" ${isSel?'checked':''} onchange="catToggle(${s.id},this.checked)" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;" onclick="event.stopPropagation()"></div>
-      <div class="cat-card-img">${s.image?`<img src="${s.image}" alt="">`:`<span style="font-size:32px;">${emoji(s.name)}</span>`}</div>
-      <div class="cat-card-brand">${esc(brand)}${s.taux?' · '+esc(s.taux):''}</div>
-      <div class="cat-card-name">${esc(s.name||'Sans nom')}</div>
-      <div class="cat-card-meta">${[pf,isUnl(s)?'∞ illimité':s.qty+' en stock',originLabel(s)].filter(Boolean).map(esc).join(' · ')}</div>
-      <div class="cat-card-price">${parseFloat(s.price||0).toFixed(2)}€</div>
-      <div class="cat-card-toggle"><label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="stock[${idx}].enVente=this.checked;renderCatalogue()"><span class="sw-t"></span><span class="sw-k"></span></label><span style="color:${s.enVente?'var(--green)':'var(--t2)'};">${s.enVente?'Unité ✓':'Off'}</span></div>
-      ${s.carton&&s.cartonQty>0&&!isUnl(s)?`<div class="cat-card-toggle" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--gb);"><label class="sw"><input type="checkbox" ${s.enVenteCarton?'checked':''} onchange="stock[${idx}].enVenteCarton=this.checked;renderCatalogue()"><span class="sw-t"></span><span class="sw-k"></span></label><span style="font-size:11px;color:${s.enVenteCarton?'var(--blue)':'var(--t2)'};">📦 ${s.enVenteCarton?'Carton ✓':'Off'}</span></div>`:''}
-    </div>`;
-  }).join('');
-  const cartonItems=stock.filter(s=>s.carton&&s.cartonQty>0&&s.qty>0&&!isUnl(s));
-  const cartonSection=document.getElementById('cartonSection'), cartonGrid=document.getElementById('cartonGrid');
-  if(cartonItems.length){
-    cartonSection.style.display='block';
-    cartonGrid.innerHTML=cartonItems.map(s=>{
-      const idx2=stock.indexOf(s), brand2=extractBrand(s.cat);
-      const cp=s.cartonPrice?parseFloat(s.cartonPrice).toFixed(2):(parseFloat(s.price||0)*s.cartonQty).toFixed(2);
-      const cartonsLeft=Math.floor(s.qty/s.cartonQty);
-      return `<div class="cat-card ${s.enVenteCarton?'on':''}">
-        <div class="cat-card-img" style="position:relative;">${s.image?`<img src="${s.image}" alt="">`:`<span style="font-size:32px;">📦</span>`}<span style="position:absolute;top:4px;left:4px;background:rgba(79,195,247,.25);border:1px solid rgba(79,195,247,.5);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--blue);">x${s.cartonQty}</span></div>
-        <div class="cat-card-brand" style="color:var(--blue);">${esc(brand2)}${s.taux?' · '+esc(s.taux):''}</div>
-        <div class="cat-card-name">${esc(s.name||'Sans nom')}</div>
-        <div class="cat-card-meta">Carton de ${s.cartonQty} · ${cartonsLeft} dispo</div>
-        <div class="cat-card-price" style="color:var(--blue);">${cp}€</div>
-        <div class="cat-card-toggle"><label class="sw"><input type="checkbox" ${s.enVenteCarton?'checked':''} onchange="stock[${idx2}].enVenteCarton=this.checked;renderCatalogue()"><span class="sw-t"></span><span class="sw-k"></span></label><span style="color:${s.enVenteCarton?'var(--blue)':'var(--t2)'};">${s.enVenteCarton?'Carton ✓':'Off'}</span></div>
-      </div>`;
-    }).join('');
-  } else cartonSection.style.display='none';
-}
-function catToggle(id,checked){ if(checked) catSelected.add(id); else catSelected.delete(id); updateCatBulkBar(); renderCatalogue(); }
-function catDeselectAll(){ catSelected.clear(); updateCatBulkBar(); renderCatalogue(); }
-function updateCatBulkBar(){
-  const n=catSelected.size, bar=document.getElementById('catBulkActions');
-  bar.style.display=n>0?'flex':'none';
-  document.getElementById('catBulkCount').textContent=n?n+' sélectionné(s)':'';
-}
-function catSelectAll(state){ stock.forEach(s=>{ if(inStock(s)){ s.enVente=state; if(s.carton&&s.cartonQty>0&&!isUnl(s)) s.enVenteCarton=state; } }); renderCatalogue(); }
-function catBulkToggle(state){ catSelected.forEach(id=>{ const s=stock.find(x=>x.id===id); if(!s) return; s.enVente=state; if(s.carton&&s.cartonQty>0&&!isUnl(s)) s.enVenteCarton=state; }); catDeselectAll(); }
-function catBulkPricePrompt(){
-  const price=prompt('Nouveau prix (€) pour '+catSelected.size+' article(s) :'); if(!price) return;
-  const val=parseFloat(price.replace(',','.'));
-  if(isNaN(val)||val<=0){ showToast('Prix invalide','err'); return; }
-  catSelected.forEach(id=>{ const s=stock.find(x=>x.id===id); if(s) s.price=val; });
-  showToast('Prix mis à jour'); catDeselectAll();
-}
-function catBulkDelete(){ if(!confirm('Supprimer '+catSelected.size+' article(s) ?')) return; stock=stock.filter(s=>!catSelected.has(s.id)); catSelected.clear(); updateCatBulkBar(); renderStock(); renderCatalogue(); }
-async function pushCatalogue(){
-  const items=[];
-  stock.filter(s=>s.enVente&&inStock(s)).forEach(s=>{
-    items.push({title:s.name,image:s.image||'',description:(s.puffs?fmtPuffs(s.puffs)+' puffs':'')+(s.cat?(s.puffs?' · ':'')+s.cat:''),price:String(parseFloat(s.price||0).toFixed(2)),asset:'EUR',payload:'stock_'+s.id,stockId:s.id,cat:(s.cat||'')+(s.taux?' '+s.taux:''),carton:false,cartonQty:0,cartonPrice:'0',
-      origin:s.origin||'',category:s.originLabel||'',flavor:s.flavor||'',model:s.model||'',unlimited:isUnl(s)});
+function shopItemsFromStock(){
+  return stock.filter(pOnSale).map(s=>{
+    const cp=ctnPrice(s), unl=isUnl(s);
+    return {title:s.model?[s.model,pFlavor(s)].join(' · '):(s.name||pFlavor(s)),image:s.image||'',
+      description:['Carton de '+cq(s)+' pièces',s.puffs?fmtPuffs(s.puffs)+' puffs':'',s.taux||''].filter(Boolean).join(' · '),
+      price:String(cp.toFixed(2)),asset:'EUR',payload:'carton_'+s.id,stockId:s.id,cat:(s.cat||'')+(s.taux?' '+s.taux:''),
+      carton:true,cartonQty:cq(s),cartonPrice:String(cp.toFixed(2)),qty:unl?999:ctn(s),
+      origin:s.origin||'',category:s.originLabel||'',flavor:pFlavor(s),model:pModel(s),brand:extractBrand(s.cat),unlimited:unl};
   });
-  stock.filter(s=>s.enVenteCarton&&s.carton&&s.cartonQty>0&&!isUnl(s)&&s.qty>=s.cartonQty).forEach(s=>{
-    const cp=s.cartonPrice?parseFloat(s.cartonPrice):parseFloat(s.price||0)*s.cartonQty;
-    const ct=Math.floor(s.qty/s.cartonQty);
-    const cv=s.qtyCartonVente!==undefined?Math.min(s.qtyCartonVente,ct):ct;
-    items.push({title:s.name+' (Carton x'+s.cartonQty+')',image:s.image||'',description:'Carton de '+s.cartonQty+(s.puffs?' · '+fmtPuffs(s.puffs)+' puffs':'')+(s.cat?' · '+s.cat:''),price:String(cp.toFixed(2)),asset:'EUR',payload:'carton_'+s.id,stockId:s.id,cat:(s.cat||'')+(s.taux?' '+s.taux:''),carton:true,cartonQty:s.cartonQty,cartonPrice:String(cp.toFixed(2)),qty:cv});
-  });
-  try{ await api('POST','/seller/shop',items); showToast('✓ Catalogue poussé · '+items.length+' article(s)'); }
-  catch(e){ showToast('⚠ '+e.message,'err'); }
 }
-async function pushAll(){ await pushStock(); await pushCatalogue(); }
+async function pSyncNow(){
+  pSyncTimer=null;
+  if(pSyncing){ pSyncAgain=true; return; }
+  pSyncing=true; const el=document.getElementById('pSync');
+  try{
+    // reprendre les ventes faites entre-temps (le serveur décompte le stock à chaque commande)
+    try{
+      const srv=await api('GET','/seller/me'), sm=new Map((srv.stock||[]).map(x=>[x.id,x]));
+      stock.forEach(s=>{ const r=sm.get(s.id); if(r&&!isUnl(s)&&pBase.get(s.id)===s.qty&&typeof r.qty==='number') s.qty=r.qty; });
+      seller={...seller,balance:srv.balance,totalSales:srv.totalSales};
+    }catch(_){}
+    await api('POST','/seller/stock',stock); if(seller) seller.stock=stock;
+    pBase=new Map(stock.map(s=>[s.id,s.qty]));
+    await api('POST','/seller/shop',shopItemsFromStock());
+    updateGlobalStats(); renderStock();
+    if(el){ el.textContent='✓ Enregistré · '+activeCount()+' produit(s) visibles sur la boutique'; el.className='p-sync ok'; }
+  }catch(e){ if(el){ el.innerHTML='⚠ Pas enregistré : '+esc(e.message)+' <button class="btn xs" onclick="pSyncNow()">Réessayer</button>'; el.className='p-sync err'; } }
+  pSyncing=false;
+  if(pSyncAgain){ pSyncAgain=false; pSyncNow(); }
+}
+
+// ── formulaire ajout / modification
+let pfEditId=null, pfImg='';
+function pfSeg(id,val){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===val)); }
+function pfSegVal(id){ return document.querySelector('#'+id+' button.on')?.dataset.v||''; }
+document.addEventListener('click',e=>{ const b=e.target.closest('.p-seg button'); if(!b) return; const seg=b.parentElement.id;
+  const was=b.classList.contains('on'); pfSeg(seg,was&&seg==='pfTaux'?'':b.dataset.v); if(seg==='pfOrigin'){ document.getElementById('pfUnl').checked=b.dataset.v==='CN'; pfSyncUnl(); } });
+function pfSyncUnl(){ const u=document.getElementById('pfUnl').checked; document.getElementById('pfQtyBox').style.display=u?'none':'flex'; document.getElementById('pfUnlNote').style.display=u?'block':'none'; }
+function pfQty(d){ const e=document.getElementById('pfQty'); e.value=Math.max(0,(parseInt(e.value)||0)+d); }
+function pfOpen(id){
+  const s=id?pFind(id):null; pfEditId=s?s.id:null; pfImg='';
+  const $=k=>document.getElementById(k);
+  $('pfModels').innerHTML=[...new Set(stock.map(pModel))].sort().map(m=>`<option value="${esc(m)}">`).join('');
+  $('pfTitle').textContent=s?'Modifier le produit':'Ajouter des produits';
+  $('pfFlLabel').innerHTML=s?'Goût *':'Goûts * <span style="text-transform:none;font-weight:400;color:var(--t3);">— un par ligne ou séparés par des virgules</span>';
+  $('pfModel').value=s?pModel(s):'';
+  $('pfFlavors').value=s?pFlavor(s):''; $('pfFlavors').rows=s?1:3;
+  $('pfBrand').value=s?extractBrand(s.cat):(stock.length?extractBrand(stock[stock.length-1].cat):'');
+  $('pfPuffs').value=s?.puffs||'';
+  pfSeg('pfTaux',s?.taux||''); pfSeg('pfOrigin',s?.origin||(stock.length?stock[stock.length-1].origin||'CN':'CN'));
+  $('pfPrice').value=s?ctnPrice(s):''; $('pfCq').value=s?cq(s):10;
+  $('pfUnl').checked=s?isUnl(s):pfSegVal('pfOrigin')==='CN';
+  $('pfQty').value=s&&!isUnl(s)?ctn(s):0; pfSyncUnl();
+  $('pfOn').checked=s?!!s.enVente:true;
+  $('pfPhoto').innerHTML=s?.image?`<img src="${s.image}" style="width:100%;height:100%;object-fit:cover;">`:'📷';
+  $('pfDel').style.display=s?'':'none'; $('pfDup').style.display=s?'':'none';
+  $('pfSave').textContent=s?'✓ Enregistrer':'✓ Ajouter';
+  $('pfErr').textContent='';
+  $('pfOv').style.display='block'; $('pfSheet').style.display='block';
+}
+function pfClose(){ document.getElementById('pfOv').style.display='none'; document.getElementById('pfSheet').style.display='none'; }
+function pfLoadPhoto(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{ const img=new Image(); img.onload=()=>{
+    const max=600, cv=document.createElement('canvas'); let w=img.width,h=img.height;
+    if(w>max){h=Math.round(h*max/w);w=max;} if(h>max){w=Math.round(w*max/h);h=max;}
+    cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+    pfImg=cv.toDataURL('image/jpeg',0.8);
+    document.getElementById('pfPhoto').innerHTML=`<img src="${pfImg}" style="width:100%;height:100%;object-fit:cover;">`;
+  }; img.src=e.target.result; };
+  reader.readAsDataURL(file); input.value='';
+}
+function pfSave(){
+  const $=k=>document.getElementById(k), err=$('pfErr');
+  const model=$('pfModel').value.trim();
+  const flavors=$('pfFlavors').value.split(pfEditId?/\n/:/[,\n;]/).map(x=>x.trim()).filter(Boolean);
+  const price=parseFloat(String($('pfPrice').value).replace(',','.'));
+  if(!model){ err.textContent='Indique le modèle'; return; }
+  if(!flavors.length){ err.textContent='Indique au moins un goût'; return; }
+  if(!(price>0)){ err.textContent='Indique le prix du carton'; return; }
+  const origin=pfSegVal('pfOrigin')||'CN', unl=$('pfUnl').checked, cartonQty=Math.max(1,parseInt($('pfCq').value)||10);
+  const brand=$('pfBrand').value.trim(), puffs=parseInt($('pfPuffs').value)||0;
+  const common={model,cat:brand,taux:pfSegVal('pfTaux'),puffs,origin,originLabel:P_ORIG[origin].label,
+    carton:true,cartonQty,cartonPrice:+price.toFixed(2),price:+(price/cartonQty).toFixed(2),
+    unlimited:unl,qty:unl?P_UNL:Math.max(0,parseInt($('pfQty').value)||0)*cartonQty,
+    enVente:$('pfOn').checked,enVenteCarton:$('pfOn').checked,alert:cartonQty*2};
+  const nm=f=>[model,f].join(' · ');
+  if(pfEditId){
+    const s=pFind(pfEditId); if(!s){ pfClose(); return; }
+    Object.assign(s,common,{flavor:flavors[0],name:nm(flavors[0])}); if(pfImg) s.image=pfImg;
+    showToast('✓ Produit modifié');
+  } else {
+    const added=flavors.map(f=>Object.assign({id:nid++,flavor:f,name:nm(f),image:pfImg||''},common));
+    stock.push(...added);
+    pFilter='all'; const q=$('pSearch'); if(q) q.value='';
+    showToast('✓ '+added.length+' produit(s) ajouté(s)');
+  }
+  pfClose(); pChanged(); renderStock();
+}
+function pfDelete(){ const s=pFind(pfEditId); if(!s||!confirm('Supprimer « '+pFlavor(s)+' » ?')) return; stock=stock.filter(x=>x.id!==pfEditId); pfClose(); pChanged(); renderStock(); showToast('Produit supprimé'); }
+function pfDuplicate(){
+  const s=pFind(pfEditId); if(!s) return;
+  const copy=JSON.parse(JSON.stringify(s)); copy.id=nid++; copy.flavor=pFlavor(s)+' (copie)'; copy.name=pModel(s)+' · '+copy.flavor; copy.enVente=false; copy.enVenteCarton=false;
+  stock.push(copy); pChanged(); pfOpen(copy.id); showToast('⧉ Copie créée — change le goût');
+}
+// compatibilité avec le reste de l'appli
+function renderCatalogue(){ renderStock(); }
+async function pushAll(){ await pSyncNow(); }
 
 // ─────────────────────────────────────────
 //  COMMANDES
