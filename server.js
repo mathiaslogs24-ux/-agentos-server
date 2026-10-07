@@ -1605,21 +1605,91 @@ app.post('/promo/validate', async(req,res)=>{
 // ─────────────────────────────────────────
 //  CHECKOUT STRIPE
 // ─────────────────────────────────────────
+// Retrouve un article tel que le serveur le vend vraiment (prix, stock, vendeur)
+async function findSellableItem(sellerId, id, isCarton){
+  const sid = String(sellerId||'admin');
+  let items, shipping = null;
+  if(sid==='admin'){
+    items = buildMarketplaceItems(stock, shopItems, 'admin', 'Boutique Officielle', 'Boutique Officielle');
+  } else {
+    const sellers = await getSellers();
+    const v = sellers.find(x=>String(x.id)===sid && x.active);
+    if(!v) return null;
+    items = buildMarketplaceItems(v.stock||[], v.shopItems||[], v.id, v.name, v.shopName||v.name);
+    shipping = v.shipping||{mode:'fixed',fixed:0};
+  }
+  const item = items.find(x=>String(x.id)===String(id) && !!x.isCarton===!!isCarton);
+  return item ? {item, shipping, sellerId:sid} : null;
+}
+
+// Frais de livraison calculés par le serveur (même règles que la boutique)
+function computeShipping(shipping, sellerSubtotal){
+  const s = shipping;
+  if(!s || s.mode==='free') return 0;
+  if(s.mode==='fixed') return parseFloat(s.fixed||0)||0;
+  if(s.mode==='free_above'){
+    const base=parseFloat(s.freeAboveBase||0)||0, minFree=parseFloat(s.freeAboveMin||0)||0;
+    return (minFree>0 && sellerSubtotal>=minFree) ? 0 : base;
+  }
+  if(s.mode==='by_zone'){
+    const z=s.zones||{};
+    return parseFloat(z.FR||0)||0;
+  }
+  return 0;
+}
+
+// Vérifie le panier envoyé par le téléphone : prix, quantités, livraison.
+// Renvoie {error} ou {cart, subtotal, shipping}
+async function validateCart(rawCart){
+  if(!Array.isArray(rawCart) || !rawCart.length || rawCart.length>50) return {error:'Panier invalide'};
+  const clean=[]; const bySeller={};
+  for(const i of rawCart){
+    const qty=parseInt(i&&i.qty,10);
+    if(!Number.isInteger(qty) || qty<1 || qty>1000) return {error:'Quantité invalide — recharge la boutique'};
+    const found=await findSellableItem(i.sellerId, i.id, i.isCarton);
+    if(!found) return {error:'Article introuvable ou indisponible — recharge la boutique'};
+    const {item}=found;
+    if(qty>item.qty) return {error:'Stock insuffisant pour '+(item.title||'un article')+' — recharge la boutique'};
+    const sent=parseFloat(i.price);
+    if(!isFinite(sent)) return {error:'Prix invalide — recharge la boutique'};
+    const base=parseFloat(item.price)||0;
+    const tol=0.02*qty+0.01;
+    let ok=false;
+    // Bundle : prix fixe du lot
+    if(item.bundle && parseFloat(item.bundlePrice)>0 && Math.abs(sent-parseFloat(item.bundlePrice)*qty)<=tol) ok=true;
+    if(!ok){
+      const maxPct=Math.max(0,...cleanTiers(item.tiers).map(t=>t.pct));
+      const floor=base*qty*(1-maxPct/100);
+      const ceil=base*qty;
+      if(sent>=floor-tol && sent<=ceil+tol) ok=true;
+    }
+    if(!ok) return {error:'Prix invalide pour '+(item.title||'un article')+' — recharge la boutique'};
+    if(!(sent>0)) return {error:'Prix invalide — recharge la boutique'};
+    const price=sent.toFixed(2);
+    clean.push({
+      sellerId:found.sellerId, id:item.id, title:item.title,
+      description:(item.isCarton?'Carton ×'+(item.cartonQty||1)+' · ':(item.cartonInfo?'Carton de '+item.cartonInfo+' pièces · ':''))+(item.cat||'')+(item.puffs?' · '+item.puffs+' puffs':''),
+      price, qty, isCarton:!!item.isCarton, cartonQty:item.isCarton?(item.cartonQty||1):0,
+    });
+    if(!bySeller[found.sellerId]) bySeller[found.sellerId]={shipping:found.shipping,subtotal:0};
+    bySeller[found.sellerId].subtotal+=parseFloat(price);
+  }
+  const subtotal=clean.reduce((t,i)=>t+parseFloat(i.price),0);
+  let shipping=0;
+  Object.values(bySeller).forEach(b=>{ shipping+=computeShipping(b.shipping,b.subtotal); });
+  shipping=Math.round(shipping*100)/100;
+  return {cart:clean, subtotal, shipping};
+}
+
 app.post('/shop-checkout', async(req,res) => {
-  const{cart,userId,userName,promoCode,shipping}=req.body;
-  if(!cart||!cart.length) return res.status(400).json({error:'Panier vide'});
+  const{userId,userName,promoCode}=req.body;
+  if(!req.body.cart||!req.body.cart.length) return res.status(400).json({error:'Panier vide'});
   if(!cfg.stripeKey)       return res.status(400).json({error:'Stripe non configuré'});
   try {
-    // ✅ MODIF — contrôle des prix (boutique officielle) : jamais en dessous du prix avec la remise dégressive maximale
-    for(const i of cart){
-      if(i.sellerId&&i.sellerId!=='admin') continue;
-      const si=shopItems.find(x=>x.stockId===i.id); if(!si) continue;
-      const base=parseFloat(si.price||0), q=parseInt(i.qty||1);
-      const maxPct=Math.max(0,...cleanTiers(si.tiers).map(t=>t.pct));
-      const floor=base*q*(1-maxPct/100)-0.05;
-      if(parseFloat(i.price)<floor) return res.status(400).json({error:'Prix invalide pour '+(si.title||'un article')+' — recharge la boutique'});
-    }
-    const subtotal=cart.reduce((s,i)=>s+lineTotal(i),0);
+    // 🔒 Le serveur recalcule tout : prix, stock, livraison (on ne fait pas confiance au téléphone)
+    const check=await validateCart(req.body.cart);
+    if(check.error) return res.status(400).json({error:check.error});
+    const cart=check.cart, subtotal=check.subtotal, shipping=check.shipping;
     let promoResult=null;
     if(promoCode){
       // ✅ FIX #1 — on passe le sellerId du premier vendeur du panier pour la validation scope vendeur

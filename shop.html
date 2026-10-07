@@ -933,10 +933,10 @@ function calcShipping(country){
   const subtotal=getSubtotal();
   // Grouper par vendeur pour appliquer les règles de chaque vendeur
   const bySeller={};
-  items.forEach(({product:p})=>{
+  items.forEach(({product:p,qty})=>{
     const sid=String(p.sellerId||'admin');
     if(!bySeller[sid])bySeller[sid]={shipping:p.shipping||{mode:'free'},subtotal:0};
-    bySeller[sid].subtotal+=p.price;
+    bySeller[sid].subtotal+=unitPrice(p)*qty;
   });
   let totalShipping=0;
   Object.values(bySeller).forEach(({shipping,subtotal:sellerSub})=>{
