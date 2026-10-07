@@ -715,6 +715,28 @@ async function sellerAuth(req,res,next){
 //  ROUTES ADMIN — SYSTÈME
 // ─────────────────────────────────────────
 app.get('/health',(req,res)=>res.json({ok:true,uptime:Math.floor(process.uptime()),running}));
+
+// Alertes Railway → Telegram (admin). Railway ne gère pas d'en-tête d'auth : la clé est dans l'URL.
+app.post('/hooks/railway',(req,res)=>{
+  const expected = process.env.RAILWAY_WEBHOOK_KEY || '';
+  const given    = String(req.query.key||'');
+  const a = Buffer.from(given), b = Buffer.from(expected);
+  if(!expected || a.length!==b.length || !crypto.timingSafeEqual(a,b)) return res.sendStatus(403);
+  res.sendStatus(200);
+  try {
+    const p   = req.body || {};
+    const r   = p.resource || {};
+    const type= String(p.type || 'Événement Railway');
+    const bad = /failed|crashed|oom/i.test(type);
+    const txt = `${bad?'🚨':'ℹ️'} Railway — ${type}\n`
+      + `Service : ${r.service?.name||'?'}\nEnvironnement : ${r.environment?.name||'?'}\n`
+      + (p.details?.commitMessage ? `Commit : ${String(p.details.commitMessage).split('\n')[0].slice(0,100)}\n` : '')
+      + (p.details?.status ? `Statut : ${p.details.status}\n` : '');
+    const adminId = cfg.adminTelegramId || process.env.ADMIN_TELEGRAM_ID;
+    if(adminBot && adminId) adminBot.sendMessage(adminId, txt).catch(e=>addLog('warn','Alerte Railway: '+e.message));
+    else addLog('warn','Alerte Railway reçue mais admin Telegram non configuré: '+type);
+  } catch(e){ addLog('err','Webhook Railway: '+e.message); }
+});
 app.get('/status',auth,(req,res)=>res.json({running,startedAt,model:cfg.claudeModel,msgs:stats.msgs,tokDay:stats.day,uptime:Math.floor(process.uptime()),users:Object.keys(conversations).length}));
 app.post('/start',auth,(req,res)=>{if(req.body.telegramToken)cfg.telegramToken=req.body.telegramToken;if(req.body.claudeKey)cfg.claudeKey=req.body.claudeKey;saveConfig();res.json(startBot());});
 app.post('/stop', auth,(req,res)=>{stopBot();res.json({ok:true});});
