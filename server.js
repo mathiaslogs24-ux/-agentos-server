@@ -363,11 +363,23 @@ let bot           = null;
 let running       = false;
 let startedAt     = null;
 let conversations = {};
+const conversationSeen = {};
+// 🔧 supprime les conversations inactives depuis plus de 24 h (évite une mémoire qui grossit sans fin)
+setInterval(()=>{
+  const limit = Date.now() - 24*3600*1000;
+  for(const uid of Object.keys(conversations)){
+    if((conversationSeen[uid]||0) < limit){ delete conversations[uid]; delete conversationSeen[uid]; }
+  }
+}, 3600*1000).unref();
 let stats         = { day:0,month:0,msgs:0,input:0,output:0,lastReset:today() };
 
 function today() { return new Date().toISOString().slice(0,10); }
 function checkDailyReset() {
-  if(stats.lastReset!==today()){ stats.day=0; stats.lastReset=today(); }
+  if(stats.lastReset!==today()){
+    // 🔧 le compteur mensuel repart à zéro au changement de mois
+    if(String(stats.lastReset).slice(0,7)!==today().slice(0,7)) stats.month=0;
+    stats.day=0; stats.lastReset=today();
+  }
 }
 
 // ─────────────────────────────────────────
@@ -417,6 +429,9 @@ async function callClaude(userId, userName, userMessage) {
   const reply=data.content.map(c=>c.text||'').join('').trim();
   const tokIn=data.usage?.input_tokens||0,tokOut=data.usage?.output_tokens||0,total=tokIn+tokOut;
   conversations[userId].push({role:'assistant',content:reply});
+  // 🔧 mémoire bornée : on ne garde que le contexte utile et on note la dernière activité
+  if(conversations[userId].length > cfg.contextWindow*4) conversations[userId] = conversations[userId].slice(-(cfg.contextWindow*2));
+  conversationSeen[userId] = Date.now();
   stats.day+=total;stats.month+=total;stats.msgs+=1;stats.input+=tokIn;stats.output+=tokOut;
   history.unshift({time:new Date().toLocaleTimeString('fr-FR'),userId:String(userId),userName:userName||'?',
     msg:userMessage.slice(0,60),reply:reply.slice(0,100),tokIn,tokOut,total,duration:elapsed+'s'});
