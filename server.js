@@ -2131,7 +2131,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     const discountRatio = subtotalOriginal > 0 ? itemsPaid / subtotalOriginal : 1;
 
     const commission=cfg.commissionMode==='flat'
-      ?(cfg.commissionFlat*nbItems).toFixed(2)
+      ?Math.min(cfg.commissionFlat*nbItems, amountPaid).toFixed(2)
       :(itemsPaid*cfg.commissionRate).toFixed(2);
     const sellerAmount=(amountPaid-parseFloat(commission)).toFixed(2);
 
@@ -2177,7 +2177,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           const vCommMode=v.commissionMode||cfg.commissionMode||'flat';
           const vCommFlat=v.commissionFlat!==undefined?v.commissionFlat:cfg.commissionFlat;
           const vCommRate=v.commissionRate!==undefined?v.commissionRate:cfg.commissionRate;
-          const itemCommission=vCommMode==='flat'?vCommFlat*qty:itemAmount*vCommRate;
+          const itemCommission=Math.min(itemAmount, vCommMode==='flat'?vCommFlat*qty:itemAmount*vCommRate); // 🔧 jamais plus que le montant payé
           const itemNet=itemAmount-itemCommission;
           v.balance         =parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
           v.totalSales      =parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
