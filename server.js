@@ -23,98 +23,11 @@ const TelegramBot= require('node-telegram-bot-api');
 const { Pool }   = require('pg');
 const fs         = require('fs');
 const path       = require('path');
-const Redis      = require('ioredis');
 
 // ─────────────────────────────────────────
 //  ANTI-SPAM (Redis, repli en mémoire si indisponible)
 // ─────────────────────────────────────────
-const SPAM = {
-  burstMax   : 3,    // messages max...
-  burstSec   : 10,   // ...sur cette fenêtre (secondes)
-  minuteMax  : 20,   // messages max par minute
-  banSec     : 60,   // durée du blocage temporaire après dépassement
-};
-const STALE_MSG_SEC = 60; // un message plus vieux que ça (file Telegram après redémarrage) n'est pas traité
-
-let redis = null;
-if (process.env.REDIS_URL) {
-  redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 2, enableOfflineQueue: false });
-  redis.on('ready', () => console.log('[redis] connecté ✓ — anti-spam partagé actif'));
-  redis.on('error', e => console.warn('[redis]', e.message));
-} else {
-  console.warn('[redis] REDIS_URL absent — anti-spam en mémoire uniquement');
-}
-
-const memHits = new Map(); // key -> { n, exp }
-const memBans = new Map(); // key -> exp
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of memHits) if (v.exp <= now) memHits.delete(k);
-  for (const [k, exp] of memBans) if (exp <= now) memBans.delete(k);
-}, 60000).unref();
-
-async function hit(key, windowSec) {
-  if (redis && redis.status === 'ready') {
-    try {
-      const [[, n], [, ttl]] = await redis.pipeline().incr(key).ttl(key).exec();
-      if (ttl < 0) await redis.expire(key, windowSec); // garantit l'expiration
-      return n;
-    } catch (e) { /* repli mémoire */ }
-  }
-  const now = Date.now();
-  const cur = memHits.get(key);
-  if (!cur || cur.exp <= now) { memHits.set(key, { n: 1, exp: now + windowSec * 1000 }); return 1; }
-  return ++cur.n;
-}
-
-async function isBanned(key) {
-  if (redis && redis.status === 'ready') {
-    try { return (await redis.exists(key)) === 1; } catch (e) { /* repli */ }
-  }
-  const exp = memBans.get(key);
-  return !!exp && exp > Date.now();
-}
-
-async function setBan(key, sec) {
-  if (redis && redis.status === 'ready') {
-    try { return (await redis.set(key, '1', 'EX', sec, 'NX')) === 'OK'; } catch (e) { /* repli */ }
-  }
-  if (isBannedMem(key)) return false;
-  memBans.set(key, Date.now() + sec * 1000);
-  return true;
-}
-function isBannedMem(key) { const e = memBans.get(key); return !!e && e > Date.now(); }
-
-// Verrou "un message à la fois" (expire seul après `sec` si jamais il n'est pas libéré)
-const memLocks = new Map();
-async function acquireLock(key, sec) {
-  if (redis && redis.status === 'ready') {
-    try { return (await redis.set(key, '1', 'EX', sec, 'NX')) === 'OK'; } catch (e) { /* repli */ }
-  }
-  const exp = memLocks.get(key);
-  if (exp && exp > Date.now()) return false;
-  memLocks.set(key, Date.now() + sec * 1000);
-  return true;
-}
-async function releaseLock(key) {
-  memLocks.delete(key);
-  if (redis && redis.status === 'ready') {
-    try { await redis.del(key); } catch (e) { /* expire seul */ }
-  }
-}
-
-// Retourne { blocked, notify } — notify = true une seule fois, au moment du blocage
-async function spamGuard(scope, userId) {
-  const banKey = `spam:ban:${scope}:${userId}`;
-  if (await isBanned(banKey)) return { blocked: true, notify: false };
-  const burst  = await hit(`spam:b:${scope}:${userId}`, SPAM.burstSec);
-  const minute = burst <= SPAM.burstMax ? await hit(`spam:m:${scope}:${userId}`, 60) : 0;
-  if (burst > SPAM.burstMax || minute > SPAM.minuteMax) {
-    const first = await setBan(banKey, SPAM.banSec);
-    return { blocked: true, notify: first };
-  }
-  return { blocked: false, notify: false };
-}
+const { SPAM, STALE_MSG_SEC, redis, spamGuard, acquireLock, releaseLock } = require('./lib/antispam');
 
 try {
   const envPath = path.join(__dirname, '.env');
@@ -142,21 +55,7 @@ app.use((req,res,next)=>{
 
 // 🛡 Limite de requêtes (anti-abus) : en mémoire, par adresse IP
 app.set('trust proxy', 1);
-const rlStore = new Map();
-function rlHit(key, max, windowMs){
-  const now=Date.now(); let e=rlStore.get(key);
-  if(!e||now>e.reset){ e={n:0,reset:now+windowMs}; rlStore.set(key,e); }
-  e.n++;
-  return { blocked:e.n>max, retry:Math.ceil((e.reset-now)/1000) };
-}
-function rateLimit(name, max, windowMs){
-  return (req,res,next)=>{
-    const r=rlHit(name+'|'+req.ip, max, windowMs);
-    if(r.blocked){ res.set('Retry-After', String(r.retry)); return res.status(429).json({error:'Trop de requêtes, réessayez dans un instant'}); }
-    next();
-  };
-}
-setInterval(()=>{ const n=Date.now(); for(const [k,e] of rlStore) if(n>e.reset) rlStore.delete(k); }, 60000).unref();
+const { rlStore, rlHit, rateLimit } = require('./lib/ratelimit');
 // Plafond général (large : le dashboard et la boutique font beaucoup d'appels). Le webhook Stripe n'est jamais limité.
 const rlGlobal = rateLimit('global', 1500, 60000);
 app.use((req,res,next)=> (req.path==='/stripe-webhook'||req.path==='/health'||req.path.startsWith('/tg/')) ? next() : rlGlobal(req,res,next));
@@ -1067,25 +966,7 @@ app.post('/orders/:id/unarchive', auth, async(req,res)=>{
 });
 
 // 🔎 Numéro de suivi
-const CARRIERS={
-  laposte:['La Poste / Colissimo','https://www.laposte.fr/outils/suivre-vos-envois?code='],
-  chronopost:['Chronopost','https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT='],
-  mondialrelay:['Mondial Relay','https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition='],
-  ups:['UPS','https://www.ups.com/track?tracknum='],
-  dhl:['DHL','https://www.dhl.com/fr-fr/home/tracking.html?tracking-id='],
-  autre:['','']
-};
-function parseTracking(body){
-  const raw=String((body&&body.tracking)||'').trim();
-  if(!raw) return {ok:true,tracking:null};
-  if(!/^[A-Za-z0-9 \-]{4,40}$/.test(raw)) return {ok:false};
-  const num=raw.replace(/\s+/g,'');
-  const c=CARRIERS[(body&&body.carrier)||''];
-  return {ok:true,tracking:{number:num,carrier:c?c[0]:'',url:c&&c[1]?c[1]+encodeURIComponent(num):''}};
-}
-function trackingLine(t){
-  return t?'\n\n🔎 Suivi : `'+t.number+'`'+(t.carrier?' ('+t.carrier+')':'')+(t.url?'\n🔗 '+t.url:''):'';
-}
+const { parseTracking, trackingLine } = require('./lib/tracking');
 
 app.post('/orders/:id/ship', auth, async(req,res)=>{
   try {
@@ -1637,128 +1518,9 @@ async function checkSellerStockAlerts(seller) {
   vendorBot.sendMessage(seller.telegramId,msg,{parse_mode:'Markdown'}).catch(()=>{});
 }
 
-// ─────────────────────────────────────────
-//  ROUTES ADMIN — AVIS
-// ─────────────────────────────────────────
-app.get('/reviews', auth, async(req,res)=>{
-  try {
-    let reviews = await getReviews();
-    if(req.query.status) reviews = reviews.filter(r=>r.status===req.query.status);
-    res.json(reviews);
-  } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-app.post('/reviews/:id/approve', auth, async(req,res)=>{
-  try {
-    const r = await getReview(req.params.id);
-    if(!r) return res.status(404).json({error:'Avis introuvable'});
-    r.status = 'approved';
-    await saveReview(r);
-    addLog('ok', `Avis approuvé: #${r.id}`);
-    res.json({ok:true});
-  } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-app.post('/reviews/:id/reject', auth, async(req,res)=>{
-  try {
-    const r = await getReview(req.params.id);
-    if(!r) return res.status(404).json({error:'Avis introuvable'});
-    r.status = 'rejected';
-    await saveReview(r);
-    addLog('info', `Avis refusé: #${r.id}`);
-    res.json({ok:true});
-  } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-app.delete('/reviews/:id', auth, async(req,res)=>{
-  try {
-    await deleteReview(req.params.id);
-    res.json({ok:true});
-  } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-// Route PUBLIQUE — avis approuvés pour un produit
-app.get('/reviews/public/:productId', async(req,res)=>{
-  try {
-    const reviews = await getReviews();
-    const approved = reviews.filter(r=>r.status==='approved' && String(r.productId)===req.params.productId);
-    res.json(approved);
-  } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-// Route PUBLIQUE — avis vendeur approuvés (type='seller')
-app.get('/reviews/seller/:sellerId', async(req,res)=>{
-  try {
-    const reviews = await getReviews();
-    const approved = reviews.filter(r=>
-      r.status==='approved' &&
-      r.type==='seller' &&
-      String(r.sellerId)===req.params.sellerId
-    );
-    res.json(approved);
-  } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-// ─────────────────────────────────────────
-//  ✅ FIX #2 — AVIS : notification Telegram manquante
-//  AVANT : cfg.adminTelegramId pouvait être undefined si le bot admin n'avait
-//          jamais reçu /start → reviewBot.sendMessage() jamais appelé → 0 notif
-//  MAINTENANT : fallback sur process.env.ADMIN_TELEGRAM_ID en priorité,
-//               puis cfg.adminTelegramId comme second choix
-// ─────────────────────────────────────────
-app.post('/reviews', async(req,res)=>{
-  const{productId, productTitle, sellerId, sellerName, stars, text, userId, type}=req.body;
-  if(!stars||stars<1||stars>5) return res.status(400).json({error:'Données invalides'});
-  // Pour un avis vendeur, productId n'est pas requis
-  if(type!=='seller' && !productId) return res.status(400).json({error:'Données invalides'});
-
-  const review = {
-    id         : Date.now(),
-    type       : type||'product',
-    productId  : String(productId||''),
-    productTitle: productTitle||'',
-    sellerId   : String(sellerId||''),
-    sellerName : sellerName||'',
-    stars      : parseInt(stars),
-    text       : (text||'').slice(0,500),
-    userId     : String(userId||'guest'),
-    date       : new Date().toLocaleString('fr-FR'),
-    status     : 'pending',
-    createdAt  : new Date().toISOString(),
-  };
-  await saveReview(review);
-  addLog('info', `Nouvel avis · ${productTitle} · ${stars}★`);
-
-  // ✅ FIX #2 — Priorité : variable d'environnement > cfg.adminTelegramId
-  const adminTelegramId = process.env.ADMIN_TELEGRAM_ID || cfg.adminTelegramId;
-
-  if(reviewBot && adminTelegramId) {
-    const stars_display = '★'.repeat(parseInt(stars)) + '☆'.repeat(5-parseInt(stars));
-    const isSellerReview = (type==='seller');
-    const msg = `${isSellerReview?'🏪':'⭐'} *Nouvel avis ${isSellerReview?'vendeur':'produit'} à modérer*\n\n`
-      +`${stars_display} *${parseInt(stars)}/5*\n\n`
-      +(isSellerReview
-        ? `🏪 *Vendeur :* ${sellerName||'?'}\n`
-        : `📦 *Produit :* ${productTitle||'?'}\n`
-          +(sellerName?`🏪 *Vendeur :* ${sellerName}\n`:''))
-      +(text?`\n💬 *Commentaire :*\n"${text}"\n`:' _Pas de commentaire_\n')
-      +`\n👤 *Client :* ${userId==='guest'?'Invité':'#'+userId}`
-      +`\n📅 *Date :* ${new Date().toLocaleString('fr-FR')}`;
-
-    reviewBot.sendMessage(adminTelegramId, msg, {
-      parse_mode:'Markdown',
-      reply_markup:{inline_keyboard:[[
-        {text:'✅ Approuver', callback_data:`review_approve_${review.id}`},
-        {text:'❌ Refuser',   callback_data:`review_reject_${review.id}`},
-      ]]}
-    }).catch(e=>addLog('warn','ReviewBot notif: '+e.message));
-  } else {
-    // Log pour aider au diagnostic si la notif ne part toujours pas
-    if(!reviewBot)        addLog('warn','ReviewBot: bot non démarré (REVIEW_BOT_TOKEN manquant ?)');
-    if(!adminTelegramId)  addLog('warn','ReviewBot: ADMIN_TELEGRAM_ID non configuré — ajoutez-le dans .env ou envoyez /start au bot admin');
-  }
-
-  res.json({ok:true, review});
+require('./lib/routes-reviews')(app, {
+  auth, addLog, getReviews, getReview, saveReview, deleteReview,
+  get cfg(){ return cfg; }, get reviewBot(){ return reviewBot; },
 });
 
 // ─────────────────────────────────────────
@@ -2001,22 +1763,7 @@ async function findSellableItem(sellerId, id, isCarton){
 }
 
 // Frais de livraison calculés par le serveur (même règles que la boutique)
-const SHIP_COUNTRIES = ['FR','BE','CH','LU'];
-function computeShipping(shipping, sellerSubtotal, country){
-  const s = shipping;
-  if(!s || s.mode==='free') return 0;
-  if(s.mode==='fixed') return parseFloat(s.fixed||0)||0;
-  if(s.mode==='free_above'){
-    const base=parseFloat(s.freeAboveBase||0)||0, minFree=parseFloat(s.freeAboveMin||0)||0;
-    return (minFree>0 && sellerSubtotal>=minFree) ? 0 : base;
-  }
-  if(s.mode==='by_zone'){
-    const z=s.zones||{};
-    const c=SHIP_COUNTRIES.includes(country)?country:'FR';
-    return parseFloat(z[c]||z.FR||0)||0; // même règle que la boutique : prix du pays, sinon prix France
-  }
-  return 0;
-}
+const { SHIP_COUNTRIES, computeShipping } = require('./lib/shipping');
 
 // Vérifie le panier envoyé par le téléphone : prix, quantités, livraison.
 // Renvoie {error} ou {cart, subtotal, shipping}
@@ -2176,22 +1923,7 @@ app.post('/shop-checkout', async(req,res) => {
 // ─────────────────────────────────────────
 //  STRIPE WEBHOOK
 // ─────────────────────────────────────────
-function verifyStripeSignature(rawBody, header, secret, toleranceSec = 300) {
-  if (!header || !secret || !Buffer.isBuffer(rawBody)) return false;
-  let t = null; const sigs = [];
-  for (const part of String(header).split(',')) {
-    const i = part.indexOf('=');
-    if (i < 0) continue;
-    const k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
-    if (k === 't') t = v; else if (k === 'v1') sigs.push(v);
-  }
-  if (!t || !sigs.length) return false;
-  if (Math.abs(Date.now() / 1000 - parseInt(t, 10)) > toleranceSec) return false;
-  const expected = crypto.createHmac('sha256', secret)
-    .update(Buffer.concat([Buffer.from(t + '.'), rawBody])).digest('hex');
-  const eb = Buffer.from(expected);
-  return sigs.some(sg => { const sb = Buffer.from(sg); return sb.length === eb.length && crypto.timingSafeEqual(sb, eb); });
-}
+const { verifyStripeSignature } = require('./lib/stripe-sig');
 
 // 💸 Remboursement Stripe : on annule la vente (solde vendeur, commission, stock) au prorata remboursé
 const refundLocks = new Set();
