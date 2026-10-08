@@ -935,6 +935,15 @@ function updateBadges(){
 function resetPromo(){ promoState={code:'',applied:false,discount:0,type:'',value:0}; }
 
 // ── LIVRAISON
+const SHIP_COUNTRIES = {FR:'🇫🇷 France',BE:'🇧🇪 Belgique',CH:'🇨🇭 Suisse',LU:'🇱🇺 Luxembourg'};
+let shipCountry = 'FR';
+try{ const sc=localStorage.getItem('shipCountry'); if(sc&&SHIP_COUNTRIES[sc]) shipCountry=sc; }catch(_){}
+function setShipCountry(c){
+  if(!SHIP_COUNTRIES[c]) return;
+  shipCountry=c;
+  try{ localStorage.setItem('shipCountry',c); }catch(_){}
+  renderCartSummary();
+}
 // Calcule les frais de livraison pour le panier en cours
 // country = code ISO 2 lettres (FR, BE, CH, LU)
 // Note: on calcule par vendeur et on prend le max (cas multi-vendeur)
@@ -1080,7 +1089,7 @@ function renderCartSummary(){
   const nb           = items.reduce((s,i)=>s+i.qty, 0);
   const promoApplied = promoState.applied;
   const discount     = promoApplied ? promoState.discount : 0;
-  const shipping     = calcShipping('FR'); // Defaut FR, mis à jour si adresse connue
+  const shipping     = calcShipping(shipCountry);
   const total        = Math.max(0, sub - discount + shipping);
 
   const promoHTML = '<div class="promo-section">'
@@ -1110,6 +1119,10 @@ function renderCartSummary(){
   }
   const tierSave=getTierSavings();
   if(tierSave>0.004) summaryRows += `<div class="cr discount"><span class="l">💶 Prix dégressif</span><span class="v">-${tierSave.toFixed(2)}€ inclus</span></div>`;
+  // Pays de livraison (les frais dépendent du pays choisi par le vendeur)
+  summaryRows += `<div class="cr"><span class="l">🌍 Livraison vers</span><span class="v"><select onchange="setShipCountry(this.value)" style="background:var(--bg3,#1a2236);color:inherit;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:5px 8px;font-size:13px;">`
+    + Object.entries(SHIP_COUNTRIES).map(([k,v])=>`<option value="${k}"${k===shipCountry?' selected':''}>${v}</option>`).join('')
+    + `</select></span></div>`;
   // Ligne livraison
   summaryRows += shipping > 0
     ? `<div class="cr"><span class="l">🚚 Livraison</span><span class="v">+${shipping.toFixed(2)}€</span></div>`
@@ -1181,9 +1194,10 @@ async function placeOrder(){
     cartonQty  : p.cartonQty||1,
   }));
 
-  const shippingFee = calcShipping('FR');
+  const shippingFee = calcShipping(shipCountry);
   const body = {
     cart     : cartPayload,
+    country  : shipCountry,
     userId   : user?.id   || '',
     userName : user?.username || user?.first_name || '',
     shipping : shippingFee,
