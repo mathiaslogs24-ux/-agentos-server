@@ -2001,7 +2001,8 @@ async function findSellableItem(sellerId, id, isCarton){
 }
 
 // Frais de livraison calculés par le serveur (même règles que la boutique)
-function computeShipping(shipping, sellerSubtotal){
+const SHIP_COUNTRIES = ['FR','BE','CH','LU'];
+function computeShipping(shipping, sellerSubtotal, country){
   const s = shipping;
   if(!s || s.mode==='free') return 0;
   if(s.mode==='fixed') return parseFloat(s.fixed||0)||0;
@@ -2011,14 +2012,15 @@ function computeShipping(shipping, sellerSubtotal){
   }
   if(s.mode==='by_zone'){
     const z=s.zones||{};
-    return parseFloat(z.FR||0)||0;
+    const c=SHIP_COUNTRIES.includes(country)?country:'FR';
+    return parseFloat(z[c]||z.FR||0)||0; // même règle que la boutique : prix du pays, sinon prix France
   }
   return 0;
 }
 
 // Vérifie le panier envoyé par le téléphone : prix, quantités, livraison.
 // Renvoie {error} ou {cart, subtotal, shipping}
-async function validateCart(rawCart){
+async function validateCart(rawCart, country){
   if(!Array.isArray(rawCart) || !rawCart.length || rawCart.length>50) return {error:'Panier invalide'};
   const clean=[]; const bySeller={};
   for(const i of rawCart){
@@ -2054,7 +2056,7 @@ async function validateCart(rawCart){
   }
   const subtotal=clean.reduce((t,i)=>t+parseFloat(i.price),0);
   let shipping=0;
-  Object.values(bySeller).forEach(b=>{ shipping+=computeShipping(b.shipping,b.subtotal); });
+  Object.values(bySeller).forEach(b=>{ shipping+=computeShipping(b.shipping,b.subtotal,country); });
   shipping=Math.round(shipping*100)/100;
   return {cart:clean, subtotal, shipping};
 }
@@ -2071,7 +2073,8 @@ app.post('/shop-checkout', async(req,res) => {
   let promoToken=null;
   try {
     // 🔒 Le serveur recalcule tout : prix, stock, livraison (on ne fait pas confiance au téléphone)
-    const check=await validateCart(req.body.cart);
+    const shipCountry=SHIP_COUNTRIES.includes(String(req.body.country||'').toUpperCase())?String(req.body.country).toUpperCase():'FR';
+    const check=await validateCart(req.body.cart, shipCountry);
     if(check.error) return res.status(400).json({error:check.error});
     const cart=check.cart, subtotal=check.subtotal, shipping=check.shipping;
     let promoResult=null;
@@ -2091,10 +2094,9 @@ app.post('/shop-checkout', async(req,res) => {
     params.append('mode','payment');
     params.append('success_url',`${serverUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
     params.append('cancel_url',`${serverUrl}/payment-cancel`);
-    params.append('shipping_address_collection[allowed_countries][]','FR');
-    params.append('shipping_address_collection[allowed_countries][]','BE');
-    params.append('shipping_address_collection[allowed_countries][]','CH');
-    params.append('shipping_address_collection[allowed_countries][]','LU');
+    // Le pays de livraison choisi dans la boutique détermine le tarif : l'adresse doit être dans ce pays
+    params.append('shipping_address_collection[allowed_countries][]',shipCountry);
+    params.append('metadata[country]',shipCountry);
     params.append('phone_number_collection[enabled]','true');
     params.append('billing_address_collection','required');
     params.append('metadata[userId]',userId||'');
