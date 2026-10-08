@@ -34,11 +34,15 @@ async function tokens(sql) {
   const size = new Map(imgs.map(r => [r.key, Number(r.n)]));
   const when = new Map(imgs.map(r => [r.key, r.created_at]));
 
-  const catalogue  = await tokens('SELECT value::text AS t FROM config');
+  // Catalogue = config (catalogue admin) + vendeurs (depuis le multi-vendeurs, le stock/shopItems
+  // des vendeurs vit dans sellers.data). Sans ça le garde-fou voyait 0 photo et le cron plantait.
+  const catalogue = new Set([
+    ...await tokens('SELECT value::text AS t FROM config'),
+    ...await tokens('SELECT data::text AS t FROM sellers'),
+  ]);
   const historique = new Set([
     ...await tokens('SELECT data::text AS t FROM orders'),
     ...await tokens('SELECT data::text AS t FROM reviews'),
-    ...await tokens('SELECT data::text AS t FROM sellers'),
   ]);
 
   const g = { catalogue: [], historique: [], inutilisee: [] };
