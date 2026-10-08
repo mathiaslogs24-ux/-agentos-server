@@ -12,7 +12,7 @@ const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand }
 const gzip = promisify(zlib.gzip);
 
 // "logs" volontairement exclu (non critique, volumineux)
-const TABLES    = ['config', 'sellers', 'orders', 'reviews', 'images'];
+const TABLES    = ['config', 'sellers', 'orders', 'reviews', 'images', 'ledger'];
 const KEEP_DAYS = parseInt(process.env.BACKUP_KEEP_DAYS || '14', 10);
 const PREFIX    = 'backups/';
 

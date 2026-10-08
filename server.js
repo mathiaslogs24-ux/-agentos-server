@@ -240,6 +240,7 @@ async function initDB() {
     msg TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
+  try{ await ledger.init(); }catch(e){ addLog('err','Journal : '+e.message); }
   addLog('ok','PostgreSQL initialisé ✓');
 }
 
@@ -297,6 +298,9 @@ async function saveConfig() {
       [JSON.stringify({ cfg, stock, shopItems })]);
   } catch(e) { addLog('err','saveConfig: '+e.message); }
 }
+
+const { toCents, centsStr, eur, allocate, commissionCents } = require('./lib/money');
+const ledger = require('./lib/ledger')(db, (l,m)=>addLog(l,m));
 
 // ─────────────────────────────────────────
 //  SELLERS
@@ -548,12 +552,19 @@ function startAdminBot() {
       const wdId     = parseInt(parts[3]);
       const amount   = parseFloat(parts[4]);
       try {
+        let alreadyPaid=false, appliedCents=0, clamped=false;
         const v = await updateSeller(sellerId, vv=>{
           const wd = (vv.withdrawals||[]).find(w=>w.id===wdId);
+          if(wd && wd.status==='paid'){ alreadyPaid=true; return; } // double clic : on ne déduit pas deux fois
           if(wd) wd.status='paid';
-          vv.balance = parseFloat((parseFloat(vv.balance||0) - amount).toFixed(2));
-          if(vv.balance < 0) vv.balance = 0;
+          const before=toCents(vv.balance), want=toCents(amount);
+          const after=Math.max(0, before-want);
+          clamped = before-want<0;
+          appliedCents = after-before;
+          vv.balance = eur(after);
         });
+        if(v && alreadyPaid){ adminBot.answerCallbackQuery(query.id,{text:'Déjà confirmé'}); return; }
+        if(v) await ledger.add([{ref:`withdrawal:${sellerId}:${wdId}`,sellerId,kind:'withdrawal',cents:appliedCents,meta:{requested:amount,clamped}}]);
         if(!v) { adminBot.answerCallbackQuery(query.id,{text:'Vendeur introuvable'}); return; }
         if(v.telegramId && vendorBot) {
           vendorBot.sendMessage(v.telegramId,
@@ -862,6 +873,16 @@ async function sellerAuth(req,res,next){
 // ─────────────────────────────────────────
 app.get('/health',(req,res)=>res.json({ok:true,uptime:Math.floor(process.uptime()),running}));
 
+// 📒 Journal des opérations d'argent (réservé à l'admin)
+app.get('/ledger/check', auth, async(req,res)=>{
+  try{ const rows=await ledger.check(); res.json({ok:rows.every(r=>r.ok), sellers:rows}); }
+  catch(e){ res.status(500).json({error:e.message}); }
+});
+app.get('/ledger', auth, async(req,res)=>{
+  try{ res.json(await ledger.list(req.query.sellerId, req.query.limit)); }
+  catch(e){ res.status(500).json({error:e.message}); }
+});
+
 // Alertes Railway → Telegram (admin). Railway ne gère pas d'en-tête d'auth : la clé est dans l'URL.
 app.post('/hooks/railway',(req,res)=>{
   const expected = process.env.RAILWAY_WEBHOOK_KEY || '';
@@ -1136,7 +1157,9 @@ app.post('/sellers',auth,async(req,res)=>{
   res.json({ok:true, seller, vendorBotUsername});
 });
 app.post('/sellers/:id/update',auth,async(req,res)=>{
+  let balBefore=null, balAfter=null;
   const v=await updateSeller(req.params.id, v=>{
+    balBefore=toCents(v.balance);
     if(req.body.name)                       v.name            = req.body.name;
     if(req.body.shopName)                   v.shopName        = req.body.shopName;
     if(req.body.telegramId!==undefined)     v.telegramId      = req.body.telegramId;
@@ -1146,8 +1169,10 @@ app.post('/sellers/:id/update',auth,async(req,res)=>{
     if(req.body.commissionMode!==undefined) v.commissionMode  = req.body.commissionMode;
     if(req.body.commissionFlat!=null)       v.commissionFlat  = parseFloat(req.body.commissionFlat)||0;
     if(req.body.commissionRate!=null)       v.commissionRate  = parseFloat(req.body.commissionRate)||0;
+    balAfter=toCents(v.balance);
   });
   if(!v) return res.status(404).json({error:'Introuvable'});
+  if(balBefore!==null && balAfter!==balBefore) await ledger.add([{ref:`adjust:${v.id}:${Date.now()}`,sellerId:v.id,kind:'adjustment',cents:balAfter-balBefore,meta:{note:'correction manuelle du solde'}}]);
   addLog('ok',`Vendeur mis à jour: ${v.name}`);
   res.json({ok:true});
 });
@@ -2193,19 +2218,31 @@ async function handleRefund(charge){
       addLog('warn','Remboursement commande '+fresh.id+' : ancienne commande, soldes à corriger à la main');
     } else {
       const full=ratio>=0.9999;
+      const stepKey=charge.amount_refunded||0;
+      const ledgerRefund=[];
       for(const l of lines){
         const restoreUnits=full&&!fresh.stockRestored?(l.units||0):0;
+        const amtC=l.amountCents!==undefined?l.amountCents:toCents(l.amount);
+        const comC=l.commissionCents!==undefined?l.commissionCents:toCents(l.commission);
+        const netC=amtC-comC;
+        // part annulée = au prorata de ce qui vient d'être remboursé (le total remboursé ne dépasse jamais le montant vendu)
+        const doneAmt=Math.round(amtC*done), nowAmt=Math.round(amtC*ratio);
+        const doneCom=Math.round(comC*done), nowCom=Math.round(comC*ratio);
+        const dAmt=nowAmt-doneAmt, dCom=nowCom-doneCom, dNet=dAmt-dCom;
         if(l.sellerId==='admin'){
           if(restoreUnits){ const s=stock.find(x=>x.id===l.itemId); if(s&&!s.unlimited){ s.qty+=restoreUnits; s.sold=Math.max(0,(parseInt(s.sold)||0)-restoreUnits); await saveConfig(); } }
         } else {
           await updateSeller(l.sellerId, vv=>{
-            vv.balance=parseFloat((parseFloat(vv.balance||0)-l.net*delta).toFixed(2));
-            vv.totalSales=parseFloat(Math.max(0,parseFloat(vv.totalSales||0)-l.amount*delta).toFixed(2));
-            vv.totalCommission=parseFloat(Math.max(0,parseFloat(vv.totalCommission||0)-l.commission*delta).toFixed(2));
+            vv.balance=eur(toCents(vv.balance)-dNet);
+            vv.totalSales=eur(Math.max(0,toCents(vv.totalSales)-dAmt));
+            vv.totalCommission=eur(Math.max(0,toCents(vv.totalCommission)-dCom));
             if(restoreUnits){ const s=(vv.stock||[]).find(x=>x.id===l.itemId); if(s&&!s.unlimited){ s.qty+=restoreUnits; s.sold=Math.max(0,(parseInt(s.sold)||0)-restoreUnits); } }
           });
         }
+        ledgerRefund.push({ref:`refund:${fresh.id}:${l.sellerId}:${l.itemId}:${stepKey}`,sellerId:l.sellerId,orderId:fresh.id,kind:'refund',cents:-dAmt,meta:{itemId:l.itemId,ratio}});
+        ledgerRefund.push({ref:`refundcom:${fresh.id}:${l.sellerId}:${l.itemId}:${stepKey}`,sellerId:l.sellerId,orderId:fresh.id,kind:'refund_commission',cents:dCom,meta:{itemId:l.itemId}});
       }
+      await ledger.add(ledgerRefund);
       if(full) fresh.stockRestored=true;
     }
     fresh.refundRatio=ratio;
@@ -2307,19 +2344,21 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     // ✅ FIX — Calculer le ratio de réduction promo pour l'appliquer au prorata
     // amount = montant réellement payé par Stripe (après coupon)
     // subtotal = somme des prix originaux des articles
-    const subtotalOriginal = cartItems.reduce((s,i)=>s+lineTotal(i),0);
-    const amountPaid = parseFloat(amount);
+    const lineCentsArr = cartItems.map(i=>toCents(lineTotal(i)));
+    const subtotalCents = lineCentsArr.reduce((a,b)=>a+b,0);
+    const amountPaidCents = Number.isInteger(event.data.object.amount_total) ? event.data.object.amount_total : toCents(amount);
     promoPending.delete(sessionId); // la réservation est remplacée par le comptage définitif (markPromoUsed)
     // 🔒 La livraison n'entre pas dans la base de commission
-    const shipPaid = parseFloat(meta.shipping||0)||0;
-    const itemsPaid = Math.max(0, amountPaid - shipPaid);
-    // Ratio : 1.0 = pas de réduction, 0.5 = 50% de réduction
-    const discountRatio = subtotalOriginal > 0 ? itemsPaid / subtotalOriginal : 1;
+    const shipPaidCents = Math.min(amountPaidCents, toCents(meta.shipping||0));
+    const itemsPaidCents = amountPaidCents - shipPaidCents;
+    // Part réellement payée de chaque article (réduction promo répartie au centime près)
+    const itemShares = subtotalCents>0 ? allocate(itemsPaidCents, lineCentsArr) : lineCentsArr;
 
-    const commission=cfg.commissionMode==='flat'
-      ?Math.min(cfg.commissionFlat*nbItems, amountPaid).toFixed(2)
-      :(itemsPaid*cfg.commissionRate).toFixed(2);
-    const sellerAmount=(amountPaid-parseFloat(commission)).toFixed(2);
+    const commissionC = cfg.commissionMode==='flat'
+      ? Math.min(toCents(cfg.commissionFlat)*nbItems, amountPaidCents)
+      : Math.round(itemsPaidCents*(parseFloat(cfg.commissionRate)||0));
+    const commission=centsStr(commissionC);
+    const sellerAmount=centsStr(amountPaidCents-commissionC);
 
     const order={
       id:Date.now(),date:new Date().toLocaleString('fr-FR'),userId,userName,amount,commission,sellerAmount,
@@ -2341,11 +2380,13 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     const sellers=await getSellers();
     let sellerNotifiedAdmin=false;
     const sellerLines=[];
-    for(const ci of cartItems){
+    const ledgerEntries=[];
+    for(let ix=0; ix<cartItems.length; ix++){
+      const ci=cartItems[ix];
       const qty=parseInt(ci.qty||1);
-      // ✅ FIX — Montant réel payé pour cet article (après réduction promo au prorata)
-      const itemAmountOriginal=lineTotal(ci);
-      const itemAmount=parseFloat((itemAmountOriginal*discountRatio).toFixed(2));
+      // ✅ Montant réel payé pour cet article (après réduction promo au prorata), en centimes
+      const itemAmountC=itemShares[ix];
+      const itemAmount=eur(itemAmountC);
 
       if(ci.sellerId==='admin'||!ci.sellerId){
         const s=stock.find(x=>x.id===ci.id);
@@ -2357,7 +2398,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           const before=s.qty;
           s.qty=Math.max(0,s.qty-unitsToDeduct);
           s.sold=(parseInt(s.sold)||0)+unitsToDeduct;
-          sellerLines.push({sellerId:'admin',itemId:ci.id,amount:itemAmount,net:0,commission:0,units:before-s.qty});
+          sellerLines.push({sellerId:'admin',itemId:ci.id,amount:itemAmount,net:0,commission:0,amountCents:itemAmountC,netCents:0,commissionCents:0,units:before-s.qty});
           addLog('info',`Admin ${s.name} → ${s.qty}`);
         }
         await saveConfig();
@@ -2367,13 +2408,14 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           const vCommMode=v0.commissionMode||cfg.commissionMode||'flat';
           const vCommFlat=v0.commissionFlat!==undefined?v0.commissionFlat:cfg.commissionFlat;
           const vCommRate=v0.commissionRate!==undefined?v0.commissionRate:cfg.commissionRate;
-          const itemCommission=Math.min(itemAmount, vCommMode==='flat'?vCommFlat*qty:itemAmount*vCommRate); // 🔧 jamais plus que le montant payé
-          const itemNet=itemAmount-itemCommission;
+          const itemCommissionC=commissionCents({mode:vCommMode,flatCents:toCents(vCommFlat),rate:parseFloat(vCommRate)||0,qty,amountCents:itemAmountC}); // 🔧 jamais plus que le montant payé
+          const itemNetC=itemAmountC-itemCommissionC;
+          const itemCommission=eur(itemCommissionC), itemNet=eur(itemNetC);
           let s=null, deducted=0;
           const v=await updateSeller(v0.id, vv=>{
-            vv.balance         =parseFloat((parseFloat(vv.balance||0)+itemNet).toFixed(2));
-            vv.totalSales      =parseFloat((parseFloat(vv.totalSales||0)+itemAmount).toFixed(2));
-            vv.totalCommission =parseFloat((parseFloat(vv.totalCommission||0)+itemCommission).toFixed(2));
+            vv.balance         =eur(toCents(vv.balance)+itemNetC);
+            vv.totalSales      =eur(toCents(vv.totalSales)+itemAmountC);
+            vv.totalCommission =eur(toCents(vv.totalCommission)+itemCommissionC);
             s=(vv.stock||[]).find(x=>x.id===ci.id)||null;
             // ✅ MODIF — le stock illimité (Chine) n'est jamais décompté
             if(s&&!s.unlimited&&s.qty>0){
@@ -2385,7 +2427,11 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
               addLog('info',`${vv.name} ${s.name} → ${s.qty}`);
             }
           });
-          sellerLines.push({sellerId:String(v0.id),itemId:ci.id,amount:itemAmount,net:itemNet,commission:itemCommission,units:deducted});
+          sellerLines.push({sellerId:String(v0.id),itemId:ci.id,amount:itemAmount,net:itemNet,commission:itemCommission,amountCents:itemAmountC,netCents:itemNetC,commissionCents:itemCommissionC,units:deducted});
+          if(v){
+            ledgerEntries.push({ref:`sale:${sessionId}:${v0.id}:${ix}`,sellerId:v0.id,orderId:order.id,kind:'sale',cents:itemAmountC,meta:{itemId:ci.id,qty}});
+            ledgerEntries.push({ref:`commission:${sessionId}:${v0.id}:${ix}`,sellerId:v0.id,orderId:order.id,kind:'commission',cents:-itemCommissionC,meta:{itemId:ci.id}});
+          }
           if(v.telegramId&&vendorBot){
             const itemName=s?s.name:`Article #${ci.id}`;
             const cq=ci.isCarton?(parseInt(ci.cartonQty)||1):1;
@@ -2411,6 +2457,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
       }
     }
     try{ order.sellerLines=sellerLines; await saveOrder(order); }catch(e){ addLog('warn','sellerLines: '+e.message); }
+    await ledger.add(ledgerEntries);
     addLog('ok',`Stripe · @${userName} · ${amount}€ · com:${commission}€`);
     // 🔔 Notification admin : chaque commande payée est envoyée sur le bot admin
     try{
