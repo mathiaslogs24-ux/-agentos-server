@@ -589,8 +589,9 @@ function startBot() {
     running=true;startedAt=new Date().toISOString();
     addLog('ok',`Bot client démarré · ${cfg.claudeModel}`);
     bot.on('message',async(msg)=>{
-      const userId=msg.from.id,userName=msg.from.username||msg.from.first_name||String(userId),text=msg.text;
-      if(!text) return;
+      const userId=msg.from.id,userName=msg.from.username||msg.from.first_name||String(userId),text=msg.text||'';
+      if(msg.chat.type!=='private') return; // le bot ne répond qu'en conversation privée
+      if(!text && cfg.botChat) return;
       if(Date.now()/1000-msg.date>STALE_MSG_SEC) return; // message en attente avant redémarrage → ignoré
       const guard=await spamGuard('client',userId);
       if(guard.blocked){
@@ -600,12 +601,16 @@ function startBot() {
         }
         return;
       }
-      if(text.startsWith('/start')||text.startsWith('/shop')){
+      // Par défaut le bot ne discute pas : quoi qu'on lui écrive, il propose la boutique.
+      // (cfg.botChat = true pour réactiver la conversation avec l'IA)
+      if(!cfg.botChat || text.startsWith('/start')||text.startsWith('/shop')){
         const shopUrl=`${PUBLIC_URL}/shop-app`;
+        const isStart=text.startsWith('/start')||text.startsWith('/shop');
         bot.sendMessage(msg.chat.id,
-          `👋 Bienvenue ${msg.from.first_name||''} sur le Marketplace !\n\n🛍 Découvrez nos produits.`,
+          isStart ? `👋 Bienvenue ${msg.from.first_name||''} sur le Marketplace !\n\n🛍 Découvrez nos produits.`
+                  : `🛍 Toutes nos offres sont dans la boutique 👇`,
           {reply_markup:{inline_keyboard:[[{text:'🛍 Ouvrir le Marketplace',web_app:{url:shopUrl}}]]}}
-        );
+        ).catch(e=>addLog('warn',`Boutique → @${userName}: ${e.message}`));
         addLog('info',`@${userName} → marketplace`);
         return;
       }
@@ -883,7 +888,7 @@ app.post('/start',auth,(req,res)=>{if(req.body.telegramToken)cfg.telegramToken=r
 app.post('/stop', auth,(req,res)=>{stopBot();res.json({ok:true});});
 app.get('/config',auth,(req,res)=>{const{telegramToken,claudeKey,secret,...safe}=cfg;res.json(safe);});
 app.post('/config',auth,async(req,res)=>{
-  ['claudeModel','systemPrompt','maxTokens','temperature','contextWindow','stockInject','stockAlerts','commissionMode','commissionFlat','commissionRate']
+  ['claudeModel','systemPrompt','maxTokens','temperature','contextWindow','stockInject','stockAlerts','botChat','commissionMode','commissionFlat','commissionRate']
     .forEach(k=>{if(req.body[k]!==undefined) cfg[k]=req.body[k];});
   if(req.body.telegramToken) cfg.telegramToken=req.body.telegramToken;
   if(req.body.claudeKey)     cfg.claudeKey=req.body.claudeKey;
