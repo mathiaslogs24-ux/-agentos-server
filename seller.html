@@ -1168,6 +1168,7 @@ function renderOrders(){
           ${isPending?`<button class="btn xs success" onclick="shipOrder('${o.id}',this)">📦 Expédier</button>`:''}
         </div>
       </div>
+      ${trackBox(o,isPending)}
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;">${(o.items||[]).map(i=>`<div style="padding:4px 9px;border-radius:6px;font-size:11px;background:rgba(255,255,255,.04);border:1px solid var(--gb);">${esc(i.name||'Article #'+i.id)} ×${i.qty}</div>`).join('')}</div>
       <div class="order-client">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
@@ -1186,13 +1187,28 @@ function renderOrders(){
     </div>`;
   }).join('');
 }
+function trackBox(o,isPending){
+  const t=o.tracking;
+  if(t&&t.number&&!isPending) return `<div style="margin-bottom:9px;font-size:12px;color:var(--t2);">🔎 Suivi : <strong>${esc(t.number)}</strong>${t.carrier?' · '+esc(t.carrier):''}</div>`;
+  const inp=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px;">
+    <select class="fld-select" id="car_${o.id}" style="flex:1;min-width:120px;margin:0;"><option value="">Transporteur</option><option value="laposte">La Poste / Colissimo</option><option value="chronopost">Chronopost</option><option value="mondialrelay">Mondial Relay</option><option value="ups">UPS</option><option value="dhl">DHL</option><option value="autre">Autre</option></select>
+    <input class="fld-input" id="trk_${o.id}" placeholder="N° de suivi (facultatif)" maxlength="40" style="flex:2;min-width:140px;margin:0;">
+    ${isPending?'':`<button class="btn xs success" onclick="shipOrder('${o.id}',this)">➕ Ajouter le suivi</button>`}
+  </div>`;
+  return inp;
+}
 async function shipOrder(orderId,btn){
+  const trk=(document.getElementById('trk_'+orderId)?.value||'').trim();
+  const car=document.getElementById('car_'+orderId)?.value||'';
+  const wasShipped=(orders.find(x=>String(x.id)===String(orderId))||{}).status==='shipped';
+  if(wasShipped&&!trk){ showToast('Saisissez un numéro de suivi'); return; }
+  const label=btn.textContent;
   btn.disabled=true; btn.textContent='⏳…';
   try{
-    await api('POST','/seller/orders/'+orderId+'/ship');
-    const o=orders.find(x=>String(x.id)===String(orderId)); if(o) o.status='shipped';
+    const r=await api('POST','/seller/orders/'+orderId+'/ship',{tracking:trk,carrier:car});
+    const o=orders.find(x=>String(x.id)===String(orderId)); if(o){ o.status='shipped'; if(r&&r.tracking) o.tracking=r.tracking; }
     renderOrders(); showToast('✓ Commande expédiée — client notifié');
-  }catch(e){ showToast('⚠ '+e.message,'err'); btn.disabled=false; btn.textContent='📦 Expédier'; }
+  }catch(e){ showToast('⚠ '+e.message,'err'); btn.disabled=false; btn.textContent=label; }
 }
 
 // ─────────────────────────────────────────

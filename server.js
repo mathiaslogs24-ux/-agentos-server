@@ -139,6 +139,33 @@ app.use((req,res,next)=>{
   if(req.method==='OPTIONS') return res.sendStatus(200);
   next();
 });
+
+// 🛡 Limite de requêtes (anti-abus) : en mémoire, par adresse IP
+app.set('trust proxy', 1);
+const rlStore = new Map();
+function rlHit(key, max, windowMs){
+  const now=Date.now(); let e=rlStore.get(key);
+  if(!e||now>e.reset){ e={n:0,reset:now+windowMs}; rlStore.set(key,e); }
+  e.n++;
+  return { blocked:e.n>max, retry:Math.ceil((e.reset-now)/1000) };
+}
+function rateLimit(name, max, windowMs){
+  return (req,res,next)=>{
+    const r=rlHit(name+'|'+req.ip, max, windowMs);
+    if(r.blocked){ res.set('Retry-After', String(r.retry)); return res.status(429).json({error:'Trop de requêtes, réessayez dans un instant'}); }
+    next();
+  };
+}
+setInterval(()=>{ const n=Date.now(); for(const [k,e] of rlStore) if(n>e.reset) rlStore.delete(k); }, 60000).unref();
+// Plafond général (large : le dashboard et la boutique font beaucoup d'appels). Le webhook Stripe n'est jamais limité.
+const rlGlobal = rateLimit('global', 1500, 60000);
+app.use((req,res,next)=> (req.path==='/stripe-webhook'||req.path==='/health') ? next() : rlGlobal(req,res,next));
+// Routes publiques sensibles
+app.use('/shop-checkout',   rateLimit('checkout', 10, 60000));
+app.use('/promo/validate',  rateLimit('promo',    20, 60000));
+app.use('/reviews',         (req,res,next)=> req.method==='POST' ? rateLimit('reviews',10,60000)(req,res,next) : next());
+app.use('/seller/tg-auth',  rateLimit('tgauth',   20, 60000));
+
 // ✅ MODIF — limite passée de 2 Mo à 50 Mo (le catalogue part avec un visuel par goût)
 // Le webhook Stripe doit recevoir le corps brut (nécessaire pour vérifier la signature)
 app.use((req,res,next)=> req.originalUrl==='/stripe-webhook'
@@ -770,18 +797,27 @@ function stopBot(){
 // ─────────────────────────────────────────
 //  AUTH
 // ─────────────────────────────────────────
+// 🛡 Anti-devinette de mot de passe : 10 mauvais essais en 10 min → blocage temporaire de l'adresse IP
+function authBlocked(req,res){
+  const e=rlStore.get('authfail|'+req.ip);
+  if(e && Date.now()<e.reset && e.n>=10){ res.set('Retry-After',String(Math.ceil((e.reset-Date.now())/1000))); res.status(429).json({error:'Trop d\'essais, réessayez plus tard'}); return true; }
+  return false;
+}
+function authFailed(req){ rlHit('authfail|'+req.ip, 10, 600000); }
 function auth(req,res,next){
-  if(req.headers['x-secret']!==cfg.secret) return res.status(401).json({error:'Non autorisé'});
+  if(authBlocked(req,res)) return;
+  if(req.headers['x-secret']!==cfg.secret){ authFailed(req); return res.status(401).json({error:'Non autorisé'}); }
   next();
 }
 async function sellerAuth(req,res,next){
+  if(authBlocked(req,res)) return;
   const s=req.headers['x-secret'];
   if(!s) return res.status(401).json({error:'Vendeur non autorisé'});
   // ✅ MODIF — on ne charge que CE vendeur (avant : tous les vendeurs avec tout leur stock, à chaque requête)
   let seller=null;
   try{ const r=await db("SELECT data FROM sellers WHERE data->>'secret'=$1 LIMIT 1",[String(s)]); seller=r.rows[0]?.data||null; }catch(e){ return res.status(500).json({error:e.message}); }
   if(seller&&!seller.active) seller=null;
-  if(!seller) return res.status(401).json({error:'Vendeur non autorisé'});
+  if(!seller){ authFailed(req); return res.status(401).json({error:'Vendeur non autorisé'}); }
   req.seller=seller;
   next();
 }
@@ -973,18 +1009,43 @@ app.post('/orders/:id/unarchive', auth, async(req,res)=>{
     res.json({ok:true});
   } catch(e) { res.status(500).json({error:e.message}); }
 });
+
+// 🔎 Numéro de suivi
+const CARRIERS={
+  laposte:['La Poste / Colissimo','https://www.laposte.fr/outils/suivre-vos-envois?code='],
+  chronopost:['Chronopost','https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT='],
+  mondialrelay:['Mondial Relay','https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition='],
+  ups:['UPS','https://www.ups.com/track?tracknum='],
+  dhl:['DHL','https://www.dhl.com/fr-fr/home/tracking.html?tracking-id='],
+  autre:['','']
+};
+function parseTracking(body){
+  const raw=String((body&&body.tracking)||'').trim();
+  if(!raw) return {ok:true,tracking:null};
+  if(!/^[A-Za-z0-9 \-]{4,40}$/.test(raw)) return {ok:false};
+  const num=raw.replace(/\s+/g,'');
+  const c=CARRIERS[(body&&body.carrier)||''];
+  return {ok:true,tracking:{number:num,carrier:c?c[0]:'',url:c&&c[1]?c[1]+encodeURIComponent(num):''}};
+}
+function trackingLine(t){
+  return t?'\n\n🔎 Suivi : `'+t.number+'`'+(t.carrier?' ('+t.carrier+')':'')+(t.url?'\n🔗 '+t.url:''):'';
+}
+
 app.post('/orders/:id/ship', auth, async(req,res)=>{
   try {
     const order = await getOrder(req.params.id);
     if(!order) return res.status(404).json({error:'Commande introuvable'});
+    const tr=parseTracking(req.body);
+    if(!tr.ok) return res.status(400).json({error:'Numéro de suivi invalide (lettres, chiffres, tirets, 4 à 40 caractères)'});
     if(!order.shipped) order.shipped = {};
     const sellerIds=[...new Set((order.cartItems||[]).map(ci=>String(ci.sellerId)).filter(Boolean))];
-    sellerIds.forEach(sid=>order.shipped[sid]='shipped');
+    const wasShipped=sellerIds.length>0&&sellerIds.every(sid=>order.shipped[sid]==='shipped');
+    sellerIds.forEach(sid=>{ order.shipped[sid]='shipped'; if(tr.tracking){ order.tracking=order.tracking||{}; order.tracking[sid]=tr.tracking; } });
     await saveOrder(order);
-    addLog('ok', `Commande #${order.id} marquée expédiée (admin)`);
-    if(order.userId && bot) {
+    addLog('ok', `Commande #${order.id} marquée expédiée (admin)${tr.tracking?' · suivi '+tr.tracking.number:''}`);
+    if(order.userId && bot && (!wasShipped || tr.tracking)) {
       const names=(order.cartItems||[]).map(ci=>{ const s=stock.find(x=>x.id===ci.id); return `${ci.qty||1}x ${s?s.name:'Article #'+ci.id}`; }).join(', ');
-      bot.sendMessage(order.userId,`📦 *Votre commande a été expédiée !*\n\n🛍 ${names}\n\nMerci ! 🙏`,{parse_mode:'Markdown'}).catch(()=>{});
+      bot.sendMessage(order.userId,(wasShipped?`🔎 *Suivi de votre commande*`:`📦 *Votre commande a été expédiée !*`)+`\n\n🛍 ${names}`+trackingLine(tr.tracking)+`\n\nMerci ! 🙏`,{parse_mode:'Markdown'}).catch(()=>{});
     }
     res.json({ok:true, order});
   } catch(e) { res.status(500).json({error:e.message}); }
@@ -1264,6 +1325,7 @@ app.get('/seller/orders', sellerAuth, async(req,res)=>{
         amount:myAmount.toFixed(2),net:myNet.toFixed(2),commission:myCom.toFixed(2),
         items:itemsWithNames,client:o.client||{},
         status:o.shipped?.[sellerId]||'pending',
+        tracking:o.tracking?.[sellerId]||null,
       };
     });
   res.json(myOrders);
@@ -1271,23 +1333,29 @@ app.get('/seller/orders', sellerAuth, async(req,res)=>{
 
 app.post('/seller/orders/:id/ship', sellerAuth, async(req,res)=>{
   const sellerId=String(req.seller.id);
-  const orders=await getOrders();
-  const order=orders.find(o=>String(o.id)===req.params.id);
+  const order=await getOrder(req.params.id);
   if(!order) return res.status(404).json({error:'Commande introuvable'});
+  if(!(order.cartItems||[]).some(ci=>String(ci.sellerId)===sellerId)) return res.status(403).json({error:'Cette commande ne vous concerne pas'});
+  const tr=parseTracking(req.body);
+  if(!tr.ok) return res.status(400).json({error:'Numéro de suivi invalide (lettres, chiffres, tirets, 4 à 40 caractères)'});
   if(!order.shipped) order.shipped={};
+  const wasShipped=order.shipped[sellerId]==='shipped';
+  const prevNum=order.tracking&&order.tracking[sellerId]&&order.tracking[sellerId].number;
   order.shipped[sellerId]='shipped';
+  if(tr.tracking){ order.tracking=order.tracking||{}; order.tracking[sellerId]=tr.tracking; }
   await saveOrder(order);
-  addLog('ok',`Expédition · commande ${order.id} · vendeur ${req.seller.name}`);
-  if(order.userId&&bot){
+  addLog('ok',`Expédition · commande ${order.id} · vendeur ${req.seller.name}${tr.tracking?' · suivi '+tr.tracking.number:''}`);
+  const changed=tr.tracking&&tr.tracking.number!==prevNum;
+  if(order.userId&&bot&&(!wasShipped||changed)){
     const itemNames=(order.cartItems||[])
       .filter(ci=>String(ci.sellerId)===sellerId)
       .map(ci=>{const s=(req.seller.stock||[]).find(x=>x.id===ci.id);return(ci.qty||1)+'x '+(s?s.name:'Article');})
       .join(', ');
     bot.sendMessage(order.userId,
-      `📦 *Votre commande a été expédiée !*\n\n🛍 ${itemNames}\n🏪 Par : ${req.seller.shopName||req.seller.name}\n\nMerci ! 🙏`,
+      (wasShipped?`🔎 *Suivi de votre commande*`:`📦 *Votre commande a été expédiée !*`)+`\n\n🛍 ${itemNames}\n🏪 Par : ${req.seller.shopName||req.seller.name}`+trackingLine(tr.tracking)+`\n\nMerci ! 🙏`,
       {parse_mode:'Markdown'}).catch(()=>{});
   }
-  res.json({ok:true});
+  res.json({ok:true,tracking:tr.tracking||order.tracking&&order.tracking[sellerId]||null});
 });
 
 app.post('/seller/promos', sellerAuth, async(req,res)=>{
