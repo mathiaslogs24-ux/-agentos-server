@@ -2153,6 +2153,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     processingSessions.delete(dupId);
 
     const sellers=await getSellers();
+    let sellerNotifiedAdmin=false;
     for(const ci of cartItems){
       const qty=parseInt(ci.qty||1);
       // ✅ FIX — Montant réel payé pour cet article (après réduction promo au prorata)
@@ -2193,7 +2194,8 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           await saveSeller(v);
           if(v.telegramId&&vendorBot){
             const itemName=s?s.name:`Article #${ci.id}`;
-            const stockLeft=s?(s.unlimited?'∞':s.qty):'?';
+            const cq=ci.isCarton?(parseInt(ci.cartonQty)||1):1;
+            const stockLeft=s?(s.unlimited?'∞':(ci.isCarton?Math.floor(s.qty/cq)+' carton(s) ('+s.qty+' pièces)':s.qty)):'?';
             const c=order.client;
             const msg=`🛍 *Nouvelle vente !*\n\n`
               +`📦 ${qty}x *${itemName}*${ci.isCarton?' (carton x'+(ci.cartonQty||1)+')':''}\n`
@@ -2208,6 +2210,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
               +`🌍 *Pays :* ${c.country||'—'}\n`
               +`📞 *Téléphone :* ${c.phone||'—'}\n`
               +`📧 *Email :* ${c.email||'—'}`;
+            if(String(v.telegramId)===String(process.env.ADMIN_TELEGRAM_ID||cfg.adminTelegramId)) sellerNotifiedAdmin=true; // évite le doublon
             vendorBot.sendMessage(v.telegramId,msg,{parse_mode:'Markdown'}).catch(e=>addLog('warn',`Notif vendeur: ${e.message}`));
           }
         }
@@ -2218,7 +2221,8 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     try{
       const adminId = process.env.ADMIN_TELEGRAM_ID || cfg.adminTelegramId;
       const notifBot = vendorBot || adminBot; // 🔔 envoyé par le bot vendeur (choix de Nolan)
-      if(notifBot && adminId){
+      if(sellerNotifiedAdmin){ /* déjà prévenu via la notif vendeur */ }
+      else if(notifBot && adminId){
         const c=order.client;
         const txt='🛍 Nouvelle commande payée !\n\n'
           +'📦 '+(productNames.join(', ')||'Commande')+'\n'
