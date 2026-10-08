@@ -159,7 +159,7 @@ function rateLimit(name, max, windowMs){
 setInterval(()=>{ const n=Date.now(); for(const [k,e] of rlStore) if(n>e.reset) rlStore.delete(k); }, 60000).unref();
 // Plafond général (large : le dashboard et la boutique font beaucoup d'appels). Le webhook Stripe n'est jamais limité.
 const rlGlobal = rateLimit('global', 1500, 60000);
-app.use((req,res,next)=> (req.path==='/stripe-webhook'||req.path==='/health') ? next() : rlGlobal(req,res,next));
+app.use((req,res,next)=> (req.path==='/stripe-webhook'||req.path==='/health'||req.path.startsWith('/tg/')) ? next() : rlGlobal(req,res,next));
 // Routes publiques sensibles
 app.use('/shop-checkout',   rateLimit('checkout', 10, 60000));
 app.use('/promo/validate',  rateLimit('promo',    20, 60000));
@@ -490,11 +490,40 @@ async function callClaude(userId, userName, userMessage) {
 // ─────────────────────────────────────────
 let adminBot = null;
 
+// 📡 Bots Telegram : mode WEBHOOK (Telegram envoie les messages au serveur) — plus de conflits 409 au redéploiement.
+// Secours : variable TG_MODE=polling sur Railway pour revenir à l'ancien mode.
+const TG_WEBHOOK_MODE = (process.env.TG_MODE||'webhook')==='webhook'
+  && !!(process.env.RAILWAY_ENVIRONMENT_ID||process.env.RAILWAY_ENVIRONMENT||process.env.PUBLIC_URL)
+  && /^https:\/\//.test(PUBLIC_URL);
+const tgBots = {};
+function tgSecret(token){ return crypto.createHash('sha256').update('agentos-tg:'+token).digest('hex'); }
+function makeBot(token, name){
+  const b = new TelegramBot(token, {polling:false});
+  if(!TG_WEBHOOK_MODE){
+    b.deleteWebHook().catch(()=>{}).then(()=>{ try{ b.startPolling(); }catch(e){ addLog('err','Polling '+name+': '+e.message); } });
+    return b;
+  }
+  tgBots[name] = {bot:b, secret:tgSecret(token)};
+  b.setWebHook(`${PUBLIC_URL}/tg/${name}`, {secret_token:tgSecret(token)})
+    .then(()=>addLog('ok',`Webhook Telegram actif · ${name}`))
+    .catch(e=>addLog('err',`Webhook Telegram ${name}: ${e.message}`));
+  return b;
+}
+app.post('/tg/:name', (req,res)=>{
+  const e = tgBots[req.params.name];
+  if(!e) return res.sendStatus(404);
+  const given = Buffer.from(String(req.headers['x-telegram-bot-api-secret-token']||''));
+  const exp   = Buffer.from(e.secret);
+  if(given.length!==exp.length || !crypto.timingSafeEqual(given,exp)) return res.sendStatus(403);
+  res.sendStatus(200); // on répond tout de suite, Telegram n'attend pas le traitement
+  try{ e.bot.processUpdate(req.body); }catch(err){ addLog('err','Update Telegram '+req.params.name+': '+err.message); }
+});
+
 function startAdminBot() {
   const token = process.env.ADMIN_BOT_TOKEN;
   if(!token){ addLog('warn','ADMIN_BOT_TOKEN non configuré'); return; }
   try {
-    adminBot = new TelegramBot(token, {polling:true});
+    adminBot = makeBot(token, 'admin');
     adminBot.getMe().then(me=>addLog('ok','Administrateur du bot démarré ✓ @'+me.username)).catch(()=>addLog('ok','Bot admin démarré ✓'));
 
     adminBot.on('message', async(msg)=>{
@@ -556,7 +585,7 @@ function startBot() {
   if(!cfg.telegramToken) return {ok:false,reason:'Token manquant'};
   if(!cfg.claudeKey)     return {ok:false,reason:'Clé Claude manquante'};
   try {
-    bot=new TelegramBot(cfg.telegramToken,{polling:true});
+    bot=makeBot(cfg.telegramToken,'client');
     running=true;startedAt=new Date().toISOString();
     addLog('ok',`Bot client démarré · ${cfg.claudeModel}`);
     bot.on('message',async(msg)=>{
@@ -612,7 +641,7 @@ function startVendorBot() {
   const token = process.env.VENDOR_BOT_TOKEN;
   if(!token){ addLog('warn','VENDOR_BOT_TOKEN non configuré'); return; }
   try {
-    vendorBot = new TelegramBot(token, {polling:true});
+    vendorBot = makeBot(token, 'vendor');
     vendorBot.getMe().then(me => {
       vendorBotUsername = me.username || '';
       addLog('ok','Bot vendeur démarré ✓ @'+vendorBotUsername);
@@ -739,7 +768,7 @@ function startReviewBot() {
   const token = process.env.REVIEW_BOT_TOKEN;
   if(!token){ addLog('warn','REVIEW_BOT_TOKEN non configuré'); return; }
   try {
-    reviewBot = new TelegramBot(token, {polling:true});
+    reviewBot = makeBot(token, 'review');
     reviewBot.getMe().then(me=>addLog('ok','Bot avis démarré ✓ @'+me.username)).catch(()=>addLog('ok','Bot avis démarré ✓'));
 
     reviewBot.on('callback_query', async(query)=>{
@@ -791,6 +820,7 @@ function startReviewBot() {
 
 function stopBot(){
   if(bot){try{bot.stopPolling();}catch(e){}bot=null;}
+  delete tgBots.client;
   running=false;startedAt=null;addLog('warn','Bot arrêté');
 }
 
