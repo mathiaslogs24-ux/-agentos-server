@@ -2113,6 +2113,13 @@ async function handleRefund(charge){
     const adminId=process.env.ADMIN_TELEGRAM_ID||cfg.adminTelegramId;
     const nb=vendorBot||adminBot;
     if(nb&&adminId) nb.sendMessage(adminId,'💸 Remboursement\n\n📦 '+(fresh.stockName||'Commande')+'\n💶 '+fresh.refundedAmount+'€ remboursés sur '+fresh.amount+'€'+(ratio>=0.9999?'\n✅ Stock remis, soldes vendeurs corrigés.':'\n✅ Soldes vendeurs corrigés au prorata.')).catch(()=>{});
+    if(fresh.userId&&bot){
+      const total=ratio>=0.9999;
+      bot.sendMessage(fresh.userId,
+        '💸 Remboursement effectué\n\n🛍 '+(fresh.stockName||'Votre commande')+'\n💶 '+fresh.refundedAmount+'€ vous ont été remboursés'+(total?' (commande annulée)':'')+'.\n\nLe montant apparaîtra sur votre compte sous quelques jours selon votre banque. Merci de votre compréhension 🙏')
+        .then(m=>addLog('info','Message remboursement acheteur envoyé · msg '+m.message_id))
+        .catch(e=>addLog('warn','Message remboursement acheteur échec: '+e.message));
+    }
   } finally { refundLocks.delete(order.id); }
 }
 
