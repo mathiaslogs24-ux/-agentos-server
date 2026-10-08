@@ -830,10 +830,28 @@ app.get('/img/:key',async(req,res)=>{
 // ─────────────────────────────────────────
 //  ROUTES ADMIN — STOCK
 // ─────────────────────────────────────────
+// 🔒 Le tableau de bord renvoie tout le stock : on ne doit pas effacer les ventes faites entre-temps.
+// Chaque article garde un compteur cumulé `sold`. Si le client a un `sold` plus ancien que celui du serveur,
+// la différence correspond à des ventes qu'il ne connaît pas → on la retire de la quantité reçue.
+function mergeStockWithSales(existing, incoming){
+  const byId = new Map((Array.isArray(existing)?existing:[]).map(x=>[String(x.id),x]));
+  return incoming.map(it=>{
+    const cur = byId.get(String(it&&it.id));
+    if(!cur) return it;
+    const curSold = parseInt(cur.sold)||0;
+    const out = {...it, sold: curSold};
+    if(it.sold !== undefined && !it.unlimited && !cur.unlimited){
+      const delta = curSold - (parseInt(it.sold)||0);
+      if(delta > 0 && typeof out.qty === 'number') out.qty = Math.max(0, out.qty - delta);
+    }
+    return out;
+  });
+}
+
 app.get('/stock', auth,(req,res)=>res.json(stock));
 app.post('/stock',auth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
-  stock=req.body;await saveConfig();
+  stock=mergeStockWithSales(stock, req.body);await saveConfig();
   addLog('ok',`Stock admin · ${stock.length} articles`);res.json({ok:true,count:stock.length});
 });
 app.get('/shop', auth,(req,res)=>res.json(shopItems));
@@ -1126,7 +1144,7 @@ app.get('/seller/me',sellerAuth,(req,res)=>res.json({...req.seller,shopItems:und
 
 app.post('/seller/stock',sellerAuth,async(req,res)=>{
   if(!Array.isArray(req.body)) return res.status(400).json({error:'Format invalide'});
-  req.seller.stock=req.body;await saveSeller(req.seller);
+  req.seller.stock=mergeStockWithSales(req.seller.stock, req.body);await saveSeller(req.seller);
   addLog('ok',`Stock vendeur ${req.seller.name} · ${req.body.length} articles`);
   checkSellerStockAlerts(req.seller);
   res.json({ok:true,count:req.body.length});
@@ -2078,6 +2096,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
         } else if(s&&s.qty>0){
           const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
           s.qty=Math.max(0,s.qty-unitsToDeduct);
+          s.sold=(parseInt(s.sold)||0)+unitsToDeduct;
           addLog('info',`Admin ${s.name} → ${s.qty}`);
         }
         await saveConfig();
@@ -2097,6 +2116,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           if(s&&!s.unlimited&&s.qty>0){
             const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
             s.qty=Math.max(0,s.qty-unitsToDeduct);
+            s.sold=(parseInt(s.sold)||0)+unitsToDeduct;
             addLog('info',`${v.name} ${s.name} → ${s.qty}`);
           }
           await saveSeller(v);
