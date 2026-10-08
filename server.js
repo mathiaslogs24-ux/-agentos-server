@@ -1271,6 +1271,35 @@ app.post('/seller/promos', sellerAuth, async(req,res)=>{
 //  MAINTENANT : cfg.promos est initialisé à [] dans la config
 //  + recherche robuste avec fallback Array.isArray
 // ─────────────────────────────────────────
+// 🔒 Réservations de codes promo en cours de paiement (évite que N paiements simultanés dépassent la limite)
+const promoPending = new Map(); // clé (jeton puis session.id) -> {code, userId, exp}
+function promoPendingFor(code){
+  const now = Date.now();
+  for(const [k,r] of promoPending) if(r.exp < now) promoPending.delete(k);
+  return [...promoPending.values()].filter(r=>r.code===code);
+}
+// Synchrone volontairement : vérification + réservation sans `await` entre les deux
+function reservePromo(promoObj, code, userId){
+  const pend = promoPendingFor(code);
+  if(promoObj.limitType==='total' && (promoObj.usedCount||0)+pend.length >= (promoObj.limitVal||Infinity)) return null;
+  if(promoObj.limitType==='per_user' && pend.some(r=>r.userId===String(userId))) return null;
+  const token = crypto.randomUUID();
+  promoPending.set(token,{code, userId:String(userId), exp:Date.now()+32*60*1000});
+  return token;
+}
+// Répartit une remise (en centimes) sur les lignes, sans jamais descendre une ligne sous 0
+function splitDiscount(itemCents, discCents){
+  const total = itemCents.reduce((a,b)=>a+b,0);
+  const d = itemCents.map(c=>Math.floor(discCents*c/total));
+  let left = discCents - d.reduce((a,b)=>a+b,0);
+  while(left>0){
+    let moved=false;
+    for(let i=0;i<d.length && left>0;i++){ if(itemCents[i]-d[i]>0){ d[i]++; left--; moved=true; } }
+    if(!moved) break;
+  }
+  return itemCents.map((c,i)=>c-d[i]);
+}
+
 async function applyPromoCode(code, sellerId, cat, amount, userId, cartStockIds=[]){
   if(!code) return{ok:false,error:'Code manquant'};
   const codeUp=code.trim().toUpperCase();
@@ -1879,6 +1908,7 @@ app.post('/shop-checkout', async(req,res) => {
   else addLog('warn','Checkout : identité Telegram non vérifiée (initData absent ou invalide)');
   if(!req.body.cart||!req.body.cart.length) return res.status(400).json({error:'Panier vide'});
   if(!cfg.stripeKey)       return res.status(400).json({error:'Stripe non configuré'});
+  let promoToken=null;
   try {
     // 🔒 Le serveur recalcule tout : prix, stock, livraison (on ne fait pas confiance au téléphone)
     const check=await validateCart(req.body.cart);
@@ -1891,6 +1921,8 @@ app.post('/shop-checkout', async(req,res) => {
       const cartStockIds=cart.map(i=>i.id).filter(Boolean);
       promoResult=await applyPromoCode(promoCode, firstSellerId, null, subtotal, userId||'guest', cartStockIds);
       if(!promoResult.ok) return res.status(400).json({error:'Code promo : '+promoResult.error});
+      promoToken = reservePromo(promoResult.promoObj, promoResult.code, userId||'guest');
+      if(!promoToken) return res.status(400).json({error:'Code promo : déjà en cours d\'utilisation ou épuisé'});
       addLog('info',`Promo "${promoCode}" appliquée · -${promoResult.discount}€`);
     }
     const serverUrl=PUBLIC_URL;
@@ -1910,38 +1942,43 @@ app.post('/shop-checkout', async(req,res) => {
     params.append('metadata[cartJson]',JSON.stringify(cart.map(i=>({sellerId:i.sellerId,id:i.id,price:i.price,qty:i.qty,isCarton:i.isCarton||false,cartonQty:i.cartonQty||0}))));
     if(promoResult) params.append('metadata[promoCode]',promoResult.code);
 
+    // 🔒 La remise est répartie sur les articles uniquement (la livraison n'est jamais remisée).
+    // Remise totale (100 %) : on garde le coupon Stripe d'origine car une session sans ligne payante est impossible.
+    const itemCents = cart.map(i=>Math.round(parseFloat(i.price)*100));
+    const totalItemCents = itemCents.reduce((a,b)=>a+b,0);
+    const discCents = (promoResult&&promoResult.discount>0) ? Math.min(Math.round(promoResult.discount*100), totalItemCents) : 0;
+    const useLegacyCoupon = discCents>0 && discCents>=totalItemCents;
+    const unitCents = (discCents>0 && !useLegacyCoupon) ? splitDiscount(itemCents, discCents) : itemCents;
+    let li = 0;
     cart.forEach((item,idx)=>{
-      const cents=Math.round(parseFloat(item.price)*100);
-      params.append(`line_items[${idx}][price_data][currency]`,'eur');
-      params.append(`line_items[${idx}][price_data][product_data][name]`,item.title);
-      params.append(`line_items[${idx}][price_data][product_data][description]`,item.description||'');
-      params.append(`line_items[${idx}][price_data][unit_amount]`,cents);
-      params.append(`line_items[${idx}][quantity]`,'1');
+      if(unitCents[idx] <= 0) return;
+      params.append(`line_items[${li}][price_data][currency]`,'eur');
+      params.append(`line_items[${li}][price_data][product_data][name]`,item.title);
+      params.append(`line_items[${li}][price_data][product_data][description]`,(item.description||'')+((discCents>0&&!useLegacyCoupon)?' · remise '+promoResult.code:''));
+      params.append(`line_items[${li}][price_data][unit_amount]`,unitCents[idx]);
+      params.append(`line_items[${li}][quantity]`,'1');
+      li++;
     });
 
-    // ✅ FIX — Stripe n'accepte pas unit_amount négatif
-    // On utilise l'API Coupons Stripe à la place
     // Frais de livraison en line item Stripe
     const shippingCents = Math.round(parseFloat(shipping||0)*100);
+    params.append('metadata[shipping]',(shippingCents/100).toFixed(2));
     if(shippingCents > 0){
-      const shippingIdx = cart.length;
-      params.append(`line_items[${shippingIdx}][price_data][currency]`,'eur');
-      params.append(`line_items[${shippingIdx}][price_data][product_data][name]`,'Frais de livraison');
-      params.append(`line_items[${shippingIdx}][price_data][product_data][description]`,'Livraison à domicile');
-      params.append(`line_items[${shippingIdx}][price_data][unit_amount]`,String(shippingCents));
-      params.append(`line_items[${shippingIdx}][quantity]`,'1');
+      params.append(`line_items[${li}][price_data][currency]`,'eur');
+      params.append(`line_items[${li}][price_data][product_data][name]`,'Frais de livraison');
+      params.append(`line_items[${li}][price_data][product_data][description]`,'Livraison à domicile');
+      params.append(`line_items[${li}][price_data][unit_amount]`,String(shippingCents));
+      params.append(`line_items[${li}][quantity]`,'1');
+      li++;
     }
+    // La session expire au bout de 31 min quand un code promo est réservé (la réservation expire juste après)
+    if(promoToken) params.append('expires_at',String(Math.floor(Date.now()/1000)+31*60));
 
-    if(promoResult&&promoResult.discount>0){
+    if(useLegacyCoupon){
       try {
         // Créer un coupon Stripe à usage unique
         const couponParams = new URLSearchParams();
-        if(promoResult.type==='percent'){
-          couponParams.append('percent_off', String(promoResult.value));
-        } else {
-          couponParams.append('amount_off', String(Math.round(promoResult.discount*100)));
-          couponParams.append('currency', 'eur');
-        }
+        couponParams.append('percent_off', '100');
         couponParams.append('duration','once');
         couponParams.append('name', `Code promo : ${promoResult.code}`);
         couponParams.append('max_redemptions','1');
@@ -1968,9 +2005,10 @@ app.post('/shop-checkout', async(req,res) => {
     });
     const session=await sr.json();
     if(session.error) throw new Error(session.error.message);
+    if(promoToken){ const r=promoPending.get(promoToken); promoPending.delete(promoToken); if(r) promoPending.set(session.id,r); }
     addLog('info',`Checkout · @${userName} · ${cart.length} article(s)`+(promoResult?` · promo ${promoResult.code} -${promoResult.discount}€`:''));
     res.json({url:session.url,promoApplied:promoResult?{code:promoResult.code,discount:promoResult.discount,type:promoResult.type}:null});
-  } catch(e) { addLog('err','Checkout: '+e.message); res.status(500).json({error:e.message}); }
+  } catch(e) { if(promoToken) promoPending.delete(promoToken); addLog('err','Checkout: '+e.message); res.status(500).json({error:e.message}); }
 });
 
 // ─────────────────────────────────────────
@@ -2070,12 +2108,16 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
     // subtotal = somme des prix originaux des articles
     const subtotalOriginal = cartItems.reduce((s,i)=>s+lineTotal(i),0);
     const amountPaid = parseFloat(amount);
+    promoPending.delete(sessionId); // la réservation est remplacée par le comptage définitif (markPromoUsed)
+    // 🔒 La livraison n'entre pas dans la base de commission
+    const shipPaid = parseFloat(meta.shipping||0)||0;
+    const itemsPaid = Math.max(0, amountPaid - shipPaid);
     // Ratio : 1.0 = pas de réduction, 0.5 = 50% de réduction
-    const discountRatio = subtotalOriginal > 0 ? amountPaid / subtotalOriginal : 1;
+    const discountRatio = subtotalOriginal > 0 ? itemsPaid / subtotalOriginal : 1;
 
     const commission=cfg.commissionMode==='flat'
       ?(cfg.commissionFlat*nbItems).toFixed(2)
-      :(amountPaid*cfg.commissionRate).toFixed(2);
+      :(itemsPaid*cfg.commissionRate).toFixed(2);
     const sellerAmount=(amountPaid-parseFloat(commission)).toFixed(2);
 
     const order={
