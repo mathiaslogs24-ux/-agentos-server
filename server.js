@@ -287,6 +287,24 @@ async function saveSeller(seller) {
             ON CONFLICT(id) DO UPDATE SET data=$2, updated_at=NOW()`,
     [seller.id, JSON.stringify(seller)]);
 }
+// 🔒 Mise à jour sûre d'un vendeur : une seule modification à la fois par vendeur,
+// et on relit toujours la version la plus récente avant d'écrire (plus de soldes écrasés).
+const sellerLocks = new Map();
+function updateSeller(id, fn) {
+  const key = String(id);
+  const prev = sellerLocks.get(key) || Promise.resolve();
+  const run = prev.catch(()=>{}).then(async()=>{
+    const fresh = await getSeller(id);
+    if(!fresh) return null;
+    await fn(fresh);
+    await saveSeller(fresh);
+    return fresh;
+  });
+  const tail = run.catch(()=>{});
+  sellerLocks.set(key, tail);
+  tail.then(()=>{ if(sellerLocks.get(key)===tail) sellerLocks.delete(key); });
+  return run;
+}
 async function deleteSeller(id) {
   await db('DELETE FROM sellers WHERE id=$1',[id]);
 }
@@ -474,14 +492,13 @@ function startAdminBot() {
       const wdId     = parseInt(parts[3]);
       const amount   = parseFloat(parts[4]);
       try {
-        const sellers = await getSellers();
-        const v = sellers.find(x=>String(x.id)===String(sellerId));
+        const v = await updateSeller(sellerId, vv=>{
+          const wd = (vv.withdrawals||[]).find(w=>w.id===wdId);
+          if(wd) wd.status='paid';
+          vv.balance = parseFloat((parseFloat(vv.balance||0) - amount).toFixed(2));
+          if(vv.balance < 0) vv.balance = 0;
+        });
         if(!v) { adminBot.answerCallbackQuery(query.id,{text:'Vendeur introuvable'}); return; }
-        const wd = (v.withdrawals||[]).find(w=>w.id===wdId);
-        if(wd) wd.status='paid';
-        v.balance = parseFloat((parseFloat(v.balance||0) - amount).toFixed(2));
-        if(v.balance < 0) v.balance = 0;
-        await saveSeller(v);
         if(v.telegramId && vendorBot) {
           vendorBot.sendMessage(v.telegramId,
             `✅ *Virement effectué !*\n\nMontant : *${amount.toFixed(2)}€*\n\nVotre paiement a bien été envoyé. Merci ! 🙏`,
@@ -1023,18 +1040,18 @@ app.post('/sellers',auth,async(req,res)=>{
   res.json({ok:true, seller, vendorBotUsername});
 });
 app.post('/sellers/:id/update',auth,async(req,res)=>{
-  const v=await getSeller(req.params.id);
+  const v=await updateSeller(req.params.id, v=>{
+    if(req.body.name)                       v.name            = req.body.name;
+    if(req.body.shopName)                   v.shopName        = req.body.shopName;
+    if(req.body.telegramId!==undefined)     v.telegramId      = req.body.telegramId;
+    if(req.body.balance!==undefined)        v.balance         = parseFloat(req.body.balance)||0;
+    if(req.body.remuneration!==undefined)   v.remuneration    = parseFloat(req.body.remuneration)||0;
+    if(req.body.notes!==undefined)          v.notes           = req.body.notes;
+    if(req.body.commissionMode!==undefined) v.commissionMode  = req.body.commissionMode;
+    if(req.body.commissionFlat!=null)       v.commissionFlat  = parseFloat(req.body.commissionFlat)||0;
+    if(req.body.commissionRate!=null)       v.commissionRate  = parseFloat(req.body.commissionRate)||0;
+  });
   if(!v) return res.status(404).json({error:'Introuvable'});
-  if(req.body.name)                       v.name            = req.body.name;
-  if(req.body.shopName)                   v.shopName        = req.body.shopName;
-  if(req.body.telegramId!==undefined)     v.telegramId      = req.body.telegramId;
-  if(req.body.balance!==undefined)        v.balance         = parseFloat(req.body.balance)||0;
-  if(req.body.remuneration!==undefined)   v.remuneration    = parseFloat(req.body.remuneration)||0;
-  if(req.body.notes!==undefined)          v.notes           = req.body.notes;
-  if(req.body.commissionMode!==undefined) v.commissionMode  = req.body.commissionMode;
-  if(req.body.commissionFlat!=null)       v.commissionFlat  = parseFloat(req.body.commissionFlat)||0;
-  if(req.body.commissionRate!=null)       v.commissionRate  = parseFloat(req.body.commissionRate)||0;
-  await saveSeller(v);
   addLog('ok',`Vendeur mis à jour: ${v.name}`);
   res.json({ok:true});
 });
@@ -2046,6 +2063,59 @@ function verifyStripeSignature(rawBody, header, secret, toleranceSec = 300) {
   return sigs.some(sg => { const sb = Buffer.from(sg); return sb.length === eb.length && crypto.timingSafeEqual(sb, eb); });
 }
 
+// 💸 Remboursement Stripe : on annule la vente (solde vendeur, commission, stock) au prorata remboursé
+const refundLocks = new Set();
+async function handleRefund(charge){
+  const pi=charge.payment_intent;
+  if(!pi){ addLog('warn','Remboursement sans payment_intent'); return; }
+  const r=await fetch('https://api.stripe.com/v1/checkout/sessions?payment_intent='+encodeURIComponent(pi)+'&limit=1',
+    {headers:{'Authorization':'Bearer '+cfg.stripeKey}});
+  const j=await r.json();
+  const sessionId=j.data&&j.data[0]&&j.data[0].id;
+  if(!sessionId){ addLog('info','Remboursement hors boutique ignoré · '+charge.id); return; }
+  const row=await db("SELECT data FROM orders WHERE data->>'invoiceId'=$1 LIMIT 1",[sessionId]);
+  const order=row.rows[0]&&row.rows[0].data;
+  if(!order){ addLog('warn','Remboursement : commande introuvable pour '+sessionId); return; }
+  if(refundLocks.has(order.id)) throw new Error('remboursement déjà en cours');
+  refundLocks.add(order.id);
+  try{
+    const fresh=(await getOrder(order.id))||order;
+    const paid=charge.amount_captured!==undefined?charge.amount_captured:charge.amount;
+    const ratio=paid>0?Math.min(1,(charge.amount_refunded||0)/paid):0;
+    const done=fresh.refundRatio||0;
+    const delta=ratio-done;
+    if(delta<=0.0001){ addLog('info','Remboursement déjà traité · commande '+fresh.id); return; }
+    const lines=fresh.sellerLines;
+    if(!lines){
+      addLog('warn','Remboursement commande '+fresh.id+' : ancienne commande, soldes à corriger à la main');
+    } else {
+      const full=ratio>=0.9999;
+      for(const l of lines){
+        const restoreUnits=full&&!fresh.stockRestored?(l.units||0):0;
+        if(l.sellerId==='admin'){
+          if(restoreUnits){ const s=stock.find(x=>x.id===l.itemId); if(s&&!s.unlimited){ s.qty+=restoreUnits; s.sold=Math.max(0,(parseInt(s.sold)||0)-restoreUnits); await saveConfig(); } }
+        } else {
+          await updateSeller(l.sellerId, vv=>{
+            vv.balance=parseFloat((parseFloat(vv.balance||0)-l.net*delta).toFixed(2));
+            vv.totalSales=parseFloat(Math.max(0,parseFloat(vv.totalSales||0)-l.amount*delta).toFixed(2));
+            vv.totalCommission=parseFloat(Math.max(0,parseFloat(vv.totalCommission||0)-l.commission*delta).toFixed(2));
+            if(restoreUnits){ const s=(vv.stock||[]).find(x=>x.id===l.itemId); if(s&&!s.unlimited){ s.qty+=restoreUnits; s.sold=Math.max(0,(parseInt(s.sold)||0)-restoreUnits); } }
+          });
+        }
+      }
+      if(full) fresh.stockRestored=true;
+    }
+    fresh.refundRatio=ratio;
+    fresh.refundedAmount=((charge.amount_refunded||0)/100).toFixed(2);
+    fresh.status=ratio>=0.9999?'refunded':'partially_refunded';
+    await saveOrder(fresh);
+    addLog('ok','💸 Remboursement · commande '+fresh.id+' · '+fresh.refundedAmount+'€'+(ratio>=0.9999?' (total)':' (partiel)'));
+    const adminId=process.env.ADMIN_TELEGRAM_ID||cfg.adminTelegramId;
+    const nb=vendorBot||adminBot;
+    if(nb&&adminId) nb.sendMessage(adminId,'💸 Remboursement\n\n📦 '+(fresh.stockName||'Commande')+'\n💶 '+fresh.refundedAmount+'€ remboursés sur '+fresh.amount+'€'+(ratio>=0.9999?'\n✅ Stock remis, soldes vendeurs corrigés.':'\n✅ Soldes vendeurs corrigés au prorata.')).catch(()=>{});
+  } finally { refundLocks.delete(order.id); }
+}
+
 app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}), async(req,res) => {
   if(!cfg.stripeWebhook){ addLog('err','STRIPE_WEBHOOK_SECRET manquant — webhook refusé'); return res.sendStatus(500); }
   if(!verifyStripeSignature(req.body, req.headers['stripe-signature'], cfg.stripeWebhook)){
@@ -2055,6 +2125,12 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
   let event; try{ event=JSON.parse(req.body.toString('utf8')); }catch(e){ return res.sendStatus(400); }
   if(!event||!event.type) return res.sendStatus(400);
   addLog('info',`Stripe webhook · ${event.type}`);
+
+  if(event.type==='charge.refunded'){
+    try{ await handleRefund(event.data.object); }
+    catch(e){ addLog('err','Remboursement: '+e.message); return res.sendStatus(500); } // Stripe réessaiera
+    return res.sendStatus(200);
+  }
 
   if(event.type==='checkout.session.completed'){
     if(event.data.object.payment_status!=='paid'){
@@ -2154,6 +2230,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
 
     const sellers=await getSellers();
     let sellerNotifiedAdmin=false;
+    const sellerLines=[];
     for(const ci of cartItems){
       const qty=parseInt(ci.qty||1);
       // ✅ FIX — Montant réel payé pour cet article (après réduction promo au prorata)
@@ -2167,31 +2244,38 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
           addLog('info',`Admin ${s.name} → ∞ (expédié par le fournisseur)`);
         } else if(s&&s.qty>0){
           const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
+          const before=s.qty;
           s.qty=Math.max(0,s.qty-unitsToDeduct);
           s.sold=(parseInt(s.sold)||0)+unitsToDeduct;
+          sellerLines.push({sellerId:'admin',itemId:ci.id,amount:itemAmount,net:0,commission:0,units:before-s.qty});
           addLog('info',`Admin ${s.name} → ${s.qty}`);
         }
         await saveConfig();
       } else {
-        const v=sellers.find(x=>String(x.id)===String(ci.sellerId));
-        if(v){
-          const vCommMode=v.commissionMode||cfg.commissionMode||'flat';
-          const vCommFlat=v.commissionFlat!==undefined?v.commissionFlat:cfg.commissionFlat;
-          const vCommRate=v.commissionRate!==undefined?v.commissionRate:cfg.commissionRate;
+        const v0=sellers.find(x=>String(x.id)===String(ci.sellerId));
+        if(v0){
+          const vCommMode=v0.commissionMode||cfg.commissionMode||'flat';
+          const vCommFlat=v0.commissionFlat!==undefined?v0.commissionFlat:cfg.commissionFlat;
+          const vCommRate=v0.commissionRate!==undefined?v0.commissionRate:cfg.commissionRate;
           const itemCommission=Math.min(itemAmount, vCommMode==='flat'?vCommFlat*qty:itemAmount*vCommRate); // 🔧 jamais plus que le montant payé
           const itemNet=itemAmount-itemCommission;
-          v.balance         =parseFloat((parseFloat(v.balance||0)+itemNet).toFixed(2));
-          v.totalSales      =parseFloat((parseFloat(v.totalSales||0)+itemAmount).toFixed(2));
-          v.totalCommission =parseFloat((parseFloat(v.totalCommission||0)+itemCommission).toFixed(2));
-          const s=(v.stock||[]).find(x=>x.id===ci.id);
-          // ✅ MODIF — le stock illimité (Chine) n'est jamais décompté
-          if(s&&!s.unlimited&&s.qty>0){
-            const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
-            s.qty=Math.max(0,s.qty-unitsToDeduct);
-            s.sold=(parseInt(s.sold)||0)+unitsToDeduct;
-            addLog('info',`${v.name} ${s.name} → ${s.qty}`);
-          }
-          await saveSeller(v);
+          let s=null, deducted=0;
+          const v=await updateSeller(v0.id, vv=>{
+            vv.balance         =parseFloat((parseFloat(vv.balance||0)+itemNet).toFixed(2));
+            vv.totalSales      =parseFloat((parseFloat(vv.totalSales||0)+itemAmount).toFixed(2));
+            vv.totalCommission =parseFloat((parseFloat(vv.totalCommission||0)+itemCommission).toFixed(2));
+            s=(vv.stock||[]).find(x=>x.id===ci.id)||null;
+            // ✅ MODIF — le stock illimité (Chine) n'est jamais décompté
+            if(s&&!s.unlimited&&s.qty>0){
+              const unitsToDeduct = ci.isCarton ? (ci.cartonQty||1)*qty : qty;
+              const before=s.qty;
+              s.qty=Math.max(0,s.qty-unitsToDeduct);
+              deducted=before-s.qty;
+              s.sold=(parseInt(s.sold)||0)+unitsToDeduct;
+              addLog('info',`${vv.name} ${s.name} → ${s.qty}`);
+            }
+          });
+          sellerLines.push({sellerId:String(v0.id),itemId:ci.id,amount:itemAmount,net:itemNet,commission:itemCommission,units:deducted});
           if(v.telegramId&&vendorBot){
             const itemName=s?s.name:`Article #${ci.id}`;
             const cq=ci.isCarton?(parseInt(ci.cartonQty)||1):1;
@@ -2216,6 +2300,7 @@ app.post('/stripe-webhook', express.raw({type:'application/json', limit:'1mb'}),
         }
       }
     }
+    try{ order.sellerLines=sellerLines; await saveOrder(order); }catch(e){ addLog('warn','sellerLines: '+e.message); }
     addLog('ok',`Stripe · @${userName} · ${amount}€ · com:${commission}€`);
     // 🔔 Notification admin : chaque commande payée est envoyée sur le bot admin
     try{
