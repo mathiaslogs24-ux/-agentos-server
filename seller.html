@@ -252,6 +252,7 @@ body.nav-open .nav-ov{display:block}
       <div class="sn-title">Boutique</div>
       <button class="snav" id="nav-promos" onclick="switchTab('promos')"><span>🏷</span>Codes promo</button>
       <button class="snav" id="nav-clients" onclick="switchTab('clients')"><span>👥</span>Clients</button>
+      <button class="snav" id="nav-shipping" onclick="switchTab('shipping')"><span>🚚</span>Frais de livraison</button>
       <button class="snav" id="nav-settings" onclick="switchTab('settings')"><span>⚙️</span>Paramètres</button>
       <div style="flex:1"></div>
       <button class="snav" onclick="doLogout()" style="color:var(--red);"><span>↩</span>Déconnexion</button>
@@ -466,7 +467,52 @@ body.nav-open .nav-ov{display:block}
         <input type="text" id="clientSearch" placeholder="Rechercher un client…"
           style="width:100%;background:var(--bg3);border:1px solid var(--gb);color:var(--text);font-family:'Bricolage Grotesque';font-size:13px;padding:9px 12px;border-radius:var(--rs);outline:none;margin-bottom:12px;"
           onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--gb)'" oninput="renderClients()">
+        <div id="topClients"></div>
         <div id="clientList"></div>
+      </div>
+
+      <!-- FRAIS DE LIVRAISON -->
+      <div class="panel" id="panel-shipping">
+        <div class="ph"><div class="ph-title">🚚 Frais de livraison</div></div>
+        <div class="setting-sub" style="margin-bottom:12px;line-height:1.5;">Choisissez ce que vos clients paient pour la livraison. Le client sélectionne son pays dans la boutique et le tarif correspondant s'applique automatiquement.  Aucune commission n'est prélevée sur les frais de livraison.</div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">🚚 Tarifs de livraison</div><button class="btn xs primary" onclick="saveShipping()">Sauvegarder</button></div>
+          <div class="card-body">
+            <label class="fld-label">Mode de livraison</label>
+            <select class="fld-select" id="shippingMode" onchange="onShippingModeChange(this.value)" style="margin-bottom:12px;">
+              <option value="fixed">Tarif fixe</option>
+              <option value="free_above">Gratuit à partir d'un montant</option>
+              <option value="by_zone">Par zone géographique</option>
+              <option value="free">Toujours gratuite</option>
+            </select>
+            <div id="shippingFixedBox">
+              <label class="fld-label">Frais de livraison (€)</label>
+              <input class="fld-input" id="shippingFixed" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="5.00" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);">
+            </div>
+            <div id="shippingFreeAboveBox" style="display:none;">
+              <label class="fld-label">Frais de base (€)</label>
+              <input class="fld-input" id="shippingFreeAboveBase" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="5.00" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);">
+              <label class="fld-label">Gratuit à partir de (€)</label>
+              <input class="fld-input" id="shippingFreeAboveMin" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="30.00" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--green);">
+            </div>
+            <div id="shippingZoneBox" style="display:none;">
+              <div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Frais par pays de destination</div>
+              <div class="form-row" style="margin-bottom:8px;">
+                <div><label class="fld-label">🇫🇷 France (€)</label><input class="fld-input" id="shippingZoneFR" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="5.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
+                <div><label class="fld-label">🇧🇪 Belgique (€)</label><input class="fld-input" id="shippingZoneBE" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="7.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
+              </div>
+              <div class="form-row" style="margin-bottom:8px;">
+                <div><label class="fld-label">🇨🇭 Suisse (€)</label><input class="fld-input" id="shippingZoneCH" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="9.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
+                <div><label class="fld-label">🇱🇺 Luxembourg (€)</label><input class="fld-input" id="shippingZoneLU" oninput="renderShippingPreview()" type="number" min="0" step="0.01" placeholder="6.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
+              </div>
+              <div style="font-size:10px;color:var(--t3);">0€ = gratuit pour ce pays</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">👁 Ce que verra le client</div></div>
+          <div class="card-body"><div id="shippingPreview" style="font-size:13px;line-height:1.7;color:var(--t2);"></div></div>
+        </div>
       </div>
 
       <!-- SETTINGS -->
@@ -488,40 +534,6 @@ body.nav-open .nav-ov{display:block}
             </div>
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;margin-top:12px;">Seuils par article</div>
             <div id="perItemThresholds"></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-head"><div class="card-title">🚚 Livraison</div><button class="btn xs primary" onclick="saveShipping()">Sauvegarder</button></div>
-          <div class="card-body">
-            <label class="fld-label">Mode de livraison</label>
-            <select class="fld-select" id="shippingMode" onchange="onShippingModeChange(this.value)" style="margin-bottom:12px;">
-              <option value="fixed">Tarif fixe</option>
-              <option value="free_above">Gratuit à partir d'un montant</option>
-              <option value="by_zone">Par zone géographique</option>
-              <option value="free">Toujours gratuite</option>
-            </select>
-            <div id="shippingFixedBox">
-              <label class="fld-label">Frais de livraison (€)</label>
-              <input class="fld-input" id="shippingFixed" type="number" min="0" step="0.01" placeholder="5.00" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);">
-            </div>
-            <div id="shippingFreeAboveBox" style="display:none;">
-              <label class="fld-label">Frais de base (€)</label>
-              <input class="fld-input" id="shippingFreeAboveBase" type="number" min="0" step="0.01" placeholder="5.00" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--gold);">
-              <label class="fld-label">Gratuit à partir de (€)</label>
-              <input class="fld-input" id="shippingFreeAboveMin" type="number" min="0" step="0.01" placeholder="30.00" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--green);">
-            </div>
-            <div id="shippingZoneBox" style="display:none;">
-              <div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Frais par pays de destination</div>
-              <div class="form-row" style="margin-bottom:8px;">
-                <div><label class="fld-label">🇫🇷 France (€)</label><input class="fld-input" id="shippingZoneFR" type="number" min="0" step="0.01" placeholder="5.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
-                <div><label class="fld-label">🇧🇪 Belgique (€)</label><input class="fld-input" id="shippingZoneBE" type="number" min="0" step="0.01" placeholder="7.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
-              </div>
-              <div class="form-row" style="margin-bottom:8px;">
-                <div><label class="fld-label">🇨🇭 Suisse (€)</label><input class="fld-input" id="shippingZoneCH" type="number" min="0" step="0.01" placeholder="9.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
-                <div><label class="fld-label">🇱🇺 Luxembourg (€)</label><input class="fld-input" id="shippingZoneLU" type="number" min="0" step="0.01" placeholder="6.00" style="margin-bottom:0;font-family:monospace;font-weight:700;color:var(--gold);"></div>
-              </div>
-              <div style="font-size:10px;color:var(--t3);">0€ = gratuit pour ce pays</div>
-            </div>
           </div>
         </div>
 
@@ -682,9 +694,21 @@ function copyKey(){ const key=document.getElementById('settSecretKey').dataset.k
 //  LIVRAISON
 // ─────────────────────────────────────────
 function onShippingModeChange(val){
+  setTimeout(renderShippingPreview,0);
   document.getElementById('shippingFixedBox').style.display     = val==='fixed'      ?'block':'none';
   document.getElementById('shippingFreeAboveBox').style.display = val==='free_above' ?'block':'none';
   document.getElementById('shippingZoneBox').style.display      = val==='by_zone'    ?'block':'none';
+}
+function renderShippingPreview(){
+  const el=document.getElementById('shippingPreview'); if(!el) return;
+  const m=document.getElementById('shippingMode').value;
+  const n=id=>parseFloat(document.getElementById(id).value)||0;
+  const eur=v=>v>0?v.toFixed(2).replace('.',',')+' €':'Gratuit';
+  let h='';
+  if(m==='fixed') h='Livraison : <b>'+eur(n('shippingFixed'))+'</b> pour tous les pays.';
+  else if(m==='free_above'){ const mn=n('shippingFreeAboveMin'); h='Livraison : <b>'+eur(n('shippingFreeAboveBase'))+'</b>'+(mn>0?', <b>gratuite</b> dès '+mn.toFixed(2).replace('.',',')+' € d\'achats.':'.'); }
+  else { h=[['🇫🇷 France','shippingZoneFR'],['🇧🇪 Belgique','shippingZoneBE'],['🇨🇭 Suisse','shippingZoneCH'],['🇱🇺 Luxembourg','shippingZoneLU']].map(([l,id])=>l+' : <b>'+eur(n(id))+'</b>').join('<br>'); }
+  el.innerHTML=h;
 }
 function loadShipping(){
   const s=seller.shipping||{mode:'fixed',fixed:0,freeAboveBase:0,freeAboveMin:0,zones:{FR:0,BE:0,CH:0,LU:0}};
@@ -697,6 +721,7 @@ function loadShipping(){
   document.getElementById('shippingZoneCH').value        = s.zones?.CH||'';
   document.getElementById('shippingZoneLU').value        = s.zones?.LU||'';
   onShippingModeChange(s.mode||'fixed');
+  renderShippingPreview();
 }
 async function saveShipping(){
   const shipping={
@@ -812,6 +837,7 @@ function switchTab(tab,el){
   if(tab==='promos'){ renderPromos(); buildPromoCatOptions(); buildPromoFlavorOptions(); }
   if(tab==='withdrawals') renderWithdrawals();
   if(tab==='clients') renderClients();
+  if(tab==='shipping') loadShipping();
   if(tab==='settings') loadSettings();
   document.getElementById('mainContent').scrollTop=0;
 }
@@ -1223,7 +1249,7 @@ async function loadStats(){
 function parseOrderDate(dateStr){
   // Format serveur : "01/06/2026 10:58:12" → JJ/MM/AAAA HH:MM:SS
   if(!dateStr) return new Date(0);
-  const parts=dateStr.split(' '), d=parts[0].split('/');
+  const parts=String(dateStr).replace(',','').split(' '), d=parts[0].split('/');
   if(d.length===3) return new Date(`${d[2]}-${d[1]}-${d[0]}T${parts[1]||'00:00:00'}`);
   return new Date(dateStr);
 }
@@ -1341,6 +1367,7 @@ function renderClients(){
   let clients=buildClientMap();
   if(q) clients=clients.filter(c=>c.name.toLowerCase().includes(q)||c.email.toLowerCase().includes(q)||c.city.toLowerCase().includes(q));
   document.getElementById('clientCount').textContent=clients.length;
+  renderTopClients();
   if(!clients.length){ document.getElementById('clientList').innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">Aucun client</div><div class="empty-sub">Vos acheteurs apparaîtront ici</div></div>'; return; }
   document.getElementById('clientList').innerHTML=clients.map((c,i)=>`
     <div style="background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:13px;margin-bottom:9px;cursor:pointer;" onclick="toggleClientDetail(${i})">
@@ -1356,6 +1383,27 @@ function renderClients(){
         ${c.orders.length>5?`<div style="font-size:11px;color:var(--t3);margin-top:4px;">+${c.orders.length-5} autre(s) commande(s)</div>`:''}
       </div>
     </div>`).join('');
+}
+function renderTopClients(){
+  const el=document.getElementById('topClients'); if(!el) return;
+  const q=(document.getElementById('clientSearch')?.value||'').trim();
+  const top=buildClientMap().filter(c=>c.totalSpent>0).slice(0,5);
+  if(q||!top.length){ el.innerHTML=''; return; }
+  const medals=['🥇','🥈','🥉','4','5'];
+  const max=top[0].totalSpent||1;
+  el.innerHTML=`<div style="background:linear-gradient(135deg,rgba(255,200,80,.10),rgba(255,200,80,.02));border:1px solid var(--gb);border-radius:var(--r);padding:13px;margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:800;margin-bottom:10px;">🏆 Meilleurs clients</div>
+    ${top.map((c,i)=>{
+      const avg=c.totalSpent/c.orders.length;
+      return `<div style="margin-bottom:${i<top.length-1?'11':'0'}px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+          <div style="font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span style="display:inline-block;width:22px;">${medals[i]}</span>${esc(c.name)}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--gold);white-space:nowrap;">${c.totalSpent.toFixed(2)}€</div>
+        </div>
+        <div style="height:4px;background:rgba(255,255,255,.07);border-radius:3px;margin:5px 0 4px;"><div style="height:4px;width:${Math.max(4,Math.round(c.totalSpent/max*100))}%;background:var(--gold);border-radius:3px;"></div></div>
+        <div style="font-size:10px;color:var(--t3);">${c.orders.length} commande(s) · panier moyen ${avg.toFixed(2)}€ · dernière : ${esc(c.lastOrder||'—')}${c.city?' · '+esc(c.city):''}</div>
+      </div>`;}).join('')}
+  </div>`;
 }
 function toggleClientDetail(i){ const el=document.getElementById('clientDetail_'+i); if(el) el.style.display=el.style.display==='none'?'block':'none'; }
 
