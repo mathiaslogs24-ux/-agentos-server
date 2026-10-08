@@ -249,7 +249,7 @@ async function initDB() {
 let cfg = {
   telegramToken : process.env.TELEGRAM_TOKEN || '',
   claudeKey     : process.env.CLAUDE_KEY     || '',
-  claudeModel   : 'claude-sonnet-4-20250514',
+  claudeModel   : 'claude-sonnet-5-5',
   systemPrompt  : '',
   maxTokens     : 1000,
   temperature   : 0.7,
@@ -1745,7 +1745,7 @@ RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: cfg.claudeModel || 'claude-sonnet-4-20250514',
+        model: cfg.claudeModel || 'claude-sonnet-5-5',
         max_tokens: 8000,
         messages: [{role:'user', content: prompt}]
       })
