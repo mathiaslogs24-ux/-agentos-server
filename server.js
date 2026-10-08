@@ -6,6 +6,20 @@ const crypto     = require('crypto');
 const express    = require('express');
 const zlib       = require('zlib');
 const TelegramBot= require('node-telegram-bot-api');
+
+// 🔒 Si Telegram refuse un message à cause du Markdown (caractère mal fermé), on le renvoie en texte brut
+(function patchMarkdownFallback(){
+  const _send = TelegramBot.prototype.sendMessage;
+  TelegramBot.prototype.sendMessage = function(chatId, text, opts){
+    return _send.call(this, chatId, text, opts).catch(err=>{
+      if(opts && opts.parse_mode && /parse entities/i.test(String(err && (err.message||err)))){
+        const o = {...opts}; delete o.parse_mode;
+        return _send.call(this, chatId, text, o);
+      }
+      throw err;
+    });
+  };
+})();
 const { Pool }   = require('pg');
 const fs         = require('fs');
 const path       = require('path');
