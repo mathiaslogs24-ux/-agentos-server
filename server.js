@@ -110,10 +110,6 @@ async function initDB() {
     value JSONB NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`);
-  await db(`CREATE TABLE IF NOT EXISTS age_ok (
-    user_id TEXT PRIMARY KEY,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  )`);
   await db(`CREATE TABLE IF NOT EXISTS sellers (
     id BIGINT PRIMARY KEY,
     data JSONB NOT NULL,
@@ -774,18 +770,6 @@ async function sellerAuth(req,res,next){
 // ─────────────────────────────────────────
 //  ROUTES ADMIN — SYSTÈME
 // ─────────────────────────────────────────
-// 🔞 Majorité déjà confirmée : retenue par identifiant Telegram (plus de question, même sur un autre téléphone)
-const ageId=v=>/^\d{3,15}$/.test(String(v||''))?String(v):null;
-app.get('/age/:uid', async(req,res)=>{
-  const id=ageId(req.params.uid); if(!id) return res.json({ok:false});
-  try{ const r=await db('SELECT 1 FROM age_ok WHERE user_id=$1',[id]); res.json({ok:r.rows.length>0}); }
-  catch(e){ res.json({ok:false}); }
-});
-app.post('/age', async(req,res)=>{
-  const id=ageId(req.body&&req.body.userId); if(!id) return res.status(400).json({error:'Identifiant invalide'});
-  try{ await db('INSERT INTO age_ok(user_id) VALUES($1) ON CONFLICT DO NOTHING',[id]); res.json({ok:true}); }
-  catch(e){ res.status(500).json({error:'Erreur'}); }
-});
 app.get('/health',(req,res)=>res.json({ok:true,uptime:Math.floor(process.uptime()),running}));
 
 // 📒 Journal des opérations d'argent (réservé à l'admin)

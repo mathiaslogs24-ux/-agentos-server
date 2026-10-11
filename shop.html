@@ -1270,11 +1270,9 @@ function showToast(m){ const el=document.getElementById('toast'); el.textContent
 // 🔒 Neutralise le HTML dans les textes venant d'autres personnes (avis…)
 function escH(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // 🔞 Vérification d'âge : la boutique ne se charge qu'après un « Oui »
-function ageOk(){ try{ return localStorage.getItem('age18_ok')==='1'; }catch(e){ return false; } }
-const AGE_UID=/^\d{3,15}$/.test(String(USER_ID))?String(USER_ID):null;
+// Demandée à CHAQUE ouverture de la boutique (rien n'est mémorisé)
+function ageOk(){ try{ localStorage.removeItem('age18_ok'); }catch(e){} return false; }
 function ageYes(){
-  try{ localStorage.setItem('age18_ok','1'); }catch(e){}
-  if(AGE_UID) fetch(SERVER+'/age',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:AGE_UID})}).catch(()=>{});
   document.getElementById('ageGate').style.display='none';
   if(!window.__shopStarted){ window.__shopStarted=true; init(); }
 }
@@ -1284,11 +1282,6 @@ function ageNo(){
   document.getElementById('ageBtns').style.display='none';
 }
 if(ageOk()){ document.getElementById('ageGate').style.display='none'; window.__shopStarted=true; init(); }
-else if(AGE_UID){
-  // Déjà confirmé auparavant (même sur un autre téléphone) ? On le demande au serveur, sans bloquer plus de 2 s
-  const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),2000);
-  fetch(SERVER+'/age/'+AGE_UID,{signal:ctl.signal}).then(r=>r.json()).then(j=>{ clearTimeout(to); if(j&&j.ok){ try{localStorage.setItem('age18_ok','1');}catch(e){} ageYes(); } }).catch(()=>{});
-}
 </script>
 </body>
 </html>
