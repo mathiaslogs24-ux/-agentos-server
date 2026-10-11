@@ -1270,9 +1270,9 @@ function showToast(m){ const el=document.getElementById('toast'); el.textContent
 // 🔒 Neutralise le HTML dans les textes venant d'autres personnes (avis…)
 function escH(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // 🔞 Vérification d'âge : la boutique ne se charge qu'après un « Oui »
-function ageOk(){ try{ return localStorage.getItem('age18_ok')==='1'; }catch(e){ return false; } }
+// Demandée à CHAQUE ouverture de la boutique (rien n'est mémorisé)
+function ageOk(){ try{ localStorage.removeItem('age18_ok'); }catch(e){} return false; }
 function ageYes(){
-  try{ localStorage.setItem('age18_ok','1'); }catch(e){}
   document.getElementById('ageGate').style.display='none';
   if(!window.__shopStarted){ window.__shopStarted=true; init(); }
 }
