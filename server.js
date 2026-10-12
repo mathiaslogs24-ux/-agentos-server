@@ -1574,6 +1574,14 @@ RÈGLE ABSOLUE: 1 goût = 1 objet JSON. ${flavors.length} goûts = exactement ${
     });
     if(!aiRes.ok){ const e=await aiRes.json().catch(()=>{}); throw new Error(e?.error?.message||'Erreur Claude '+aiRes.status); }
     data = await aiRes.json();
+    // 📊 Consommation : la génération de stock est comptée comme le reste (visible dans l'onglet Consommation)
+    try{
+      const ti=data.usage?.input_tokens||0, to=data.usage?.output_tokens||0, tot=ti+to;
+      stats.day+=tot; stats.month+=tot; stats.input+=ti; stats.output+=to;
+      history.unshift({time:new Date().toLocaleTimeString('fr-FR'),userId:'IA',userName:'⚙ Génération de stock',
+        msg:String(cat||'').slice(0,60),reply:'',tokIn:ti,tokOut:to,total:tot,duration:''});
+      if(history.length>100) history.pop();
+    }catch(_){}
     const text = data.content?.[0]?.text || '';
     addLog('info', 'IA raw response length: '+text.length+' chars, finish: '+(data.stop_reason||'?'));
     // Extraction robuste du JSON
