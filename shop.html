@@ -316,7 +316,7 @@ let filterSeller='all', filterBrand='all', filterPuffs='all', filterCountry='all
 let detailGroup=null, detailFlavor=null, detailQty=1;
 
 // ── PROMO STATE
-let promoState = { code:'', applied:false, discount:0, type:'', value:0 };
+let promoState = { code:'', applied:false, discount:0, type:'', value:0, freeShipping:false, shipSellerId:'' };
 
 // ── PERSISTANCE
 function loadLocal(){ try{ cart=JSON.parse(localStorage.getItem('cart_'+USER_ID)||'{}'); }catch(e){ cart={}; } }
@@ -935,7 +935,7 @@ function updateBadges(){
   const fb=document.getElementById('favBadge'); fb.style.display=f>0?'flex':'none'; fb.textContent=f;
 }
 
-function resetPromo(){ promoState={code:'',applied:false,discount:0,type:'',value:0}; }
+function resetPromo(){ promoState={code:'',applied:false,discount:0,type:'',value:0,freeShipping:false,shipSellerId:''}; }
 
 // ── LIVRAISON
 const SHIP_COUNTRIES = {FR:'🇫🇷 France',BE:'🇧🇪 Belgique',CH:'🇨🇭 Suisse',LU:'🇱🇺 Luxembourg'};
@@ -962,8 +962,10 @@ function calcShipping(country){
     bySeller[sid].subtotal+=unitPrice(p)*qty;
   });
   let totalShipping=0;
-  Object.values(bySeller).forEach(({shipping,subtotal:sellerSub})=>{
+  Object.entries(bySeller).forEach(([sid,{shipping,subtotal:sellerSub}])=>{
     const s=shipping;
+    // 🚚 Code promo « livraison offerte » : code boutique officielle = partout, code vendeur = chez ce vendeur seulement
+    if(promoState.applied && promoState.freeShipping && (promoState.shipSellerId==='admin' || String(promoState.shipSellerId)===sid)){totalShipping+=0;return;}
     if(!s||s.mode==='free'){totalShipping+=0;return;}
     if(s.mode==='fixed'){totalShipping+=parseFloat(s.fixed||0);return;}
     if(s.mode==='free_above'){
@@ -1039,15 +1041,19 @@ async function applyPromo(){
     promoState.discount = data.discount;
     promoState.type     = data.type;
     promoState.value    = data.value;
+    promoState.freeShipping = !!data.freeShipping;
+    promoState.shipSellerId = String(data.shipSellerId||'');
 
     input.classList.remove('invalid');
     input.classList.add('valid');
     input.disabled    = true;
     btn.style.display = 'none';
 
-    const label = data.type === 'percent'
+    let label = data.type === 'shipping' ? '🚚 livraison offerte'
+      : data.type === 'percent'
       ? `-${data.value}% → -${data.discount.toFixed(2)}€`
       : `-${data.discount.toFixed(2)}€`;
+    if(data.freeShipping && data.type !== 'shipping') label += ' + 🚚 livraison offerte';
 
     showFeedback('ok', `🎉 Code "${data.code}" : ${label}`, true);
     if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
@@ -1106,14 +1112,14 @@ function renderCartSummary(){
     + '</div>'
     + `<div class="promo-feedback${promoApplied?' ok':''}" id="promoFeedback">`
       + (promoApplied
-          ? `🎉 Code "${promoState.code}" — -${promoState.discount.toFixed(2)}€`
+          ? `🎉 Code "${promoState.code}" — ${promoState.type==='shipping'?'🚚 livraison offerte':'-'+promoState.discount.toFixed(2)+'€'+(promoState.freeShipping?' + 🚚 livraison offerte':'')}`
           + `<span class="promo-remove" onclick="removePromo()">✕ Retirer</span>`
           : '')
     + '</div>'
     + '</div>';
 
   let summaryRows = '';
-  if(promoApplied){
+  if(promoApplied && discount>0){
     summaryRows =
       `<div class="cr"><span class="l">${nb} article(s)</span><span class="v" style="text-decoration:line-through;opacity:.5;">${sub.toFixed(2)}€</span></div>`
       + `<div class="cr discount"><span class="l">🏷 ${promoState.code}</span><span class="v">-${discount.toFixed(2)}€</span></div>`;
@@ -1129,7 +1135,7 @@ function renderCartSummary(){
   // Ligne livraison
   summaryRows += shipping > 0
     ? `<div class="cr"><span class="l">🚚 Livraison</span><span class="v">+${shipping.toFixed(2)}€</span></div>`
-    : `<div class="cr"><span class="l">🚚 Livraison</span><span class="v" style="color:var(--green);">Offerte</span></div>`;
+    : `<div class="cr"><span class="l">🚚 Livraison</span><span class="v" style="color:var(--green);">Offerte${promoApplied&&promoState.freeShipping?' · '+promoState.code:''}</span></div>`;
 
   sEl.innerHTML = '<div class="csep"></div>'
     + promoHTML
@@ -1252,7 +1258,7 @@ async function placeOrder(){
 
     if(isPromoError){
       // ✅ Réinitialiser le state promo d'abord
-      promoState = { code:'', applied:false, discount:0, type:'', value:0 };
+      promoState = { code:'', applied:false, discount:0, type:'', value:0, freeShipping:false, shipSellerId:'' };
       // ✅ Reconstruire le DOM (recrée #promoFeedback)
       renderCartSummary();
       // ✅ Maintenant showFeedback() trouve bien #promoFeedback
