@@ -394,10 +394,11 @@ body.nav-open .nav-ov{display:block}
           <div class="card-body">
             <div class="form-row" style="margin-bottom:10px;">
               <div><label class="fld-label">Code</label><input class="fld-input" type="text" id="promoCode" placeholder="SUMMER10" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase;margin-bottom:0;"></div>
-              <div><label class="fld-label">Type</label><select class="fld-select" id="promoType" onchange="togglePromoType()" style="margin-bottom:0;"><option value="percent">% Pourcentage</option><option value="fixed">€ Montant fixe</option></select></div>
+              <div><label class="fld-label">Type</label><select class="fld-select" id="promoType" onchange="togglePromoType()" style="margin-bottom:0;"><option value="percent">% Pourcentage</option><option value="fixed">€ Montant fixe</option><option value="shipping">🚚 Livraison offerte uniquement</option></select></div>
             </div>
             <div class="form-row" style="margin-bottom:10px;">
-              <div><label class="fld-label">Valeur <span id="promoTypeLabel">(%)</span></label><input class="fld-input" type="number" id="promoValue" placeholder="10" style="margin-bottom:0;"></div>
+              <div><div id="promoValueBox"><label class="fld-label">Valeur <span id="promoTypeLabel">(%)</span></label><input class="fld-input" type="number" id="promoValue" placeholder="10" style="margin-bottom:0;"></div>
+                <label id="promoFreeShipBox" style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2);margin-top:8px;cursor:pointer;"><input type="checkbox" id="promoFreeShip"> 🚚 + Livraison offerte</label></div>
               <div><label class="fld-label">Limite</label><select class="fld-select" id="promoLimitType" style="margin-bottom:0;" onchange="document.getElementById('promoLimitValBox').style.display=this.value==='total'?'block':'none'"><option value="unlimited">Illimitée</option><option value="total">Nb d'utilisations</option><option value="per_user">1 par client</option></select></div>
             </div>
             <div id="promoLimitValBox" style="display:none;margin-bottom:10px;"><label class="fld-label">Nb max</label><input class="fld-input" type="number" id="promoLimitVal" placeholder="100" style="margin-bottom:0;"></div>
@@ -1418,7 +1419,12 @@ function toggleClientDetail(i){ const el=document.getElementById('clientDetail_'
 // ─────────────────────────────────────────
 //  PROMOS
 // ─────────────────────────────────────────
-function togglePromoType(){ document.getElementById('promoTypeLabel').textContent=document.getElementById('promoType').value==='percent'?'(%)':'(€)'; }
+function togglePromoType(){
+  const t=document.getElementById('promoType').value;
+  document.getElementById('promoTypeLabel').textContent=t==='percent'?'(%)':'(€)';
+  document.getElementById('promoValueBox').style.display = t==='shipping'?'none':'block';
+  document.getElementById('promoFreeShipBox').style.display = t==='shipping'?'none':'flex';
+}
 function onPromoScopeChange(val){
   document.getElementById('promoCatBox').style.display    = val==='category'?'block':'none';
   document.getElementById('promoFlavorBox').style.display = val==='flavor'  ?'block':'none';
@@ -1482,17 +1488,20 @@ function createPromo(){
     flavorName=it?it.name:''; catLabel=flavorName;
   }
   if(!code){ showToast('⚠ Code obligatoire','err'); return; }
-  if(!value||value<=0){ showToast('⚠ Valeur invalide','err'); return; }
+  const freeShipping = type==='shipping' ? true : !!document.getElementById('promoFreeShip').checked;
+  if(type!=='shipping' && (!value||value<=0)){ showToast('⚠ Valeur invalide','err'); return; }
   if(type==='percent'&&value>100){ showToast('⚠ Maximum 100 %','err'); return; }
   if(scope==='category'&&!cat){ showToast('⚠ Choisissez une catégorie','err'); return; }
   if(scope==='flavor'&&!stockId){ showToast('⚠ Choisissez un goût','err'); return; }
   if(promos.find(p=>p.code===code)){ showToast('⚠ Ce code existe déjà','err'); return; }
   promos.push({
-    id:Date.now(), code, type, value, expiry:expiry||null, limitType, limitVal, scope,
+    id:Date.now(), code, type, value:type==='shipping'?0:value, freeShipping, expiry:expiry||null, limitType, limitVal, scope,
     cat:scope==='category'?cat:'', catLabel, stockId:scope==='flavor'?stockId:null, flavorName:scope==='flavor'?flavorName:'',
     active:true, usedCount:0, usedBy:[], createdAt:new Date().toISOString(),
   });
   ['promoCode','promoValue','promoExpiry','promoCatSelect','promoFlavorSelect'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('promoFreeShip').checked=false;
+  document.getElementById('promoType').value='percent'; togglePromoType();
   document.getElementById('promoLimitType').value='unlimited';
   document.getElementById('promoLimitValBox').style.display='none';
   document.getElementById('promoScope').value='seller';
@@ -1509,7 +1518,7 @@ function renderPromos(){
       <button class="btn xs primary" onclick="pushPromos()">💾 Sauvegarder</button>
     </div>`
     +promos.map((p,i)=>{
-      const typeLabel=p.type==='percent'?`-${p.value}%`:`-${p.value}€`;
+      const typeLabel=p.type==='shipping'?'🚚 Offerte':(p.type==='percent'?`-${p.value}%`:`-${p.value}€`)+(p.freeShipping?' + 🚚':'');
       const limitLabel=p.limitType==='unlimited'?'Illimité':p.limitType==='per_user'?'1/client':`${p.usedCount||0}/${p.limitVal}`;
       const scopeLabel=p.scope==='flavor'?`🍓 ${esc(p.flavorName||p.catLabel||'Goût #'+p.stockId)}`:p.scope==='category'?`📦 ${esc(p.catLabel||p.cat)}`:'🌐 Tous mes goûts';
       return `<div class="promo-card">

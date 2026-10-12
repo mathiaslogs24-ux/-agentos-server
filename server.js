@@ -1380,7 +1380,10 @@ async function applyPromoCode(code, sellerId, cat, amount, userId, cartStockIds=
       return{ok:false,error:`Code valable uniquement pour "${found.flavorName||'ce goût'}"`};
   }
 
-  const discount=found.type==='percent'
+  // 🚚 Livraison offerte : soit un code « livraison seule » (type 'shipping'), soit une case cochée en plus de la remise
+  const freeShipping = found.type==='shipping' || !!found.freeShipping;
+  const discount = found.type==='shipping' ? 0
+    : found.type==='percent'
     ?parseFloat(amount)*found.value/100
     :Math.min(found.value,parseFloat(amount));
 
@@ -1390,6 +1393,7 @@ async function applyPromoCode(code, sellerId, cat, amount, userId, cartStockIds=
     type:found.type,
     value:found.value,
     discount:parseFloat(discount.toFixed(2)),
+    freeShipping,
     foundSellerId,
     foundSeller,
     promoObj:found,
@@ -1745,6 +1749,8 @@ app.post('/promo/validate', async(req,res)=>{
       type    : result.type,
       value   : result.value,
       discount: result.discount,
+      freeShipping: result.freeShipping,
+      shipSellerId: result.foundSellerId, // 'admin' = livraison offerte chez tous les vendeurs, sinon seulement chez ce vendeur
     });
   } catch(e) {
     res.status(500).json({ok:false, error:e.message});
@@ -1812,9 +1818,10 @@ async function validateCart(rawCart, country){
   }
   const subtotal=clean.reduce((t,i)=>t+parseFloat(i.price),0);
   let shipping=0;
-  Object.values(bySeller).forEach(b=>{ shipping+=computeShipping(b.shipping,b.subtotal,country); });
+  const shipBySeller={};
+  Object.entries(bySeller).forEach(([sid,b])=>{ shipBySeller[sid]=computeShipping(b.shipping,b.subtotal,country); shipping+=shipBySeller[sid]; });
   shipping=Math.round(shipping*100)/100;
-  return {cart:clean, subtotal, shipping};
+  return {cart:clean, subtotal, shipping, shipBySeller};
 }
 
 app.post('/shop-checkout', async(req,res) => {
@@ -1832,7 +1839,8 @@ app.post('/shop-checkout', async(req,res) => {
     const shipCountry=SHIP_COUNTRIES.includes(String(req.body.country||'').toUpperCase())?String(req.body.country).toUpperCase():'FR';
     const check=await validateCart(req.body.cart, shipCountry);
     if(check.error) return res.status(400).json({error:check.error});
-    const cart=check.cart, subtotal=check.subtotal, shipping=check.shipping;
+    const cart=check.cart, subtotal=check.subtotal;
+    let shipping=check.shipping;
     let promoResult=null;
     if(promoCode){
       // ✅ FIX #1 — on passe le sellerId du premier vendeur du panier pour la validation scope vendeur
@@ -1843,6 +1851,13 @@ app.post('/shop-checkout', async(req,res) => {
       promoToken = reservePromo(promoResult.promoObj, promoResult.code, userId||'guest');
       if(!promoToken) return res.status(400).json({error:'Code promo : déjà en cours d\'utilisation ou épuisé'});
       addLog('info',`Promo "${promoCode}" appliquée · -${promoResult.discount}€`);
+      // 🚚 Livraison offerte : code admin = tous les vendeurs ; code vendeur = uniquement la livraison de ce vendeur
+      if(promoResult.freeShipping){
+        const waived = Object.entries(check.shipBySeller||{}).reduce((t,[sid,fee])=>
+          (promoResult.foundSellerId==='admin' || String(sid)===String(promoResult.foundSellerId)) ? t+fee : t, 0);
+        shipping = Math.round((shipping-waived)*100)/100;
+        if(waived>0) addLog('info',`Promo "${promoCode}" · livraison offerte -${waived.toFixed(2)}€`);
+      }
     }
     const serverUrl=PUBLIC_URL;
     const params=new URLSearchParams();
@@ -1896,7 +1911,9 @@ app.post('/shop-checkout', async(req,res) => {
       try {
         // Créer un coupon Stripe à usage unique
         const couponParams = new URLSearchParams();
-        couponParams.append('percent_off', '100');
+        // Montant exact des articles (et non 100 % de tout) : la livraison éventuelle reste à payer
+        couponParams.append('amount_off', String(totalItemCents));
+        couponParams.append('currency','eur');
         couponParams.append('duration','once');
         couponParams.append('name', `Code promo : ${promoResult.code}`);
         couponParams.append('max_redemptions','1');
