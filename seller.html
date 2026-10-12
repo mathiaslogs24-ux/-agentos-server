@@ -293,6 +293,8 @@ body.nav-open .nav-ov{display:block}
             <input id="pBulkVal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="valeur" class="fld-input">
             <button class="btn sm" onclick="pBulk('price')">€ Prix carton</button>
             <button class="btn sm" onclick="pBulk('stock')">📦 Stock</button>
+            <button class="btn sm" onclick="pBulk('rech')">🔋 Rechargeable</button>
+            <button class="btn sm" onclick="pBulk('norech')">Non rechargeable</button>
             <button class="btn sm danger" onclick="pBulk('del')">🗑</button>
           </div>
         </div>
@@ -342,6 +344,10 @@ body.nav-open .nav-ov{display:block}
           <button type="button" class="p-qbtn big" onclick="pfQty(1)">+</button>
         </div>
         <div id="pfUnlNote" style="display:none;font-size:11px;color:var(--t3);margin:-8px 0 14px;">Illimité = tu expédies depuis la Chine, pas de stock à gérer.</div>
+        <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;">
+          <label class="sw"><input type="checkbox" id="pfRech"><span class="sw-t"></span><span class="sw-k"></span></label>
+          <div><div style="font-size:13px;font-weight:700;">🔋 Rechargeable</div><div style="font-size:11px;color:var(--t3);">Affiché aux clients sur la fiche produit</div></div>
+        </div>
         <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--gb);border-radius:var(--r);padding:12px 14px;margin-bottom:6px;">
           <label class="sw"><input type="checkbox" id="pfOn"><span class="sw-t"></span><span class="sw-k"></span></label>
           <div><div style="font-size:13px;font-weight:700;">🛍 En vente sur la boutique</div><div style="font-size:11px;color:var(--t3);">Visible tout de suite par les clients</div></div>
@@ -980,7 +986,7 @@ function renderStock(){
         html+=`<div class="p-row ${sel?'sel':''} ${s.enVente?'on':''}" id="pr${s.id}">
           <input type="checkbox" class="p-chk" data-id="${s.id}" ${sel?'checked':''} onchange="pSelOne(${s.id},this.checked)">
           <div class="p-ph" onclick="pfOpen(${s.id})">${photo}</div>
-          <div class="p-info" onclick="pSelOne(${s.id},!pSel.has(${s.id}))"><div class="p-fl">${esc(pFlavor(s))}</div><div class="p-pr">${ctnPrice(s).toFixed(2)} €</div>${warn}</div>
+          <div class="p-info" onclick="pSelOne(${s.id},!pSel.has(${s.id}))"><div class="p-fl">${esc(pFlavor(s))}${s.rechargeable?' <span title="Rechargeable">🔋</span>':''}</div><div class="p-pr">${ctnPrice(s).toFixed(2)} €</div>${warn}</div>
           <div class="p-qty">${unl?'<span class="p-inf">∞</span>':`<button class="p-qbtn" onclick="pQty(${s.id},-1)">−</button><span style="color:${qc};">${n}</span><button class="p-qbtn" onclick="pQty(${s.id},1)">+</button>`}</div>
           <label class="sw"><input type="checkbox" ${s.enVente?'checked':''} onchange="pSale(${s.id},this.checked)"><span class="sw-t"></span><span class="sw-k"></span></label>
         </div>`;
@@ -1035,10 +1041,11 @@ function pBulk(action){
   if(action==='on'||action==='off') items.forEach(s=>{ s.enVente=action==='on'; s.enVenteCarton=s.enVente; pMark(s,'enVente','enVenteCarton'); });
   if(action==='price'){ if(!(v>0)){ showToast('⚠ Tape le prix du carton dans la case','err'); return; } items.forEach(s=>{ s.cartonPrice=+v.toFixed(2); s.price=+(v/cq(s)).toFixed(2); pMark(s,'cartonPrice','price'); }); }
   if(action==='stock'){ if(!(v>=0)){ showToast('⚠ Tape le nombre de cartons dans la case','err'); return; } items.forEach(s=>{ if(!isUnl(s)){ s.qty=Math.round(v)*cq(s); pMark(s,'qty'); } }); }
+  if(action==='rech'||action==='norech') items.forEach(s=>{ s.rechargeable=action==='rech'; pMark(s,'rechargeable'); });
   if(action==='del'){ if(!confirm('Supprimer '+items.length+' produit(s) ?')) return; items.forEach(s=>{ pDeleted.add(s.id); pDirty.delete(s.id); }); stock=stock.filter(s=>!pSel.has(s.id)); }
   const n=items.length; document.getElementById('pBulkVal').value='';
   pSel.clear(); pChanged(); renderStock();
-  showToast('✓ '+n+' produit(s) '+({on:'mis en vente',off:'retirés de la vente',price:'au nouveau prix',stock:'mis à jour',del:'supprimés'}[action]));
+  showToast('✓ '+n+' produit(s) '+({on:'mis en vente',off:'retirés de la vente',price:'au nouveau prix',stock:'mis à jour',rech:'marqués rechargeables',norech:'marqués non rechargeables',del:'supprimés'}[action]));
 }
 
 // ── enregistrement automatique (stock + boutique)
@@ -1113,6 +1120,7 @@ function pfOpen(id){
   $('pfUnl').checked=s?isUnl(s):pfSegVal('pfOrigin')==='CN';
   $('pfQty').value=s&&!isUnl(s)?ctn(s):0; pfSyncUnl();
   $('pfOn').checked=s?!!s.enVente:true;
+  $('pfRech').checked=s?!!s.rechargeable:false;
   $('pfPhoto').innerHTML=s?.image?`<img src="${s.image}" style="width:100%;height:100%;object-fit:cover;">`:'📷';
   $('pfDel').style.display=s?'':'none'; $('pfDup').style.display=s?'':'none';
   $('pfSave').textContent=s?'✓ Enregistrer':'✓ Ajouter';
@@ -1145,7 +1153,7 @@ function pfSave(){
   const common={model,cat:brand,taux:pfSegVal('pfTaux'),puffs,origin,originLabel:P_ORIG[origin].label,
     carton:true,cartonQty,cartonPrice:+price.toFixed(2),price:+(price/cartonQty).toFixed(2),
     unlimited:unl,qty:unl?P_UNL:Math.max(0,parseInt($('pfQty').value)||0)*cartonQty,
-    enVente:$('pfOn').checked,enVenteCarton:$('pfOn').checked,alert:cartonQty*2};
+    enVente:$('pfOn').checked,enVenteCarton:$('pfOn').checked,alert:cartonQty*2,rechargeable:$('pfRech').checked};
   const nm=f=>[model,f].join(' · ');
   if(pfEditId){
     const s=pFind(pfEditId); if(!s){ pfClose(); return; }

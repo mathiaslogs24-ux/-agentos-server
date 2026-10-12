@@ -456,6 +456,7 @@ function buildGroups(products){
     if(!map[k]){ map[k]={gKey:k,sellerId:p.sellerId,sellerName:p.sellerName,sellerShop:p.sellerShop,cat:p.cat,model:p.model||'',brand:p.brand||'',origin:p.origin||'',taux:p.taux||'',
       puffs:p.puffs,price:p.price,image:p.productImage||p.image,productImage:p.productImage||'',isCarton:p.isCarton,cartonQty:p.cartonQty,cartonInfo:p.cartonInfo||0,items:[]}; }
     map[k].items.push(p);
+    if(p.rechargeable) map[k].rechargeable=true;
   });
   Object.values(map).forEach(g=>g.items.sort((a,b)=>flavorName(a).localeCompare(flavorName(b))));
   return Object.values(map);
@@ -612,6 +613,7 @@ function buildModelCard(g,favs){
     +'<div class="model-top'+(g.image?' has-img':'')+'">'+(g.image?'<img loading="lazy" src="'+g.image+'" onerror="this.style.display=\'none\';this.parentNode.classList.remove(\'has-img\')">':'')
     +'<span class="model-emoji">'+repEmj+'</span>'
     +(g.puffs?'<div class="puffs-badge">'+fmtPuffs(g.puffs)+' puffs</div>':'')
+    +(g.rechargeable?'<div class="flavors-badge" style="top:auto;bottom:6px;left:6px;right:auto;">🔋 Rechargeable</div>':'')
     +'<div class="flavors-badge">'+g.items.length+' goût'+(g.items.length>1?'s':'')+'</div>'
     +(ssClass?'<div class="stock-badge '+ssClass+'">'+ssLabel+'</div>':'')
     +'<div class="fav-btn" onclick="event.stopPropagation();toggleFav(\''+k+'\')">'+( isFavModel?'❤️':'🤍')+'</div>'
@@ -675,6 +677,7 @@ function openDetail(gKey){
   if(g.isCarton) tags+='<div class="dtag blue">📦 Carton ×'+g.cartonQty+'</div>';
   else if(g.cartonInfo) tags+='<div class="dtag blue">📦 Carton de '+g.cartonInfo+' pièces</div>';
   if(g.taux) tags+='<div class="dtag gold">💧 '+g.taux+'</div>';
+  if(g.rechargeable) tags+='<div class="dtag green">🔋 Rechargeable</div>';
   document.getElementById('dTags').innerHTML=tags;
   renderFlavorPicker();
   renderTiersBox();

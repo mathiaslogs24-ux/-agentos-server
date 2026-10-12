@@ -1099,7 +1099,7 @@ app.post('/sellers/:id/transfer',auth,async(req,res)=>{
         cat:it.cat||s.cat||'', taux:it.taux||s.taux||'', puffs:parseInt(it.puffs)||s.puffs||0,
         origin:it.origin||s.origin||'', originLabel:it.originLabel||s.originLabel||'',
         carton:true, cartonQty:cq, cartonPrice:cp||s.cartonPrice||0, price:+((cp||s.cartonPrice||0)/cq).toFixed(2),
-        image:it.image||s.image||'', unlimited:unl,
+        image:it.image||s.image||'', unlimited:unl, rechargeable:!!(it.rechargeable||s.rechargeable),
       });
       s.qty=unl?9999:(s.unlimited?0:(parseInt(s.qty)||0))+cartons*cq;
       if(onSale){ s.enVente=true; s.enVenteCarton=true; }
@@ -1628,6 +1628,7 @@ function buildMarketplaceItems(stockArr, shopItemsArr, sellerId, sellerName, sel
       // ✅ MODIF — prix dégressifs : [{min:5,pct:5},{min:10,pct:10}] (par nombre de cartons du même modèle)
       tiers     : cleanTiers(item.tiers),
       unlimited,
+      rechargeable: !!(item.rechargeable || s.rechargeable),
     };
 
     const isCarton = (item.carton === true) || (item.payload || '').startsWith('carton_');
